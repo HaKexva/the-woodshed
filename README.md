@@ -5,7 +5,7 @@ A jazz chord-progression practice tool that runs entirely in the browser — no 
 ## Modes
 
 - **Session** — the band loops the tune continuously. The lead sheet highlights the current bar, the big card shows the current chord, and the next chord is previewed. A **solo-notes strip** shows the 8-note chord scale to improvise with over the current chord (e.g. `Dm7 → D dorian: D E F G A B C D`), root notes highlighted.
-- **Play (quiz)** — the chord symbols are hidden. While the band plays, pick which chord is sounding from four options (keys `1`–`4`). Streak, hits, accuracy, and missed prompts are tracked; best streak persists in `localStorage`.
+- **Inspire** — the band plays and a generated soloist improvises over the changes so you can hear the scales in action. Pick the soloist (keys `1`–`5`): **trumpet, trombone, alto sax, tenor sax, or keys** (grand piano — distinct from the electric-piano comping). Lines are phrase-based: mostly stepwise scale runs with occasional leaps, landing on a chord tone at every change, breathing between phrases (ballads breathe more). Each soloist is a ~2 MB soundfont, lazy-loaded on first selection. A new line is generated every play.
 
 Other controls: tempo slider (50–240 bpm), per-instrument mutes, `space` to play/stop.
 

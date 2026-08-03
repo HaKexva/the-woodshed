@@ -4,10 +4,19 @@
 
 import * as Tone from "https://cdn.jsdelivr.net/npm/tone@15.1.22/+esm";
 import { Soundfont } from "https://cdn.jsdelivr.net/npm/smplr@1.0.0/+esm";
-import { parseChord, pianoVoicing, guitarVoicing, bassPcs, placeNear } from "./theory.js";
+import { parseChord, pianoVoicing, guitarVoicing, bassPcs, placeNear, soloScaleSteps } from "./theory.js";
 
 const BASS_LO = 30; // F#1
 const BASS_HI = 52; // E3
+
+// Solo instruments (GM soundfont name + practical range in MIDI).
+export const SOLOISTS = {
+  trumpet: { label: "trumpet", sf: "trumpet", lo: 58, hi: 84 },
+  trombone: { label: "trombone", sf: "trombone", lo: 45, hi: 70 },
+  alto: { label: "alto sax", sf: "alto_sax", lo: 56, hi: 80 },
+  tenor: { label: "tenor sax", sf: "tenor_sax", lo: 50, hi: 76 },
+  keys: { label: "keys", sf: "acoustic_grand_piano", lo: 60, hi: 88 },
+};
 
 const rnd = (lo, hi) => lo + Math.random() * (hi - lo);
 const choice = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -21,6 +30,10 @@ export class Band {
     this.muted = { piano: false, guitar: false, bass: false, drums: false };
     this.setupPromise = null;
     this.playing = false;
+    this.soloOn = false;
+    this.soloName = "trumpet";
+    this.soloInsts = {};
+    this.soloPart = null;
   }
 
   /** Create audio context + start loading instruments. Safe to call early. */
@@ -49,7 +62,7 @@ export class Band {
     }
 
     this.gains = {};
-    for (const name of ["piano", "guitar", "bass", "drums"]) {
+    for (const name of ["piano", "guitar", "bass", "drums", "solo"]) {
       const g = this.ctx.createGain();
       g.connect(this.master);
       this.gains[name] = g;
@@ -58,6 +71,7 @@ export class Band {
     this.gains.guitar.gain.value = 0.6;
     this.gains.bass.gain.value = 1.0;
     this.gains.drums.gain.value = 0.8;
+    this.gains.solo.gain.value = 1.25;
 
     this._buildDrumKit();
 
@@ -150,6 +164,31 @@ export class Band {
     this.rim.connect(this.gains.drums);
   }
 
+  setSolo(on) {
+    this.soloOn = on;
+  }
+
+  /** Lazy-load a solo soundfont and make it the active soloist. */
+  async setSoloInstrument(name) {
+    const def = SOLOISTS[name];
+    if (!def) return;
+    await this.setup();
+    if (!this.soloInsts[name]) {
+      try {
+        const inst = new Soundfont(this.ctx, { instrument: def.sf, destination: this.gains.solo });
+        await inst.load;
+        this.soloInsts[name] = inst;
+      } catch (e) {
+        console.warn(`soloist ${def.sf} failed, using synth fallback`, e);
+        this.soloInsts[name] = this._synthFallback("piano", this.gains.solo);
+      }
+    }
+    const rebuildLine = name !== this.soloName;
+    this.soloName = name;
+    // range differs per horn — regenerate the line if we're mid-tune
+    if (rebuildLine && this.playing) this._rebuildSoloPart();
+  }
+
   setMuted(name, value) {
     this.muted[name] = value;
     if (this.gains?.[name]) {
@@ -200,10 +239,13 @@ export class Band {
     t.cancel(0);
     this.parts.forEach((p) => p.dispose());
     this.parts = [];
+    this.soloPart?.dispose();
+    this.soloPart = null;
     this.playing = false;
     this.piano?.stop?.();
     this.bass?.stop?.();
     this.guitar?.stop?.();
+    Object.values(this.soloInsts).forEach((i) => i.stop?.());
   }
 
   // ---------------------------------------------------------------- events
@@ -280,6 +322,107 @@ export class Band {
         else this.cb.onBeat?.(e.bar, e.beatInBar);
       }, time);
     });
+
+    this._songCtx = { chords, totalBeats, style, bpb, toBBS, beatSec };
+    this._rebuildSoloPart();
+  }
+
+  /** (Re)generate the improvised line for the current soloist's range. */
+  _rebuildSoloPart() {
+    const ctx = this._songCtx;
+    if (!ctx) return;
+    this.soloPart?.dispose();
+    const def = SOLOISTS[this.soloName];
+    const events = this._soloEvents(ctx.chords, ctx.totalBeats, ctx.style, def.lo, def.hi);
+    this.soloPart = new Tone.Part((time, e) => {
+      if (!this.soloOn) return;
+      this.soloInsts[this.soloName]?.start({
+        note: e.midi,
+        time,
+        duration: e.dur * ctx.beatSec(),
+        velocity: e.vel,
+      });
+    }, events.map((e) => [ctx.toBBS(e.beat), e]));
+    this.soloPart.start(0);
+  }
+
+  /**
+   * Phrase-based improv: rest, then a run of swing 8ths walking the chord
+   * scale — mostly stepwise, occasional leaps, landing on a chord tone at
+   * every chord change, held note at phrase ends. Ballads breathe more.
+   */
+  _soloEvents(chords, totalBeats, style, lo, hi) {
+    const events = [];
+    const ballad = style === "ballad";
+    const center = (lo + hi) / 2;
+    const pools = new Map();
+    const poolFor = (c) => {
+      if (!pools.has(c)) {
+        const pcs = new Set(soloScaleSteps(c.info).map((s) => (c.info.rootPc + s) % 12));
+        const pool = [];
+        for (let m = lo; m <= hi; m++) if (pcs.has(m % 12)) pool.push(m);
+        pools.set(c, pool);
+      }
+      return pools.get(c);
+    };
+    const chordAt = (beat) => {
+      let cur = chords[0];
+      for (const c of chords) if (c.startBeat <= beat % totalBeats) cur = c;
+      return cur;
+    };
+    const nearestIdx = (pool, midi, filter) => {
+      let best = -1;
+      for (let i = 0; i < pool.length; i++) {
+        if (filter && !filter(pool[i])) continue;
+        if (best === -1 || Math.abs(pool[i] - midi) < Math.abs(pool[best] - midi)) best = i;
+      }
+      return best === -1 ? Math.floor(pool.length / 2) : best;
+    };
+
+    let t = choice([0.5, 1, 2]);
+    let cur = center;
+    let lastChord = null;
+    while (t < totalBeats) {
+      const len = ballad ? 2 + Math.floor(Math.random() * 4) : 3 + Math.floor(Math.random() * 7);
+      for (let n = 0; n < len && t < totalBeats - 0.5; n++) {
+        const c = chordAt(t);
+        const pool = poolFor(c);
+        let idx;
+        if (c !== lastChord) {
+          // land on 3rd/5th/7th of the fresh chord, close to where we are
+          const tones = new Set(c.info.intervals.filter((iv) => iv > 0).map((iv) => (c.info.rootPc + iv) % 12));
+          idx = nearestIdx(pool, cur, (m) => tones.has(m % 12));
+          lastChord = c;
+        } else {
+          const r = Math.random();
+          const step = r < 0.62 ? 1 : r < 0.86 ? 2 : 3 + Math.floor(Math.random() * 2);
+          let dir = Math.random() < 0.5 ? -1 : 1;
+          if (cur < lo + 5) dir = 1;
+          if (cur > hi - 5) dir = -1;
+          idx = Math.max(0, Math.min(pool.length - 1, nearestIdx(pool, cur) + dir * step));
+        }
+        cur = pool[idx];
+        const last = n === len - 1;
+        const dur = last
+          ? choice(ballad ? [2, 2.5, 3] : [1, 1.5, 2])
+          : ballad
+            ? choice([0.5, 1, 1])
+            : Math.random() < 0.12
+              ? 1
+              : 0.5;
+        const offbeat = t % 1 !== 0;
+        events.push({
+          beat: t,
+          midi: cur,
+          dur: dur * 0.92,
+          vel: Math.round(Math.min(120, Math.max(50, rnd(74, 96) + (offbeat ? 6 : 0) + (last ? 4 : 0)))),
+        });
+        t += dur;
+      }
+      t += ballad ? choice([1.5, 2, 3, 4]) : choice([0.5, 1, 1.5, 2, 3]);
+      t = Math.round(t * 2) / 2;
+    }
+    return events;
   }
 
   _flatten(song, bpb) {

@@ -192,6 +192,12 @@ const SCALE_FOR_QUALITY = {
   aug: "wholetone", "7#5": "wholetone", "9#5": "wholetone",
 };
 
+/** Scale steps (semitones, octave dropped) a soloist draws from over a chord. */
+export function soloScaleSteps(chord) {
+  const scale = SCALES[SCALE_FOR_QUALITY[chord.quality] ?? "mixo"];
+  return scale.steps.filter((s) => s < 12);
+}
+
 const LETTERS = ["C", "D", "E", "F", "G", "A", "B"];
 const NATURAL_PC = [0, 2, 4, 5, 7, 9, 11];
 const ACC = { "-2": "bb", "-1": "b", 0: "", 1: "#", 2: "##" };

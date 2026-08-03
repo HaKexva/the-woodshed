@@ -1,19 +1,19 @@
-// main.js — UI wiring: song list, transport, session mode, quiz (play) mode.
+// main.js — UI wiring: song list, transport, session mode, inspire mode.
 
 import { SONGS } from "./songs.js";
-import { Band } from "./band.js";
-import { parseChord, flatName, soloScale } from "./theory.js";
+import { Band, SOLOISTS } from "./band.js";
+import { soloScale } from "./theory.js";
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
 
 const state = {
-  mode: "session", // session | quiz
+  mode: "session", // session | inspire
   songIndex: 0,
   playing: false,
   loading: false,
   ready: false,
-  quiz: { prompt: null, answered: false, correct: 0, total: 0, missed: 0, streak: 0, best: Number(localStorage.getItem("woodshed-best") ?? 0) },
+  soloist: "trumpet",
 };
 
 const band = new Band({
@@ -65,8 +65,6 @@ function selectSong(i) {
   if (wasPlaying) play();
 }
 
-// ------------------------------------------------------------------ leadsheet
-
 function renderSources(song) {
   const box = $("#song-source");
   box.innerHTML = (song.source ?? [])
@@ -76,6 +74,8 @@ function renderSources(song) {
   $("#song-note").textContent = song.note ?? "";
   $("#song-note").hidden = !song.note;
 }
+
+// ------------------------------------------------------------------ leadsheet
 
 function renderLeadsheet(song) {
   const grid = $("#leadsheet");
@@ -108,7 +108,7 @@ function renderSoloStrip(info) {
   $("#solo-notes").innerHTML = notes
     .map((n, i) => `<span class="solo-note${i === 0 || i === notes.length - 1 ? " root" : ""}">${n}</span>`)
     .join("");
-  $("#solo-strip").hidden = state.mode !== "session";
+  $("#solo-strip").hidden = false;
 }
 
 // ------------------------------------------------------------------ transport
@@ -138,7 +138,6 @@ function stop() {
   $("#play").classList.remove("on");
   $("#play-label").textContent = "play";
   resetChordDisplay();
-  clearQuizPrompt();
 }
 
 function setStatus(msg) {
@@ -154,127 +153,31 @@ function handleBeat(bar, beatInBar) {
 
 function handleChord(chord) {
   $("#chord-next").textContent = `next · ${chord.next.symbol}`;
-  if (state.mode === "session") {
-    const el = $("#chord-now");
-    el.textContent = chord.symbol;
-    el.classList.remove("pop");
-    void el.offsetWidth; // restart animation
-    el.classList.add("pop");
-    renderSoloStrip(chord.info);
-  } else {
-    $("#chord-now").textContent = "?";
-    $("#chord-next").textContent = "";
-    newQuizPrompt(chord);
-  }
+  const el = $("#chord-now");
+  el.textContent = chord.symbol;
+  el.classList.remove("pop");
+  void el.offsetWidth; // restart animation
+  el.classList.add("pop");
+  renderSoloStrip(chord.info);
 }
 
-// ------------------------------------------------------------------ quiz mode
+// ------------------------------------------------------------------ inspire mode
 
 function setMode(mode) {
   state.mode = mode;
-  document.body.classList.toggle("quiz-mode", mode === "quiz");
   $$(".mode-btn").forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
-  clearQuizPrompt();
-  if (mode === "session" && state.playing) $("#chord-now").textContent = "…";
-  if (mode === "quiz") {
-    $("#chord-now").textContent = "?";
-    $("#chord-next").textContent = "";
-    $("#solo-strip").hidden = true;
-  }
-  renderScore();
+  $("#inspire-panel").hidden = mode !== "inspire";
+  band.setSolo(mode === "inspire");
+  if (mode === "inspire") setSoloist(state.soloist);
 }
 
-function newQuizPrompt(chord) {
-  const q = state.quiz;
-  // same symbol still ringing → keep existing prompt alive
-  if (q.prompt && !q.answered && q.prompt.symbol === chord.symbol) return;
-  // unanswered previous prompt → missed (tracked separately, doesn't hit accuracy)
-  if (q.prompt && !q.answered) {
-    q.missed += 1;
-    q.streak = 0;
-  }
-  q.prompt = chord;
-  q.answered = false;
-  renderScore();
-
-  const options = buildOptions(chord.symbol);
-  const box = $("#quiz-options");
-  box.innerHTML = "";
-  options.forEach((sym, i) => {
-    const btn = document.createElement("button");
-    btn.className = "quiz-opt";
-    btn.innerHTML = `<span class="key-hint">${i + 1}</span>${sym}`;
-    btn.addEventListener("click", () => answer(btn, sym));
-    box.appendChild(btn);
-  });
-  $("#quiz-panel").classList.add("live");
-}
-
-function buildOptions(correct) {
-  const song = SONGS[state.songIndex];
-  const uniq = [...new Set(song.progression.flat().map((c) => c.chord))].filter((s) => s !== correct);
-  shuffle(uniq);
-  const options = uniq.slice(0, 3);
-  // thin songbook chord pool → invent lookalike distractors
-  const info = parseChord(correct);
-  const quality = correct.replace(/^[A-G][b#]?/, "");
-  let shift = 2;
-  while (options.length < 3) {
-    const fake = flatName(info.rootPc + shift) + quality;
-    if (fake !== correct && !options.includes(fake)) options.push(fake);
-    shift += 3;
-  }
-  options.push(correct);
-  return shuffle(options);
-}
-
-function answer(btn, sym) {
-  const q = state.quiz;
-  if (q.answered || !q.prompt) return;
-  q.answered = true;
-  q.total += 1;
-  const correct = sym === q.prompt.symbol;
-  if (correct) {
-    q.correct += 1;
-    q.streak += 1;
-    if (q.streak > q.best) {
-      q.best = q.streak;
-      localStorage.setItem("woodshed-best", q.best);
-    }
-    btn.classList.add("right");
-  } else {
-    q.streak = 0;
-    btn.classList.add("wrong");
-    $$(".quiz-opt").forEach((b) => {
-      if (b.textContent.replace(/^\d/, "") === q.prompt.symbol) b.classList.add("right");
-    });
-  }
-  $$(".quiz-opt").forEach((b) => (b.disabled = true));
-  renderScore();
-}
-
-function clearQuizPrompt() {
-  state.quiz.prompt = null;
-  state.quiz.answered = false;
-  $("#quiz-options").innerHTML = "";
-  $("#quiz-panel").classList.remove("live");
-}
-
-function renderScore() {
-  const q = state.quiz;
-  $("#score-streak").textContent = q.streak;
-  $("#score-hits").textContent = `${q.correct}/${q.total}`;
-  $("#score-acc").textContent = q.total ? `${Math.round((q.correct / q.total) * 100)}%` : "—";
-  $("#score-missed").textContent = q.missed;
-  $("#score-best").textContent = q.best;
-}
-
-function shuffle(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
+async function setSoloist(name) {
+  state.soloist = name;
+  $$(".soloist").forEach((b) => b.classList.toggle("active", b.dataset.solo === name));
+  const label = SOLOISTS[name].label;
+  setStatus(band.soloInsts?.[name] ? "" : `loading ${label}…`);
+  await band.setSoloInstrument(name);
+  if (state.soloist === name) setStatus("");
 }
 
 // ------------------------------------------------------------------ controls
@@ -289,6 +192,8 @@ $("#tempo").addEventListener("input", (e) => {
 });
 
 $$(".mode-btn").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
+
+$$(".soloist").forEach((b) => b.addEventListener("click", () => setSoloist(b.dataset.solo)));
 
 $$(".mute").forEach((b) =>
   b.addEventListener("click", () => {
@@ -305,9 +210,9 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     state.playing ? stop() : play();
   }
-  if (state.mode === "quiz" && /^[1-4]$/.test(e.key)) {
-    const btn = $$(".quiz-opt")[Number(e.key) - 1];
-    if (btn && !btn.disabled) btn.click();
+  if (state.mode === "inspire" && /^[1-5]$/.test(e.key)) {
+    const btn = $$(".soloist")[Number(e.key) - 1];
+    if (btn) btn.click();
   }
 });
 
@@ -316,4 +221,3 @@ document.addEventListener("keydown", (e) => {
 renderTracklist();
 selectSong(0);
 setMode("session");
-renderScore();
