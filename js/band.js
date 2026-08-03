@@ -529,6 +529,16 @@ export class Band {
     if (role === "guitar") ev.piano = ev.piano.filter(() => Math.random() < 0.3);
     if (role === "piano") ev.guitar = ev.guitar.filter(() => Math.random() < 0.3);
 
+    // each chorus leans a little different — comping thickens on the "up"
+    // choruses and thins with softer touch on the "down" ones
+    const bwave = [0.92, 1, 1.1, 0.82][(this._chorus ?? 0) % 4];
+    const tilt = (events) =>
+      events
+        .filter(() => bwave >= 1 || Math.random() < 0.7 + bwave * 0.3)
+        .map((e) => ({ ...e, vel: Math.max(16, Math.round(e.vel + (bwave - 1) * 20)) }));
+    ev.piano = tilt(ev.piano);
+    ev.guitar = tilt(ev.guitar);
+
     for (const c of chords) ev.meta.push({ kind: "chord", beat: c.startBeat, chord: c });
     for (let b = 0; b < totalBeats; b++) {
       ev.meta.push({ kind: "beat", beat: b, bar: Math.floor(b / bpb), beatInBar: b % bpb });
@@ -1311,33 +1321,48 @@ export class Band {
     }
 
     if (style === "funk") {
-      // syncopated riff: root / b7 / 5th / root
+      // syncopated riff over root / b7 / 5th — shape rolled per chord so the
+      // groove breathes between loops
       for (const c of chords) {
         const pcs = bassPcs(c.info);
         const root = placeNear(pcs.root, 36, BASS_LO, BASS_HI);
         const fifth = placeNear(pcs.fifth, root + 4, BASS_LO, BASS_HI);
         const seventh = placeNear(pcs.seventh, root + 6, BASS_LO, BASS_HI);
-        events.push({ beat: c.startBeat, midi: root, dur: 0.9, vel: 100 });
-        if (c.beats >= 2) events.push({ beat: c.startBeat + 1.5, midi: seventh, dur: 0.45, vel: 84 });
-        if (c.beats >= 4) {
-          events.push({ beat: c.startBeat + 2.5, midi: fifth, dur: 0.45, vel: 88 });
-          events.push({ beat: c.startBeat + 3.5, midi: root, dur: 0.45, vel: 80 });
+        const oct = Math.min(BASS_HI, root + 12);
+        const shape = choice([
+          [[0, root, 0.9, 100], [1.5, seventh, 0.45, 84], [2.5, fifth, 0.45, 88], [3.5, root, 0.45, 80]],
+          [[0, root, 0.9, 100], [1.5, seventh, 0.45, 84], [2.5, fifth, 0.45, 88], [3.5, oct, 0.4, 84]], // octave pop
+          [[0, root, 0.7, 100], [1, root, 0.45, 78], [2.5, seventh, 0.45, 86], [3.5, fifth, 0.45, 80]],
+          [[0, root, 1.4, 100], [2.5, fifth, 0.45, 86], [3, seventh, 0.45, 82]],
+        ]);
+        for (const [off, midi, dur, vel] of shape) {
+          if (off < c.beats) events.push({ beat: c.startBeat + off, midi, dur, vel });
         }
       }
       return events;
     }
 
     if (straight) {
-      // bossa: dotted-quarter roots and fifths with 8th-note pickups
+      // bossa: dotted-quarter roots with 8th-note pickups — the second half
+      // varies between 5th, 3rd, and a chromatic walk into the next chord
       for (const c of chords) {
         const pcs = bassPcs(c.info);
         const root = placeNear(pcs.root, 38, BASS_LO, BASS_HI);
         const fifth = placeNear(pcs.fifth, root, BASS_LO, BASS_HI);
+        const third = placeNear(pcs.third, root, BASS_LO, BASS_HI);
         events.push({ beat: c.startBeat, midi: root, dur: 1.3, vel: 96 });
         if (c.beats >= 2) events.push({ beat: c.startBeat + 1.5, midi: fifth, dur: 0.45, vel: 74 });
         if (c.beats >= 4) {
-          events.push({ beat: c.startBeat + 2, midi: fifth, dur: 1.3, vel: 90 });
-          events.push({ beat: c.startBeat + 3.5, midi: root, dur: 0.45, vel: 74 });
+          if (Math.random() < 0.15) {
+            // simple bar: let the root ring
+            events.push({ beat: c.startBeat + 2, midi: root, dur: 1.8, vel: 86 });
+          } else {
+            const half = Math.random() < 0.3 ? third : fifth;
+            events.push({ beat: c.startBeat + 2, midi: half, dur: 1.3, vel: 90 });
+            const nextRoot = placeNear(c.next.info.bassPc, root, BASS_LO, BASS_HI);
+            const pickup = Math.random() < 0.3 ? nextRoot + (nextRoot > half ? -1 : 1) : root;
+            events.push({ beat: c.startBeat + 3.5, midi: pickup, dur: 0.45, vel: 74 });
+          }
         }
       }
       return events;
@@ -1422,7 +1447,7 @@ export class Band {
         for (let e = 0; e < bpb * 2; e++) push(bar, e / 2, "hat", e % 2 ? 22 : 34);
         push(bar, 1, "snare", 44);
         if (bpb > 3) push(bar, 3, "snare", 44);
-        for (const off of choice([[0, 2.5], [0, 2.5], [0, 1.5, 2.5]])) push(bar, off, "kick", kv(off === 0 ? 46 : 32));
+        for (const off of choice([[0, 2.5], [0, 2.5], [0, 1.5, 2.5], [0, 2.75], [0, 1.5, 3.5]])) push(bar, off, "kick", kv(off === 0 ? 46 : 32));
         if (sectionEnd(bar) && slow < 0.3) for (const off of [3.5, 3.75]) push(bar, off, "snare", 30);
         continue;
       }
