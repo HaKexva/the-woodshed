@@ -21,7 +21,7 @@ const SOLO_HI = 88;
 //   cells = vocabulary licks as {steps: scale-step deltas, durs: beats}
 export const SOLO_STYLES = {
   miles: {
-    label: "style 1",
+    label: "miles",
     blurb: "space, short motifs, mid register, behind the beat",
     p: {
       rest: 2.2, phrase: 0.5, phraseCap: 6, regLo: 0.45, regHi: 0.6,
@@ -35,7 +35,7 @@ export const SOLO_STYLES = {
     },
   },
   parker: {
-    label: "style 2",
+    label: "parker",
     blurb: "relentless bebop 8ths, enclosures, barline-crossing phrases",
     p: {
       rest: 0.55, phrase: 1.5, phraseCap: 18, regLo: 0.45, regHi: 0.8,
@@ -50,7 +50,7 @@ export const SOLO_STYLES = {
     },
   },
   coltrane: {
-    label: "style 3",
+    label: "coltrane",
     blurb: "sheets of sound — 16th cascades, stacked arpeggios",
     p: {
       rest: 0.4, phrase: 1.9, phraseCap: 24, regLo: 0.35, regHi: 0.9,
@@ -65,7 +65,7 @@ export const SOLO_STYLES = {
     },
   },
   monk: {
-    label: "style 4",
+    label: "monk",
     blurb: "angular leaps, weak-beat jabs, sudden silences",
     p: {
       rest: 1.6, phrase: 0.7, phraseCap: 8, regLo: 0.4, regHi: 0.75,
@@ -80,7 +80,7 @@ export const SOLO_STYLES = {
     },
   },
   chet: {
-    label: "style 5",
+    label: "chet",
     blurb: "singable stepwise lines, chord tones, soft and unhurried",
     p: {
       rest: 1.5, phrase: 0.8, phraseCap: 9, regLo: 0.35, regHi: 0.55,
@@ -95,7 +95,7 @@ export const SOLO_STYLES = {
     },
   },
   dexter: {
-    label: "style 6",
+    label: "dexter",
     blurb: "way behind the beat, long even notes, sneaks in quotes",
     p: {
       rest: 1, phrase: 1, regLo: 0.4, regHi: 0.7,
@@ -109,7 +109,7 @@ export const SOLO_STYLES = {
     },
   },
   wes: {
-    label: "style 7",
+    label: "wes",
     blurb: "builds the chorus: single notes → octaves → chords",
     p: {
       rest: 1.1, phrase: 1, regLo: 0.4, regHi: 0.7,
@@ -117,7 +117,7 @@ export const SOLO_STYLES = {
     },
   },
   silver: {
-    label: "style 8",
+    label: "silver",
     blurb: "short funky riffs, repeated and squeezed, gospel smears",
     p: {
       rest: 1.2, phrase: 0.5, phraseCap: 6, regLo: 0.4, regHi: 0.65,
