@@ -281,12 +281,16 @@ body {
   position: relative;
   background: var(--amber);
   color: var(--ink);
-  padding: 1.1rem 2.4rem 1.3rem;
+  padding: 1.1rem 1rem 1.3rem;
   transform: rotate(-2deg);
   box-shadow: 10px 10px 0 rgba(0, 0, 0, 0.55);
-  min-width: 12rem;
+  /* fixed width so the columns beside it never reflow on chord changes */
+  width: 16rem;
+  box-sizing: border-box;
   text-align: center;
 }
+
+.chord-card .chord-now { white-space: nowrap; }
 
 .chord-now {
   font-family: var(--display);
