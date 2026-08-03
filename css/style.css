@@ -499,6 +499,10 @@ body {
 
 .ed-actions { display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap; margin-top: 0.6rem; }
 
+.ed-actions button { display: inline-flex; align-items: center; gap: 0.45rem; }
+
+.ed-errors .icon { color: var(--amber); }
+
 .ed-actions button {
   font-family: var(--body);
   font-weight: 600;
@@ -546,6 +550,32 @@ body {
 @media (max-width: 700px) {
   .ed-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* inline lucide icons */
+.icon { width: 1em; height: 1em; display: inline-block; vertical-align: -0.12em; }
+
+.sleeve-toggle .chev { transition: transform 0.25s ease; }
+.sleeve.open .sleeve-toggle .chev { transform: rotate(180deg); }
+
+.style-picker { display: flex; gap: 0.55rem; flex-wrap: wrap; margin-bottom: 1.3rem; }
+
+.style-chip {
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--cream);
+  border: 2px solid var(--cream-25);
+  padding: 0.42rem 0.85rem;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.style-chip:hover { border-color: var(--cream); }
+
+.style-chip.active { background: var(--amber); border-color: var(--amber); color: var(--ink); }
 
 .feel-dials { display: flex; gap: 3rem; flex-wrap: wrap; }
 

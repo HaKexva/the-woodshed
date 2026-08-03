@@ -28,15 +28,17 @@
 
   <main class="layout">
     <aside class="sleeve">
-      <button id="sleeve-toggle" class="sleeve-toggle" aria-expanded="false">tunes ▾</button>
+      <button id="sleeve-toggle" class="sleeve-toggle" aria-expanded="false">tunes
+        <svg class="icon chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
       <div class="sleeve-body">
         <div class="sleeve-body-inner">
           <button id="open-editor" class="add-tune">+ add a tune</button>
           <div class="sleeve-head">
             <h2 class="sleeve-label">side <span id="side-letter">A</span> — standards</h2>
             <div class="pager">
-              <button id="page-prev" aria-label="previous side">‹</button>
-              <button id="page-next" aria-label="next side">›</button>
+              <button id="page-prev" aria-label="previous side"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+              <button id="page-next" aria-label="next side"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
             </div>
           </div>
           <input id="song-search" class="song-search" type="search" placeholder="search tunes…" spellcheck="false" />
@@ -78,6 +80,8 @@
       <div id="solo-feed" class="solo-feed" hidden></div>
 
       <div id="inspire-panel" class="inspire-panel" hidden>
+        <p class="inspire-label">soloist style</p>
+        <div id="style-picker" class="style-picker" role="group" aria-label="soloist style"></div>
         <div class="feel-dials">
           <div>
             <p class="inspire-label">crowding</p>
@@ -168,9 +172,9 @@
       <textarea id="ed-prog" rows="4" spellcheck="false" placeholder="Cm7 | F7 | BbMaj7 | EbMaj7 | Am7b5 | D7 | Gm7 | Gm7"></textarea>
       <p id="ed-errors" class="ed-errors"></p>
       <div class="ed-actions">
-        <button id="ed-preview">▶ preview in player</button>
+        <button id="ed-preview"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg> preview in player</button>
         <button id="ed-export">export json</button>
-        <button id="ed-random" class="ed-secondary">🎲 random changes</button>
+        <button id="ed-random" class="ed-secondary"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M16 8h.01"/><path d="M8 8h.01"/><path d="M8 16h.01"/><path d="M16 16h.01"/><path d="M12 12h.01"/></svg> random changes</button>
         <button id="ed-close">close</button>
       </div>
       <div class="ed-import">

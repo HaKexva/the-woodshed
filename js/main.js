@@ -1,7 +1,7 @@
 // main.js — UI wiring: song list, transport, session mode, inspire mode.
 
 import { SONGS } from "./songs.js";
-import { Band } from "./band.js";
+import { Band, SOLO_STYLES } from "./band.js";
 import { parseChord, parseWarnings, soloScale, flatName } from "./theory.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -269,6 +269,25 @@ $$(".mode-btn").forEach((b) => b.addEventListener("click", () => setMode(b.datas
 $("#feel-crowd").addEventListener("change", (e) => band.setSoloFeel("crowd", Number(e.target.value) / 100));
 $("#feel-heat").addEventListener("change", (e) => band.setSoloFeel("heat", Number(e.target.value) / 100));
 
+// soloist style chips, straight from the presets
+$("#style-picker").innerHTML = Object.entries(SOLO_STYLES)
+  .map(([key, s]) => `<button class="style-chip${key === band.soloStyleName ? " active" : ""}" data-style="${key}" title="${s.blurb}">${s.label}</button>`)
+  .join("");
+
+$$(".style-chip").forEach((b) =>
+  b.addEventListener("click", () => {
+    band.setSoloStyle(b.dataset.style);
+    $$(".style-chip").forEach((x) => x.classList.toggle("active", x === b));
+  })
+);
+
+document.addEventListener("keydown", (e) => {
+  if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
+  if (state.mode === "inspire" && /^[1-8]$/.test(e.key)) {
+    $$(".style-chip")[Number(e.key) - 1]?.click();
+  }
+});
+
 $$(".mute").forEach((b) =>
   b.addEventListener("click", () => {
     const inst = b.dataset.inst;
@@ -310,19 +329,17 @@ function updateListView() {
 
 $("#song-search").addEventListener("input", updateListView);
 
-// mobile: songs live behind a collapsible toggle
+// mobile: songs live behind a collapsible toggle (chevron rotates via CSS)
 const isMobile = () => window.matchMedia("(max-width: 900px)").matches;
 
 $("#sleeve-toggle").addEventListener("click", () => {
   const open = $(".sleeve").classList.toggle("open");
-  $("#sleeve-toggle").textContent = open ? "tunes ▴" : "tunes ▾";
   $("#sleeve-toggle").setAttribute("aria-expanded", open);
 });
 
 function collapseSleeve() {
   if (!isMobile()) return;
   $(".sleeve").classList.remove("open");
-  $("#sleeve-toggle").textContent = "tunes ▾";
   $("#sleeve-toggle").setAttribute("aria-expanded", "false");
 }
 
@@ -394,8 +411,15 @@ function buildEditorSong() {
   return { song, errors, warnings };
 }
 
+const ALERT_ICON = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 20h16a2 2 0 0 0 1.73-2Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`;
+
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 function showEditorIssues(errors, warnings) {
-  $("#ed-errors").textContent = [...errors, ...warnings.map((w) => `⚠ ${w}`)].join("\n");
+  $("#ed-errors").innerHTML = [
+    ...errors.map(esc),
+    ...warnings.map((w) => `${ALERT_ICON} ${esc(w)}`),
+  ].join("<br>");
   return errors.length > 0;
 }
 
@@ -525,9 +549,11 @@ $("#ed-load").addEventListener("click", () => {
   }
 });
 
+const CHECK_ICON = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>`;
+
 $("#ed-copy").addEventListener("click", async () => {
   await navigator.clipboard.writeText($("#ed-json").value);
-  $("#ed-copy").textContent = "copied ✓";
+  $("#ed-copy").innerHTML = `copied ${CHECK_ICON}`;
   setTimeout(() => ($("#ed-copy").textContent = "copy"), 1500);
 });
 
