@@ -277,10 +277,16 @@ $$(".mode-btn").forEach((b) => b.addEventListener("click", () => setMode(b.datas
 $("#feel-crowd").addEventListener("change", (e) => band.setSoloFeel("crowd", Number(e.target.value) / 100));
 $("#feel-heat").addEventListener("change", (e) => band.setSoloFeel("heat", Number(e.target.value) / 100));
 
-// soloist style chips, straight from the presets
+// soloist style chips, straight from the presets; the active style's
+// character reads inline next to the label
 $("#style-picker").innerHTML = Object.entries(SOLO_STYLES)
-  .map(([key, s]) => `<button class="style-chip${key === band.soloStyleName ? " active" : ""}" data-style="${key}" title="${s.blurb}">${s.label}</button>`)
+  .map(([key, s]) => `<button class="style-chip${key === band.soloStyleName ? " active" : ""}" data-style="${key}">${s.label}</button>`)
   .join("");
+
+function renderStyleBlurb() {
+  $("#style-blurb").textContent = SOLO_STYLES[band.soloStyleName]?.blurb ?? "";
+}
+renderStyleBlurb();
 
 $$(".voice-chip").forEach((b) =>
   b.addEventListener("click", () => {
@@ -293,6 +299,7 @@ $$(".style-chip").forEach((b) =>
   b.addEventListener("click", () => {
     band.setSoloStyle(b.dataset.style);
     $$(".style-chip").forEach((x) => x.classList.toggle("active", x === b));
+    renderStyleBlurb();
   })
 );
 

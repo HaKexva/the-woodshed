@@ -55,6 +55,7 @@ export const SOLO_STYLES = {
     label: "coltrane",
     blurb: "sheets of sound — 16th cascades, stacked arpeggios",
     p: {
+      multiInt: "rare",
       ornament: 0.05,
       rest: 0.4, phrase: 1.9, phraseCap: 24, regLo: 0.35, regHi: 0.9,
       encl: 0.8, blue: 0.7, trip: 1.5, p16: 2.2, hold: 0.5, artic: 0.88,
@@ -71,6 +72,7 @@ export const SOLO_STYLES = {
     label: "monk",
     blurb: "angular leaps, weak-beat jabs, sudden silences",
     p: {
+      multiInt: "seconds",
       ornament: 0,
       rest: 1.6, phrase: 0.7, phraseCap: 8, regLo: 0.4, regHi: 0.75,
       encl: 0.6, blue: 1.4, trip: 0.7, p16: 0.4, hold: 1.2, artic: 0.68,
@@ -87,6 +89,7 @@ export const SOLO_STYLES = {
     label: "chet",
     blurb: "singable stepwise lines, chord tones, soft and unhurried",
     p: {
+      multiInt: "none",
       ornament: 0.3,
       rest: 1.5, phrase: 0.8, phraseCap: 9, regLo: 0.35, regHi: 0.55,
       encl: 0.5, blue: 0.6, trip: 0.6, p16: 0.15, hold: 1.3, artic: 1,
@@ -118,6 +121,7 @@ export const SOLO_STYLES = {
     label: "wes",
     blurb: "builds the chorus: single notes → octaves → chords",
     p: {
+      multiInt: "octave",
       ornament: 0.15,
       rest: 1.1, phrase: 1, regLo: 0.4, regHi: 0.7,
       blue: 1.3, motif: 0.45, artic: 0.95, lag: 22, wesArc: true,
@@ -127,6 +131,7 @@ export const SOLO_STYLES = {
     label: "silver",
     blurb: "short funky riffs, repeated and squeezed, gospel smears",
     p: {
+      multiInt: "thirds",
       ornament: 0.15,
       rest: 1.2, phrase: 0.5, phraseCap: 6, regLo: 0.4, regHi: 0.65,
       blue: 1.8, trip: 0.7, hold: 0.9, artic: 0.78, lag: 8, motif: 0.65,
@@ -489,6 +494,7 @@ export class Band {
       }
       soloEvents = soloEvents.filter((e) => !tradeBars.has(Math.floor(e.beat / bpb)));
     }
+    this._tradeBars = trading ? tradeBars : null;
     this._soloEventsCache = soloEvents;
 
     // which bars is the soloist busy in? the comp thins there and breathes
@@ -637,7 +643,10 @@ export class Band {
   _rebuildSoloPart() {
     const ctx = this._songCtx;
     if (!ctx) return;
-    this._makeSoloPart(this._soloEvents(ctx.chords, ctx.totalBeats, ctx.style, SOLO_LO, SOLO_HI, ctx.bpb));
+    let ev = this._soloEvents(ctx.chords, ctx.totalBeats, ctx.style, SOLO_LO, SOLO_HI, ctx.bpb);
+    // mid-trading-chorus rebuilds must keep honoring the drum fours
+    if (this._tradeBars) ev = ev.filter((e) => !this._tradeBars.has(Math.floor(e.beat / ctx.bpb)));
+    this._makeSoloPart(ev);
   }
 
   _makeSoloPart(events) {
@@ -751,14 +760,18 @@ export class Band {
     // articulation. The arc only shapes contour within what the dials allow.
     const { crowd: c, heat: h } = this.soloFeel;
     const S = SOLO_STYLES[this.soloStyleName]?.p ?? {};
-    // later choruses run hotter — a solo that builds across the loops;
-    // the last two bars of every chorus wind down
-    const chor = Math.min(4, this._chorus ?? 0);
+    // multi-chorus energy wave: statement → build → PEAK → layout, repeat.
+    // High tide gets burn devices; the layout chorus genuinely rests.
+    const chor = this._chorus ?? 0;
+    const WAVE = [0.85, 1.05, 1.2, 0.65];
+    const wave = ballad ? 0.9 : WAVE[chor % 4];
+    const isPeakChorus = wave > 1.1;
+    const isLayout = wave < 0.7;
     const windFrom = totalBeats - 2 * bpb;
     const arcAt = (t) => {
       const x = (t % totalBeats) / totalBeats;
       const arc = x < 0.72 ? x / 0.72 : (1 - x) / 0.28;
-      let i = ((0.18 + 0.72 * arc) * lerp(0.75, 1.2, h) + rnd(-0.12, 0.12)) * (1 + chor * 0.06);
+      let i = ((0.18 + 0.72 * arc) * lerp(0.75, 1.2, h) + rnd(-0.12, 0.12)) * wave * (1 + Math.min(chor, 6) * 0.015);
       if (t >= windFrom) i *= 0.5;
       return Math.max(0.05, Math.min(1, ballad ? i * 0.6 : i));
     };
@@ -783,6 +796,7 @@ export class Band {
     let answer = null; // pending call-&-response reply
     let seq = null; // pending diatonic sequence repeat
     let lastSection = -1;
+    let burns = 0;
 
     while (t < totalBeats - 0.5) {
       const intensity = arcAt(t);
@@ -792,6 +806,56 @@ export class Band {
       if (section !== lastSection) {
         lastSection = section;
         cur = Math.round((cur + registerTarget) / 2);
+      }
+
+      // burn devices: at the peak chorus's high tide, spend the overflow on
+      // something shaped instead of just more notes — then breathe
+      if (!ballad && isPeakChorus && intensity > 0.8 && burns < 2 && t < windFrom - 4 && Math.random() < 0.35) {
+        burns++;
+        const vb = lerp(52, 84, intensity) + lerp(-4, 24, h) + (S.velOff ?? 0);
+        const c0 = chordAt(t);
+        const pool0 = poolFor(c0);
+        const i0 = nearestIdx(pool0, Math.max(cur, registerTarget + 3)); // shout from up high
+        const octs = this.soloVoicing === "multi";
+        const kind = choice(["hemiola", "riff", "horizontal"]);
+        if (kind === "hemiola") {
+          // 3-over-4 hammer: dotted-quarter attacks cycling three pitches
+          const cell = [pool0[i0], pool0[Math.max(0, i0 - 1)], pool0[Math.min(pool0.length - 1, i0 + 1)]];
+          const reps = 4 + Math.floor(Math.random() * 3);
+          for (let r = 0; r < reps && t < totalBeats - 1.5; r++) {
+            const e = { beat: t, midi: cell[r % 3], dur: 1.3, vel: Math.round(Math.min(120, vb + 12)) };
+            if (octs) e.extra = [e.midi - 12];
+            events.push(e);
+            t += 1.5;
+          }
+        } else if (kind === "riff") {
+          // climax riff, verbatim against the moving harmony
+          const riff = [0, 2, 1, -1].map((s) => pool0[Math.max(0, Math.min(pool0.length - 1, i0 + s))]);
+          for (let r = 0; r < 3 && t < totalBeats - 2.5; r++) {
+            riff.forEach((m, j) => {
+              const e = { beat: t + j * 0.5, midi: m, dur: 0.45, vel: Math.round(Math.min(120, vb + 10 - j * 2)) };
+              if (octs) e.extra = [m - 12];
+              events.push(e);
+            });
+            t += 2;
+          }
+        } else {
+          // horizontal line: one scale ridden straight through the changes
+          let idx = i0;
+          const len = 10 + Math.floor(Math.random() * 4);
+          for (let j = 0; j < len && t < totalBeats - 1; j++) {
+            idx = Math.max(0, Math.min(pool0.length - 1, idx + (Math.random() < 0.6 ? -1 : 1)));
+            events.push({ beat: t, midi: pool0[idx], dur: 0.46, vel: Math.round(Math.min(118, vb + 6)) });
+            t += 0.5;
+          }
+        }
+        cur = events[events.length - 1]?.midi ?? cur;
+        lastChord = null; // force a fresh landing after the shout
+        lastEnd = t;
+        // a shout earns a real hole — breathe to past the next barline
+        t = Math.ceil(t / bpb) * bpb + 1;
+        t = Math.round(t * 4) / 4;
+        continue;
       }
       const useAnswer = answer !== null;
       const useSeq = !useAnswer && seq !== null;
@@ -840,8 +904,8 @@ export class Band {
       } else {
         // run: the workhorse — crowd directly packs the notes, at any point
         // in the form
-        const len = Math.min(S.phraseCap ?? 16, Math.max(3, Math.round(lerp(3, 6, intensity) * lerp(0.6, 2.0, c) * (S.phrase ?? 1) + rnd(-1, 1))));
-        const p16 = Math.min(0.8, (c * 0.5 + Math.max(0, intensity - 0.5) * 0.3) * (S.p16 ?? 1));
+        const len = Math.min(S.phraseCap ?? 16, Math.max(3, Math.round(lerp(3, 6, intensity) * lerp(0.6, 2.0, c) * (S.phrase ?? 1) * wave + rnd(-1, 1))));
+        const p16 = Math.min(0.8, (c * 0.5 + Math.max(0, intensity - 0.5) * 0.3) * (S.p16 ?? 1) * (isPeakChorus ? 1.3 : 1));
         durs = [];
         while (durs.length < len - 1) {
           if (!ballad && durs.length < len - 3 && Math.random() < (0.08 + 0.16 * intensity) * (S.trip ?? 1)) {
@@ -860,6 +924,8 @@ export class Band {
       const phraseStart = t;
       let lastMain = null; // previous sounded note, for bebop passing tones
       let prevStep = 0;
+      let phrasePeakVel = 0;
+      let phraseNotes = 0;
       for (let n = 0; n < durs.length && t < totalBeats - 0.5; n++) {
         const c = chordAt(t);
         const pool = subActive && isDom(c) ? subPoolFor(c) : poolFor(c);
@@ -888,6 +954,11 @@ export class Band {
             const above = pool[Math.min(pool.length - 1, idx + 1)];
             events.push({ beat: t - 1, midi: above, dur: 0.42, vel: Math.round(velBase - 14) });
             events.push({ beat: t - 0.5, midi: target - 1, dur: 0.42, vel: Math.round(velBase - 10) });
+          } else if (n === 0 && !ballad && t - 0.5 >= lastEnd && Math.abs(t - Math.round(t)) < 0.05 && Math.random() < 0.4) {
+            // pickup entry: two stepwise notes on the & of the previous beat,
+            // walking up into the landing
+            events.push({ beat: t - 0.5, midi: pool[Math.max(0, idx - 2)], dur: 0.22, vel: Math.round(velBase - 14) });
+            events.push({ beat: t - 0.25, midi: pool[Math.max(0, idx - 1)], dur: 0.22, vel: Math.round(velBase - 9) });
           }
           cur = target;
           takenSteps.push(0);
@@ -913,8 +984,27 @@ export class Band {
           const idx = Math.max(0, Math.min(pool.length - 1, nearestIdx(pool, cur) + dir * mag));
           takenSteps.push(idx - nearestIdx(pool, cur));
           cur = pool[idx];
+          // bebop metric grammar: notes landing on the beat want to be chord
+          // tones — tensions belong on the upbeats
+          if (flavor === "run" && !subActive && Math.abs(t - Math.round(t)) < 0.05 && Math.random() < (S.grammar ?? 0.65)) {
+            const tonePcs = new Set(c.info.intervals.map((iv2) => (c.info.rootPc + iv2) % 12));
+            const gi = nearestIdx(pool, cur, (m) => tonePcs.has(m % 12));
+            if (gi >= 0 && Math.abs(pool[gi] - cur) <= 4) cur = pool[gi];
+          }
         }
         const last = n === durs.length - 1;
+        // avoid-note hygiene: anything held a beat or longer (any flavor,
+        // planned or not) must be a chord tone or a safe tension
+        if (!subActive && (durs[n] >= 1 || last)) {
+          const iv2 = c.info.intervals;
+          const safe = new Set(iv2.filter((x) => x > 0).map((x) => (c.info.rootPc + x) % 12));
+          safe.add((c.info.rootPc + 2) % 12); // 9th
+          if (iv2.includes(4) && iv2.includes(10)) safe.add((c.info.rootPc + 9) % 12); // 13 on dominants
+          if (!safe.has(((cur % 12) + 12) % 12)) {
+            const si = nearestIdx(pool, cur, (m) => safe.has(m % 12));
+            if (si >= 0) cur = pool[si];
+          }
+        }
         // phrase ends resolve — 3rd or 9th of the sounding chord, the thing
         // that makes a line sound intentional
         if (last && !plannedSteps && flavor !== "longtones") {
@@ -955,6 +1045,8 @@ export class Band {
         }
         // bebop articulation: clip every fourth note of a run
         const clip = flavor === "run" && !last && n % 4 === 3 ? 0.75 : 1;
+        phrasePeakVel = Math.max(phrasePeakVel, vel);
+        phraseNotes++;
         const ev = { beat: t, midi: cur, dur: dur * legato * clip, vel, rawDur: dur };
         // drifting time feel: phrase endings sit back, climaxes push
         if (last) ev.lagAdj = 8;
@@ -969,12 +1061,31 @@ export class Band {
           }
         }
         // multi voicing: thicken holds, phrase ends, and riff stabs — runs
-        // stay single-note so fast lines don't smear
+        // stay single-note so fast lines don't smear. Each style doubles in
+        // its own interval, thickness rides the energy wave, and the added
+        // note is held to the same avoid-note hygiene as the melody.
         if (this.soloVoicing === "multi") {
-          const p = last || dur >= 1.2 ? 0.6 : flavor === "riff" ? 0.35 : intensity > 0.7 && !offbeat ? 0.2 : 0;
+          const mode = S.multiInt ?? "default";
+          let p = last || dur >= 1.2 ? 0.6 : flavor === "riff" ? 0.35 : intensity > 0.7 && !offbeat ? 0.2 : 0;
+          if (mode === "none") p = 0;
+          if (mode === "rare") p *= 0.3;
+          if (isLayout) p *= 0.25;
+          if (isPeakChorus) p = Math.min(0.85, p * 1.4);
           if (Math.random() < p) {
-            const below = pool[Math.max(0, nearestIdx(pool, cur) - choice([2, 2, 3]))];
-            const add = intensity > 0.75 && Math.random() < 0.4 ? cur - 12 : below;
+            let add;
+            if (mode === "seconds") add = cur - choice([1, 2]); // crunchy Monk cluster
+            else if (mode === "octave" || (isPeakChorus && Math.random() < 0.5)) add = cur - 12; // locked hands at the peak
+            else add = pool[Math.max(0, nearestIdx(pool, cur) - choice([2, 2, 3]))]; // 3rd/6th below
+            // keep the doubling consonant (except deliberate clusters)
+            if (mode !== "seconds" && add !== undefined && dur >= 1) {
+              const iv3 = c.info.intervals;
+              const safe3 = new Set(iv3.map((x) => (c.info.rootPc + x) % 12));
+              safe3.add((c.info.rootPc + 2) % 12);
+              if (!safe3.has(((add % 12) + 12) % 12)) {
+                const ai = nearestIdx(pool, add, (m) => safe3.has(m % 12));
+                if (ai >= 0) add = pool[ai];
+              }
+            }
             if (add !== undefined && add !== cur && add >= lo - 8) ev.extra = [add];
           }
         }
@@ -1017,8 +1128,15 @@ export class Band {
         }
       }
 
-      // crowd owns the space between phrases; the arc only nudges it
-      t += Math.max(0.5, (lerp(3.2, 0.5, c) + lerp(0.5, -0.2, intensity)) * (S.rest ?? 1) + choice([-0.5, 0, 0.5]) + (ballad ? 1 : 0));
+      // earned silence: the rest scales with how big the phrase was, and a
+      // real shout buys a full-bar hole snapped to the barline
+      const spent = Math.min(1, (phraseNotes * (phrasePeakVel / 110)) / 9);
+      const restWave = (2.05 - wave) * (isLayout ? 1.3 : 1); // the tide: peaks crowd, layouts leave holes
+      if (!ballad && spent > 0.75) {
+        t = Math.ceil(t / bpb) * bpb + bpb - 0.5; // full-bar breath, re-enter on the & of 4
+      } else {
+        t += Math.max(0.5, (lerp(3.2, 0.5, c) + lerp(0.5, -0.2, intensity)) * (S.rest ?? 1) * (0.6 + 0.9 * spent) * restWave + choice([-0.5, 0, 0.5]) + (ballad ? 1 : 0));
+      }
       t = Math.round(t * 4) / 4;
     }
     // Wes: the chorus builds — single notes, then octaves, then chords
