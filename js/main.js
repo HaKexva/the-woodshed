@@ -113,12 +113,9 @@ function renderSoloStrip(info) {
   $("#solo-strip").hidden = false;
 }
 
-// rolling feed of solo notes, grouped by bar — last 8 bars (4 on mobile)
+// rolling feed of solo notes, grouped by bar — previous bar + the ongoing one
 const soloFeed = [];
-
-function feedLimit() {
-  return window.matchMedia("(max-width: 900px)").matches ? 4 : 8;
-}
+const FEED_BARS = 2;
 
 function renderSoloFeed() {
   $("#solo-feed").innerHTML =
@@ -182,7 +179,7 @@ function handleBeat(bar, beatInBar) {
     highlightBar(bar);
     if (state.mode === "inspire") {
       soloFeed.push([]);
-      while (soloFeed.length > feedLimit()) soloFeed.shift();
+      while (soloFeed.length > FEED_BARS) soloFeed.shift();
       renderSoloFeed();
     }
   }

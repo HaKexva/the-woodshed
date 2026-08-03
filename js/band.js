@@ -390,18 +390,22 @@ export class Band {
     // through the form), "crowd" (how packed the notes are: 16ths, phrase
     // length, rests, holds) and "heat" (loudness/sharpness: velocity,
     // accents, articulation, register push).
+    // The dials are orthogonal: crowd OWNS note count (phrase length, note
+    // durations, rests, flavor mix); heat owns the arc scale, velocity and
+    // articulation. The arc only shapes contour within what the dials allow.
     const { crowd: c, heat: h } = this.soloFeel;
     const arcAt = (t) => {
       const x = (t % totalBeats) / totalBeats;
       const arc = x < 0.72 ? x / 0.72 : (1 - x) / 0.28;
-      const i = (0.18 + 0.72 * arc) * lerp(0.55, 1.35, (c + h) / 2) + rnd(-0.15, 0.15);
+      const i = (0.18 + 0.72 * arc) * lerp(0.75, 1.2, h) + rnd(-0.12, 0.12);
       return Math.max(0.05, Math.min(1, ballad ? i * 0.6 : i));
     };
     const legato = lerp(0.97, 0.8, h); // hotter = sharper articulation
-    // phrase flavors keep the line from sounding same-y
+    // phrase flavors keep the line from sounding same-y; crowding squeezes
+    // long-tone phrases out of the mix
     const pickFlavor = (i) => {
-      const wRun = 0.2 + 0.55 * i + 0.2 * c;
-      const wLong = Math.max(0.1, 0.6 - 0.5 * i - 0.3 * c);
+      const wRun = 0.25 + 0.45 * i + 0.6 * c;
+      const wLong = Math.max(0.06, (0.55 - 0.4 * i) * (1 - 0.8 * c));
       const wRiff = 0.3;
       let r = Math.random() * (wRun + wLong + wRiff);
       if ((r -= wRun) <= 0) return "run";
@@ -431,26 +435,27 @@ export class Band {
       } else if (flavor === "longtones") {
         // few notes, held — breathes even at high intensity
         const len = 2 + Math.floor(Math.random() * 2);
-        durs = Array.from({ length: len }, () => choice([1.5, 2, 2.5]));
+        durs = Array.from({ length: len }, () => choice(c > 0.6 ? [1, 1.5, 2] : [1.5, 2, 2.5]));
         durs[len - 1] += 0.5;
         velBase -= 8;
       } else if (flavor === "riff") {
         // short syncopated cell, leans bluesy
-        const len = 3 + Math.floor(Math.random() * 3);
+        const len = 3 + Math.floor(Math.random() * 3) + (c > 0.6 ? 2 : 0);
         durs = Array.from({ length: len }, (_, n) =>
-          n === len - 1 ? choice([1, 1.5]) : choice([0.5, 0.5, 0.25])
+          n === len - 1 ? choice([1, 1.5]) : choice(c > 0.5 ? [0.5, 0.25, 0.25] : [0.5, 0.5, 0.25])
         );
         if (t % 1 === 0 && Math.random() < 0.6) t += 0.5; // offbeat entry
         blueBoost = 2;
       } else {
-        // run: the workhorse — crowd directly packs the notes
-        const len = Math.max(3, Math.round(lerp(2.5, 8 + 6 * c, intensity) + rnd(-1, 2)));
-        const p16 = Math.max(0, (intensity - 0.5) * 0.6 + c * 0.35);
+        // run: the workhorse — crowd directly packs the notes, at any point
+        // in the form
+        const len = Math.min(16, Math.max(3, Math.round(lerp(3, 6, intensity) * lerp(0.6, 2.0, c) + rnd(-1, 1))));
+        const p16 = Math.min(0.7, c * 0.5 + Math.max(0, intensity - 0.5) * 0.3);
         durs = [];
         for (let n = 0; n < len; n++) {
-          if (n === len - 1) durs.push(choice(ballad ? [2, 2.5, 3] : c > 0.6 ? [0.5, 1, 1.5] : [1, 1.5, 2]));
+          if (n === len - 1) durs.push(choice(ballad ? [2, 2.5, 3] : c > 0.6 ? [0.5, 1] : [1, 1.5, 2]));
           else if (!ballad && Math.random() < p16) durs.push(0.25);
-          else durs.push(Math.random() < 0.12 * (1 - c) ? 1 : 0.5);
+          else durs.push(Math.random() < 0.3 * (1 - c) ? 1 : 0.5);
         }
       }
 
@@ -513,7 +518,8 @@ export class Band {
         motif = null; // move on to new material
       }
 
-      t += Math.max(0.5, lerp(3, 0.6, (intensity + c) / 2) + choice([-0.5, 0, 0.5, 1]) + (ballad ? 1 : 0));
+      // crowd owns the space between phrases; the arc only nudges it
+      t += Math.max(0.5, lerp(3.2, 0.5, c) + lerp(0.5, -0.2, intensity) + choice([-0.5, 0, 0.5]) + (ballad ? 1 : 0));
       t = Math.round(t * 4) / 4;
     }
     return events;

@@ -302,9 +302,13 @@ body {
   flex-shrink: 0;
 }
 
-.feed-bar { flex-shrink: 0; }
+.feed-bar { flex-shrink: 0; min-width: 1ch; }
 
-.feed-bar:last-child { color: var(--amber); }
+.feed-bar:last-child {
+  color: var(--amber);
+  border-bottom: 2px solid var(--amber);
+  padding-bottom: 0.15rem;
+}
 
 .feed-sep { color: var(--cream-25); flex-shrink: 0; }
 
