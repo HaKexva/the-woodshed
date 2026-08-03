@@ -513,3 +513,6 @@ export const SONGS = [
     ],
   },
 ];
+
+// the sides read alphabetically
+SONGS.sort((a, b) => a.title.localeCompare(b.title));
