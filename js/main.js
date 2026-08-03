@@ -185,10 +185,12 @@ async function play() {
   if (!state.ready) {
     state.loading = true;
     setStatus("loading instruments…");
+    $("#play").classList.add("loading");
     try {
       await band.setup();
     } finally {
       state.loading = false;
+      $("#play").classList.remove("loading");
     }
   }
   await band.play();
@@ -216,6 +218,7 @@ function setStatus(msg) {
 
 function handleBeat(bar, beatInBar) {
   $$(".beat-light").forEach((el, i) => el.classList.toggle("on", i === beatInBar));
+  if (bar < 0) return; // count-in: pulse the lights, touch nothing else
   if (beatInBar === 0) {
     highlightBar(bar);
     renderSystemView(bar);

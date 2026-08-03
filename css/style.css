@@ -650,6 +650,25 @@ body {
 
 .play-btn:hover { transform: scale(1.06); }
 
+/* loading ring while instruments download */
+.play-btn.loading::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 3px solid var(--cream-25);
+  border-top-color: var(--amber);
+  animation: spin 0.9s linear infinite;
+}
+
+.play-btn { position: relative; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .play-btn.loading::after { animation: none; border-top-color: var(--cream-25); }
+}
+
 .play-glyph {
   width: 0;
   height: 0;

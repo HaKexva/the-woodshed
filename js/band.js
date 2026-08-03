@@ -204,9 +204,9 @@ export class Band {
       this.gains[name] = g;
     }
     this.gains.piano.gain.value = 0.75;
-    this.gains.guitar.gain.value = 0.85;
+    this.gains.guitar.gain.value = 1.15;
     this.gains.bass.gain.value = 1.0;
-    this.gains.drums.gain.value = 0.8;
+    this.gains.drums.gain.value = 0.6;
     this.gains.solo.gain.value = 1.25;
 
     this._buildDrumKit();
@@ -274,20 +274,19 @@ export class Band {
   async _loadDrumSamples() {
     try {
       const base = "samples/drums";
-      const probe = await fetch(`${base}/ride.ogg`, { method: "HEAD" });
+      const probe = await fetch(`${base}/kick.m4a`, { method: "HEAD" });
       if (!probe.ok) return;
-      const sampler = new Sampler(this.ctx, {
-        destination: this.gains.drums,
-        buffers: {
-          ride: `${base}/ride.ogg`,
-          hat: `${base}/hat.ogg`,
-          snare: `${base}/snare.ogg`,
-          kick: `${base}/kick.ogg`,
-          rim: `${base}/rim.ogg`,
-        },
-      });
-      await sampler.load;
-      this.drumSamples = sampler;
+      // ride stays synthesized (MetalSynth pool) — the sampled ride read as
+      // a crash; everything else plays real one-shots
+      const bufs = {};
+      await Promise.all(
+        ["hat", "snare", "kick", "rim"].map(async (n) => {
+          const res = await fetch(`${base}/${n}.m4a`);
+          if (!res.ok) throw new Error(`${n}.m4a: ${res.status}`);
+          bufs[n] = await this.ctx.decodeAudioData(await res.arrayBuffer());
+        })
+      );
+      this.drumSamples = bufs;
     } catch (e) {
       console.warn("drum samples unavailable — staying on the synth kit", e);
     }
@@ -375,7 +374,7 @@ export class Band {
   }
 
   _gainFor(name) {
-    return { piano: 0.75, guitar: 0.85, bass: 1.0, drums: 0.8, solo: 1.25 }[name];
+    return { piano: 0.75, guitar: 1.15, bass: 1.0, drums: 0.6, solo: 1.25 }[name];
   }
 
   setBpm(bpm) {
@@ -402,11 +401,23 @@ export class Band {
     t.timeSignature = song.timeSignature ?? 4;
     t.swing = feel === "swing" ? (song.style === "ballad" ? 0.45 : 0.56) : 0;
     t.swingSubdivision = "8n";
+    // bar 0 is a count-in; the form loops over bars 1..n
     t.loop = true;
-    t.loopStart = 0;
-    t.loopEnd = `${song.progression.length}m`;
+    t.loopStart = "1m";
+    t.loopEnd = `${song.progression.length + 1}m`;
 
+    this._chorus = 0;
     this._buildParts(song, feel);
+    // every chorus is a fresh take: just before each loop wrap, re-roll the
+    // band's patterns and the solo (which builds as choruses stack up)
+    t.scheduleRepeat(
+      () => {
+        this._chorus++;
+        this._buildParts(song, feel);
+      },
+      `${song.progression.length}m`,
+      `${song.progression.length + 0.9}m`
+    );
     this.playing = true;
     t.start("+0.1");
   }
@@ -446,15 +457,23 @@ export class Band {
       meta: [],
     };
 
+    // rhythm-section roles: after the first chorus, guitar-led and piano-led
+    // choruses trade off — both comping full-time is a machine's tell
+    const role = this._chorus ? choice(["guitar", "piano", "both"]) : "both";
+    if (role === "guitar") ev.piano = ev.piano.filter(() => Math.random() < 0.3);
+    if (role === "piano") ev.guitar = ev.guitar.filter(() => Math.random() < 0.3);
+
     for (const c of chords) ev.meta.push({ kind: "chord", beat: c.startBeat, chord: c });
     for (let b = 0; b < totalBeats; b++) {
       ev.meta.push({ kind: "beat", beat: b, bar: Math.floor(b / bpb), beatInBar: b % bpb });
     }
 
     const beatSec = () => 60 / Tone.getTransport().bpm.value;
+    // everything shifts one bar right — bar 0 belongs to the count-in
     const toBBS = (beat) => {
-      const bar = Math.floor(beat / bpb);
-      const rem = beat - bar * bpb;
+      const shifted = beat + bpb;
+      const bar = Math.floor(shifted / bpb);
+      const rem = shifted - bar * bpb;
       return `${bar}:${Math.floor(rem)}:${Math.round((rem % 1) * 4)}`;
     };
     const mk = (events, cb) => {
@@ -462,6 +481,31 @@ export class Band {
       part.start(0);
       this.parts.push(part);
     };
+
+    // count-in: one bar of hat clicks (plays once — the loop skips bar 0)
+    const countEvents = [];
+    for (let b = 0; b < bpb; b++) {
+      countEvents.push({ beat: b, drum: "hat", vel: b === 0 ? 56 : 40, count: true });
+      ev.meta.push({ kind: "beat", beat: b - bpb, bar: -1, beatInBar: b });
+    }
+    const countPart = new Tone.Part(
+      (time, e) => {
+        if (this.drumSamples?.hat) {
+          const src = this.ctx.createBufferSource();
+          src.buffer = this.drumSamples.hat;
+          const g = this.ctx.createGain();
+          g.gain.value = (e.vel / 127) * 1.1;
+          src.connect(g);
+          g.connect(this.gains.drums);
+          src.start(time);
+        } else {
+          try { this.hatPool.next().triggerAttackRelease(0.04, time, e.vel / 127); } catch { /* skip */ }
+        }
+      },
+      countEvents.map((e) => [`0:${e.beat}:0`, e])
+    );
+    countPart.start(0);
+    this.parts.push(countPart);
 
     mk(ev.piano, (time, e) => {
       if (this.muted.piano) return;
@@ -485,14 +529,18 @@ export class Band {
     mk(ev.drums, (time, e) => {
       if (this.muted.drums) return;
       const v = e.vel / 127;
-      // sampled kit when loaded: real attacks, detune jitter per hit
-      if (this.drumSamples) {
-        this.drumSamples.start({
-          note: e.drum,
-          time,
-          velocity: Math.min(120, Math.round(e.vel * 1.5)),
-          detune: rnd(-35, 35),
-        });
+      // sampled kit when loaded: real attacks, per-hit pitch/level jitter;
+      // per-drum trim keeps the ride way back in the mix
+      if (this.drumSamples?.[e.drum]) {
+        const trim = { hat: 0.6, snare: 1.05, kick: 0.7, rim: 0.85 }[e.drum] ?? 1;
+        const src = this.ctx.createBufferSource();
+        src.buffer = this.drumSamples[e.drum];
+        src.playbackRate.value = Math.pow(2, rnd(-35, 35) / 1200);
+        const g = this.ctx.createGain();
+        g.gain.value = Math.min(1, (e.vel / 127) * 1.3 * trim);
+        src.connect(g);
+        g.connect(this.gains.drums);
+        src.start(time);
         return;
       }
       // rotating voices + per-hit jitter: pitch, decay, and ring length all
@@ -550,7 +598,7 @@ export class Band {
         this.soloInst?.start({ note: m, time: when + 0.006, duration: durSec, velocity: Math.max(30, e.vel - 14) });
       }
       Tone.getDraw().schedule(() => this.cb.onSoloNote?.(e.midi % 12, durSec), when);
-    }, events.map((e) => [`${Math.round(e.beat * ppq)}i`, e]));
+    }, events.map((e) => [`${Math.round((e.beat + ctx.bpb) * ppq)}i`, e]));
     this.soloPart.start(0);
   }
 
@@ -626,10 +674,12 @@ export class Band {
     // articulation. The arc only shapes contour within what the dials allow.
     const { crowd: c, heat: h } = this.soloFeel;
     const S = SOLO_STYLES[this.soloStyleName]?.p ?? {};
+    // later choruses run hotter — a solo that builds across the loops
+    const chor = Math.min(4, this._chorus ?? 0);
     const arcAt = (t) => {
       const x = (t % totalBeats) / totalBeats;
       const arc = x < 0.72 ? x / 0.72 : (1 - x) / 0.28;
-      const i = (0.18 + 0.72 * arc) * lerp(0.75, 1.2, h) + rnd(-0.12, 0.12);
+      const i = ((0.18 + 0.72 * arc) * lerp(0.75, 1.2, h) + rnd(-0.12, 0.12)) * (1 + chor * 0.06);
       return Math.max(0.05, Math.min(1, ballad ? i * 0.6 : i));
     };
     const legato = Math.min(1, lerp(0.97, 0.8, h) * (S.artic ?? 1)); // hotter = sharper articulation
@@ -1037,12 +1087,13 @@ export class Band {
     const totalBars = song.progression.length;
     const push = (bar, off, drum, vel, extra) => events.push({ beat: bar * bpb + off, drum, vel, ...extra });
 
-    // per-bar ride pattern pool (weights sum to 1) — the pulse breathes
+    // per-bar ride pattern pool (weights sum to 1) — kept sparse; the ride
+    // marks time, it doesn't chatter
     const ridePool = [
-      { w: 0.55, p: [[0, 46], [1, 54], [1.5, 32], [2, 46], [3, 54], [3.5, 32]] }, // standard ding-ding-a
-      { w: 0.2, p: [[0, 46], [1, 54], [2, 46], [3, 54], [3.5, 32]] },             // drop one skip note
-      { w: 0.15, p: [[0, 46], [1, 54], [1.5, 32], [2, 46], [2.5, 28], [3, 54], [3.5, 32]] }, // busier
-      { w: 0.1, p: [[0, 46], [1.5, 34], [2, 48], [3, 54]] },                      // broken up
+      { w: 0.3, p: [[0, 44], [1, 50], [2, 44], [3, 50]] },                        // quarters only
+      { w: 0.4, p: [[0, 44], [2, 46], [3, 50]] },                                 // broken up
+      { w: 0.15, p: [[0, 44], [1, 50], [2, 44], [3, 50], [3.5, 28]] },            // one skip note
+      { w: 0.15, p: [[0, 46], [1, 52], [1.5, 30], [2, 46], [3, 52], [3.5, 30]] }, // standard ding-ding-a
     ];
     const pickRide = () => {
       let r = Math.random();
@@ -1050,22 +1101,29 @@ export class Band {
       return ridePool[0].p;
     };
     const sectionEnd = (bar) => bar % 8 === 7 || bar === totalBars - 1;
+    // at slow tempos every kick thuds — feather less and softer as bpm drops
+    const bpm = Tone.getTransport().bpm.value;
+    const slow = Math.max(0, Math.min(1, (110 - bpm) / 50)); // 0 at ≥110bpm → 1 at ≤60
+    const kv = (v) => Math.max(8, Math.round(v * (1 - slow * 0.45)));
 
     for (let bar = 0; bar < totalBars; bar++) {
       if (style === "ballad") {
         for (let b = 0; b < bpb; b++) push(bar, b, "ride", b % 2 ? 34 : 26);
         push(bar, 1, "hat", 40);
         if (bpb > 3) push(bar, 3, "hat", 40);
-        push(bar, 0, "kick", 22);
-        if (bar % 8 === 7 && Math.random() < 0.6) push(bar, bpb - 0.5, "snare", 24); // brush pickup
+        if (Math.random() > slow * 0.5) push(bar, 0, "kick", kv(22));
+        // offbeat pickups swing onto triplet positions — skip them when slow
+        if (bar % 8 === 7 && slow < 0.3 && Math.random() < 0.6) push(bar, bpb - 0.5, "snare", 24); // brush pickup
         continue;
       }
       if (style === "funk") {
-        for (let e = 0; e < bpb * 2; e++) push(bar, e / 2, "hat", e % 2 ? 26 : 42);
-        push(bar, 1, "snare", 58);
-        if (bpb > 3) push(bar, 3, "snare", 58);
-        for (const off of choice([[0, 2.5], [0, 1.75, 2.5], [0, 2.5, 3.75]])) push(bar, off, "kick", off === 0 ? 60 : 46);
-        if (sectionEnd(bar)) for (const off of [3.25, 3.5, 3.75]) push(bar, off, "snare", 34 + Math.round(off * 4));
+        // laid-back funk, not a rock band: soft hats, relaxed backbeat,
+        // kick mostly on 1 and the and-of-2
+        for (let e = 0; e < bpb * 2; e++) push(bar, e / 2, "hat", e % 2 ? 22 : 34);
+        push(bar, 1, "snare", 44);
+        if (bpb > 3) push(bar, 3, "snare", 44);
+        for (const off of choice([[0, 2.5], [0, 2.5], [0, 1.5, 2.5]])) push(bar, off, "kick", kv(off === 0 ? 46 : 32));
+        if (sectionEnd(bar) && slow < 0.3) for (const off of [3.5, 3.75]) push(bar, off, "snare", 30);
         continue;
       }
       if (straight) {
@@ -1080,29 +1138,27 @@ export class Band {
         continue;
       }
       // swing
-      const crash = bar > 0 && bar % 8 === 0; // top of a section
       if (bpb === 3) {
-        for (const [off, vel] of [[0, 52], [1, 40], [1.5, 30], [2, 44]]) push(bar, off, "ride", vel);
+        for (const [off, vel] of [[0, 48], [1, 38], [2, 42]]) push(bar, off, "ride", vel);
         push(bar, 1, "hat", 46);
       } else {
-        const pattern = pickRide();
-        for (const [off, vel] of pattern) {
-          if (crash && off === 0) push(bar, 0, "ride", 68, { len: 1.8, freq: 260 });
-          else push(bar, off, "ride", vel);
-        }
+        // slow swing: quarters only — no skip notes to swing around
+        const pattern = slow > 0.3 ? ridePool[0].p : pickRide();
+        for (const [off, vel] of pattern) push(bar, off, "ride", vel);
         push(bar, 1, "hat", 50);
         push(bar, 3, "hat", 50);
       }
-      for (let b = 0; b < bpb; b++) if (Math.random() > 0.3) push(bar, b, "kick", Math.round(rnd(14, 20)));
-      if (Math.random() < 0.15) push(bar, bpb - 0.5, "kick", 30); // pickup into next bar
-      // snare comping: ghosts and the odd accent
-      const hits = Math.random() < 0.55 ? 1 : Math.random() < 0.25 ? 2 : 0;
-      const spots = [0.5, 1.5, 2, 2.5, 3.5];
+      for (let b = 0; b < bpb; b++) if (Math.random() > 0.65 + slow * 0.25) push(bar, b, "kick", kv(rnd(14, 20)));
+      if (slow < 0.3 && Math.random() < 0.08) push(bar, bpb - 0.5, "kick", kv(28)); // pickup into next bar
+      // snare comping: ghosts and the odd accent — offbeat spots swing onto
+      // triplet positions, so slow tempos comp on the beat only
+      const hits = Math.random() < 0.55 - slow * 0.25 ? 1 : Math.random() < 0.25 ? 2 : 0;
+      const spots = slow > 0.3 ? [2] : [0.5, 1.5, 2, 2.5, 3.5];
       for (let h = 0; h < hits; h++) {
         const off = spots.splice(Math.floor(Math.random() * spots.length), 1)[0];
         push(bar, off, "snare", Math.round(Math.random() < 0.3 ? rnd(34, 42) : rnd(18, 28)));
       }
-      if (sectionEnd(bar) && bpb === 4) {
+      if (sectionEnd(bar) && bpb === 4 && slow < 0.3) {
         const fill = choice([
           [[2.5, 34], [3, 40], [3.5, 50]],
           [[3, 38], [3.25, 42], [3.5, 46], [3.75, 52]],
@@ -1118,6 +1174,7 @@ export class Band {
       const k = `${e.drum}:${e.beat}`;
       if (!seen.has(k) || seen.get(k).vel < e.vel) seen.set(k, e);
     }
-    return [...seen.values()];
+    // no ride at all — the hat and bass keep time
+    return [...seen.values()].filter((e) => e.drum !== "ride");
   }
 }
