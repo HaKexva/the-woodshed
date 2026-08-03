@@ -30,7 +30,8 @@
     <aside class="sleeve">
       <h2 class="sleeve-label">side A — standards</h2>
       <ol id="tracklist" class="tracklist"></ol>
-      <p class="sleeve-note">add your own tunes — see the README</p>
+      <button id="open-editor" class="add-tune">+ add a tune</button>
+      <p class="sleeve-note">export JSON and open a PR to share it</p>
     </aside>
 
     <section class="stage">
@@ -55,21 +56,27 @@
         <div id="solo-notes" class="solo-notes"></div>
       </div>
 
+      <div id="solo-feed" class="solo-feed" hidden></div>
+
       <div id="inspire-panel" class="inspire-panel" hidden>
-        <p class="inspire-label">soloist</p>
-        <div class="soloist-picker" role="group" aria-label="soloist">
-          <button class="soloist active" data-solo="trumpet"><span class="key-hint">1</span>trumpet</button>
-          <button class="soloist" data-solo="trombone"><span class="key-hint">2</span>trombone</button>
-          <button class="soloist" data-solo="alto"><span class="key-hint">3</span>alto sax</button>
-          <button class="soloist" data-solo="tenor"><span class="key-hint">4</span>tenor sax</button>
-          <button class="soloist" data-solo="keys"><span class="key-hint">5</span>keys</button>
+        <div class="feel-dials">
+          <div>
+            <p class="inspire-label">crowding</p>
+            <label class="density-ctl">
+              <span class="density-tag">sparse</span>
+              <input id="feel-crowd" type="range" min="0" max="100" value="50" />
+              <span class="density-tag">crowded</span>
+            </label>
+          </div>
+          <div>
+            <p class="inspire-label">loudness</p>
+            <label class="density-ctl">
+              <span class="density-tag">soft</span>
+              <input id="feel-heat" type="range" min="0" max="100" value="50" />
+              <span class="density-tag">sharp</span>
+            </label>
+          </div>
         </div>
-        <p class="inspire-label mood-label">solo density</p>
-        <label class="density-ctl">
-          <span class="density-tag">sparse</span>
-          <input id="density" type="range" min="0" max="100" value="50" />
-          <span class="density-tag">dense</span>
-        </label>
       </div>
 
       <div id="leadsheet" class="leadsheet"></div>
@@ -84,9 +91,8 @@
         <p id="song-source-line">changes for this song verified against: <span id="song-source"></span></p>
         <p id="song-note" class="song-note"></p>
         <p>
-          Band samples: <a href="https://github.com/gleitz/midi-js-soundfonts" rel="noopener">MusyngKite soundfont kit (CC BY-SA 3.0)</a>
+          Samples: <a href="https://github.com/gleitz/midi-js-soundfonts" rel="noopener">MusyngKite soundfont kit (CC BY-SA 3.0)</a>
           and the Splendid Grand Piano via <a href="https://github.com/danigb/smplr" rel="noopener">smplr (MIT)</a> ·
-          solo horns: <a href="https://github.com/surikov/webaudiofont" rel="noopener">WebAudioFont JCLive presets (GPLv3)</a> ·
           scheduling by <a href="https://tonejs.github.io/" rel="noopener">Tone.js (MIT)</a> ·
           drums synthesized in-browser. This site is <a href="https://github.com/tubaxenor/chord_practice" rel="noopener">open source under GPLv3</a>.
           For personal practice &amp; education.
@@ -115,8 +121,47 @@
     </div>
 
     <span id="status" class="status" role="status"></span>
-    <span class="hint">space · play — 1-5 · soloist</span>
+    <span class="hint">space · play</span>
   </footer>
+
+  <div id="editor-overlay" class="editor-overlay" hidden>
+    <div class="editor" role="dialog" aria-label="add a tune">
+      <h2>add a tune<span class="brand-dot">.</span></h2>
+      <div class="ed-grid">
+        <label>title<input id="ed-title" placeholder="My Tune" /></label>
+        <label>composer<input id="ed-composer" placeholder="Somebody" /></label>
+        <label>key<input id="ed-key" placeholder="F major" /></label>
+        <label>bpm<input id="ed-bpm" type="number" min="40" max="300" value="120" /></label>
+        <label>style
+          <select id="ed-style">
+            <option>swing</option><option>bossa</option><option>ballad</option>
+            <option>blues</option><option>modal</option><option>latin</option><option>funk</option>
+          </select>
+        </label>
+        <label>beats / bar
+          <select id="ed-ts"><option>4</option><option>3</option></select>
+        </label>
+        <label>form<input id="ed-form" placeholder="32-bar AABA" /></label>
+        <label>source URL<input id="ed-source" placeholder="https://…" /></label>
+      </div>
+      <label class="ed-prog-label">changes — bars split by <code>|</code>, chords in a bar by spaces, optional beats with <code>:</code> (e.g. <code>Dm7b5:3 G7:1</code>)</label>
+      <textarea id="ed-prog" rows="4" spellcheck="false" placeholder="Cm7 | F7 | BbMaj7 | EbMaj7 | Am7b5 | D7 | Gm7 | Gm7"></textarea>
+      <p id="ed-errors" class="ed-errors"></p>
+      <div class="ed-actions">
+        <button id="ed-preview">▶ preview in player</button>
+        <button id="ed-export">export json</button>
+        <button id="ed-close">close</button>
+      </div>
+      <div id="ed-output" hidden>
+        <textarea id="ed-json" rows="9" readonly spellcheck="false"></textarea>
+        <div class="ed-actions">
+          <button id="ed-copy">copy</button>
+          <a id="ed-pr" class="ed-link" href="https://github.com/tubaxenor/chord_practice/edit/main/js/songs.js" target="_blank" rel="noopener">open songs.js on GitHub →</a>
+        </div>
+        <p class="ed-hint">Paste the object into <code>js/songs.js</code> before the closing <code>];</code> and open a pull request — GitHub forks the repo for you automatically.</p>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="js/main.js"></script>
 </body>

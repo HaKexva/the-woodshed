@@ -1,8 +1,8 @@
 // main.js — UI wiring: song list, transport, session mode, inspire mode.
 
 import { SONGS } from "./songs.js";
-import { Band, SOLOISTS } from "./band.js";
-import { soloScale } from "./theory.js";
+import { Band } from "./band.js";
+import { parseChord, parseWarnings, soloScale, flatName } from "./theory.js";
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -10,10 +10,10 @@ const $$ = (sel) => [...document.querySelectorAll(sel)];
 const state = {
   mode: "session", // session | inspire
   songIndex: 0,
+  customSong: null, // song loaded from the editor instead of the songbook
   playing: false,
   loading: false,
   ready: false,
-  soloist: "trumpet",
 };
 
 const band = new Band({
@@ -52,6 +52,7 @@ function selectSong(i) {
   const wasPlaying = state.playing;
   if (wasPlaying) stop();
   state.songIndex = i;
+  state.customSong = null;
   $$(".track").forEach((el, j) => el.classList.toggle("active", j === i));
   const song = SONGS[i];
   $("#song-title").textContent = song.title;
@@ -112,14 +113,31 @@ function renderSoloStrip(info) {
   $("#solo-strip").hidden = false;
 }
 
-let soloNoteTimer = null;
+// rolling feed of solo notes, grouped by bar — last 8 bars (4 on mobile)
+const soloFeed = [];
 
-function handleSoloNote(pc, durSec) {
-  $$(".solo-note").forEach((el) => el.classList.remove("live"));
-  // root appears at both ends of the strip — light only the first match
-  $$(".solo-note").find((el) => Number(el.dataset.pc) === pc)?.classList.add("live");
-  clearTimeout(soloNoteTimer);
-  soloNoteTimer = setTimeout(() => $$(".solo-note.live").forEach((el) => el.classList.remove("live")), Math.max(120, durSec * 900));
+function feedLimit() {
+  return window.matchMedia("(max-width: 900px)").matches ? 4 : 8;
+}
+
+function renderSoloFeed() {
+  $("#solo-feed").innerHTML =
+    `<span class="feed-label">played</span>` +
+    soloFeed
+      .map((bar) => `<span class="feed-bar">${bar.join(" ")}</span>`)
+      .join(`<span class="feed-sep">|</span>`);
+}
+
+function clearSoloFeed() {
+  soloFeed.length = 0;
+  renderSoloFeed();
+}
+
+function handleSoloNote(pc) {
+  if (state.mode !== "inspire") return;
+  if (!soloFeed.length) soloFeed.push([]);
+  soloFeed[soloFeed.length - 1].push(flatName(pc));
+  renderSoloFeed();
 }
 
 // ------------------------------------------------------------------ transport
@@ -149,6 +167,7 @@ function stop() {
   $("#play").classList.remove("on");
   $("#play-label").textContent = "play";
   resetChordDisplay();
+  clearSoloFeed();
 }
 
 function setStatus(msg) {
@@ -159,7 +178,14 @@ function setStatus(msg) {
 
 function handleBeat(bar, beatInBar) {
   $$(".beat-light").forEach((el, i) => el.classList.toggle("on", i === beatInBar));
-  if (beatInBar === 0) highlightBar(bar);
+  if (beatInBar === 0) {
+    highlightBar(bar);
+    if (state.mode === "inspire") {
+      soloFeed.push([]);
+      while (soloFeed.length > feedLimit()) soloFeed.shift();
+      renderSoloFeed();
+    }
+  }
 }
 
 function handleChord(chord) {
@@ -174,21 +200,18 @@ function handleChord(chord) {
 
 // ------------------------------------------------------------------ inspire mode
 
-function setMode(mode) {
+async function setMode(mode) {
   state.mode = mode;
   $$(".mode-btn").forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
   $("#inspire-panel").hidden = mode !== "inspire";
+  $("#solo-feed").hidden = mode !== "inspire";
+  clearSoloFeed();
   band.setSolo(mode === "inspire");
-  if (mode === "inspire") setSoloist(state.soloist);
-}
-
-async function setSoloist(name) {
-  state.soloist = name;
-  $$(".soloist").forEach((b) => b.classList.toggle("active", b.dataset.solo === name));
-  const label = SOLOISTS[name].label;
-  setStatus(band.soloInsts?.[name] ? "" : `loading ${label}…`);
-  await band.setSoloInstrument(name);
-  if (state.soloist === name) setStatus("");
+  if (mode === "inspire" && !band.soloInst) {
+    setStatus("loading solo piano…");
+    await band.loadSoloist();
+    setStatus("");
+  }
 }
 
 // ------------------------------------------------------------------ controls
@@ -204,9 +227,8 @@ $("#tempo").addEventListener("input", (e) => {
 
 $$(".mode-btn").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
 
-$$(".soloist").forEach((b) => b.addEventListener("click", () => setSoloist(b.dataset.solo)));
-
-$("#density").addEventListener("change", (e) => band.setSoloDensity(Number(e.target.value) / 100));
+$("#feel-crowd").addEventListener("change", (e) => band.setSoloFeel("crowd", Number(e.target.value) / 100));
+$("#feel-heat").addEventListener("change", (e) => band.setSoloFeel("heat", Number(e.target.value) / 100));
 
 $$(".mute").forEach((b) =>
   b.addEventListener("click", () => {
@@ -218,15 +240,105 @@ $$(".mute").forEach((b) =>
 );
 
 document.addEventListener("keydown", (e) => {
-  if (e.target.tagName === "INPUT") return;
+  if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
   if (e.code === "Space") {
     e.preventDefault();
     state.playing ? stop() : play();
   }
-  if (state.mode === "inspire" && /^[1-5]$/.test(e.key)) {
-    const btn = $$(".soloist")[Number(e.key) - 1];
-    if (btn) btn.click();
-  }
+});
+
+// ------------------------------------------------------------------ editor
+
+function parseProgressionText(text, ts) {
+  const errors = [];
+  const warnings = [];
+  const bars = text.split("|").map((s) => s.trim()).filter(Boolean);
+  if (!bars.length) errors.push("no bars found — separate bars with |");
+  const progression = bars.map((barText, i) => {
+    const tokens = barText.split(/\s+/);
+    const bar = tokens.map((tok) => {
+      const [sym, beatsStr] = tok.split(":");
+      if (!/^[A-G][b#]?/.test(sym)) errors.push(`bar ${i + 1}: "${sym}" doesn't look like a chord`);
+      const beats = beatsStr ? Number(beatsStr) : ts / tokens.length;
+      if (!(beats > 0) || (beats * 2) % 1 !== 0) {
+        errors.push(`bar ${i + 1}: bad beat count in "${tok}" (whole or half beats only)`);
+      }
+      const before = parseWarnings.length;
+      parseChord(sym);
+      if (parseWarnings.length > before) warnings.push(`bar ${i + 1}: ${parseWarnings[parseWarnings.length - 1]}`);
+      return { chord: sym, beats };
+    });
+    const sum = bar.reduce((a, x) => a + x.beats, 0);
+    if (Math.abs(sum - ts) > 0.001) {
+      errors.push(`bar ${i + 1}: beats sum to ${sum}, need ${ts} — use chord:beats for uneven splits`);
+    }
+    return bar;
+  });
+  return { progression, errors, warnings };
+}
+
+function buildEditorSong() {
+  const ts = Number($("#ed-ts").value);
+  const { progression, errors, warnings } = parseProgressionText($("#ed-prog").value, ts);
+  const title = $("#ed-title").value.trim();
+  if (!title) errors.unshift("title is required");
+  const song = {
+    title,
+    composer: $("#ed-composer").value.trim() || "unknown",
+    key: $("#ed-key").value.trim() || "—",
+    bpm: Number($("#ed-bpm").value) || 120,
+    style: $("#ed-style").value,
+    timeSignature: ts,
+    form: $("#ed-form").value.trim() || `${progression.length}-bar`,
+    progression,
+  };
+  const src = $("#ed-source").value.trim();
+  if (src) song.source = [src];
+  return { song, errors, warnings };
+}
+
+function showEditorIssues(errors, warnings) {
+  $("#ed-errors").textContent = [...errors, ...warnings.map((w) => `⚠ ${w}`)].join("\n");
+  return errors.length > 0;
+}
+
+$("#open-editor").addEventListener("click", () => ($("#editor-overlay").hidden = false));
+$("#ed-close").addEventListener("click", () => ($("#editor-overlay").hidden = true));
+$("#editor-overlay").addEventListener("click", (e) => {
+  if (e.target === $("#editor-overlay")) $("#editor-overlay").hidden = true;
+});
+
+$("#ed-preview").addEventListener("click", () => {
+  const { song, errors, warnings } = buildEditorSong();
+  if (showEditorIssues(errors, warnings)) return;
+  const wasPlaying = state.playing;
+  if (wasPlaying) stop();
+  state.customSong = song;
+  $$(".track").forEach((el) => el.classList.remove("active"));
+  $("#song-title").textContent = `${song.title} (preview)`;
+  $("#song-detail").textContent = `${song.composer} — ${song.key} · ${song.form} · ${song.style}`;
+  $("#tempo").value = song.bpm;
+  $("#tempo-val").textContent = song.bpm;
+  band.bpmOverride = null;
+  band.loadSong(song);
+  renderLeadsheet(song);
+  renderSources(song);
+  resetChordDisplay();
+  $("#editor-overlay").hidden = true;
+  play();
+});
+
+$("#ed-export").addEventListener("click", () => {
+  const { song, errors, warnings } = buildEditorSong();
+  if (showEditorIssues(errors, warnings)) return;
+  $("#ed-json").value = JSON.stringify(song, null, 2);
+  $("#ed-output").hidden = false;
+});
+
+$("#ed-copy").addEventListener("click", async () => {
+  await navigator.clipboard.writeText($("#ed-json").value);
+  $("#ed-copy").textContent = "copied ✓";
+  setTimeout(() => ($("#ed-copy").textContent = "copy"), 1500);
 });
 
 // ------------------------------------------------------------------ boot

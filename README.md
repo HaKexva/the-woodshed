@@ -5,7 +5,11 @@ A jazz chord-progression practice tool that runs entirely in the browser — no 
 ## Modes
 
 - **Session** — the band loops the tune continuously. The lead sheet highlights the current bar, the big card shows the current chord, and the next chord is previewed. A **solo-notes strip** shows the 8-note chord scale to improvise with over the current chord (e.g. `Dm7 → D dorian: D E F G A B C D`), root notes highlighted.
-- **Inspire** — the band plays and a generated soloist improvises over the changes so you can hear the scales in action. Pick the soloist (keys `1`–`5`): **trumpet, trombone, alto sax, tenor sax, or keys** (Splendid Grand — distinct from the electric-piano comping). Lines follow a dynamic arc across each chorus (sparse open → peak ~3/4 through → cool-down) with motif echoes, bebop enclosures into chord changes, blue notes, and grace-note scoops; the **solo density** slider scales the whole arc from sparse to hot, live. The note currently being played lights up in the solo-notes strip. Horn soloists are ~70–150 KB WebAudioFont presets; a new line is generated every play.
+- **Inspire** — the band plays and a generated solo piano (smplr's Splendid Grand — distinct from the electric-piano comping) improvises over the changes so you can hear the scales in action. Lines follow a dynamic arc across each chorus (sparse open → peak ~3/4 through → cool-down) built from phrase flavors (runs, long tones, bluesy riffs, motif echoes) with bebop enclosures into chord changes, blue notes, and grace-note scoops. Two live dials shape the feel: **crowding** (how packed the notes are — phrase length, 16th runs, rests, holds) and **loudness** (velocity, offbeat accents, articulation sharpness, register push). A rolling **played-notes feed** shows the last 8 bars of the solo (4 on mobile), grouped by bar. A new line is generated every play.
+
+## Add your own tunes — in the app
+
+Click **+ add a tune** in the sidebar. Fill in the metadata and type the changes with a simple syntax: bars separated by `|`, chords in a bar by spaces, optional beats with `:` (e.g. `Dm7b5:3 G7:1`). Preview it with the full band, then **export JSON** and paste the object into `js/songs.js` via the GitHub link to open a pull request.
 
 Other controls: tempo slider (50–240 bpm), per-instrument mutes, `space` to play/stop.
 
@@ -75,8 +79,8 @@ Per-song source URLs live in `js/songs.js` and are displayed in the app. Where c
 - **What's included:** chord symbols, song titles, composer names, form/tempo metadata. Song titles and composer credits are factual metadata; the chord progressions are shown as commonly taught in jazz education.
 - **What's deliberately NOT included:** melodies, lyrics, published lead-sheet layouts, or audio recordings of the original works — those are the copyrighted elements of these songs.
 - **Chord-change references:** learnjazzstandards.com, jazz-circle.com, antonjazz.com, jazz-guitar-licks.com, jazzleadsheet.com, jazzingly.com, saxteacheruk.com, brunojazz.com, jazzimprov.net, musictheorymanual.com, Wikipedia, swiss-jazz.ch (per-song URLs in `js/songs.js`).
-- **Instrument samples:** band = [MusyngKite soundfont kit](https://github.com/gleitz/midi-js-soundfonts) (CC BY-SA 3.0, hosted by gleitz.github.io as intended) via [smplr](https://github.com/danigb/smplr) (MIT); keys soloist = smplr's Splendid Grand Piano; horn soloists = [WebAudioFont](https://github.com/surikov/webaudiofont) JCLive presets (GPLv3 player, live-sampled with loop points). Scheduling by [Tone.js](https://tonejs.github.io/) (MIT). Drums are synthesized in-browser — no samples.
-- **License:** this project is licensed under [GPLv3](LICENSE) (required by the WebAudioFont player it links).
+- **Instrument samples:** band = [MusyngKite soundfont kit](https://github.com/gleitz/midi-js-soundfonts) (CC BY-SA 3.0, hosted by gleitz.github.io as intended) via [smplr](https://github.com/danigb/smplr) (MIT); soloist = smplr's Splendid Grand Piano. Scheduling by [Tone.js](https://tonejs.github.io/) (MIT). Drums are synthesized in-browser — no samples.
+- **License:** this project is licensed under [GPLv3](LICENSE).
 - **Purpose:** personal practice and music education.
 
 This is a good-faith educational project, not legal advice; if you plan to commercialize it, consult a music-licensing professional.

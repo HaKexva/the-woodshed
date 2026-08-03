@@ -9,29 +9,9 @@ import { parseChord, pianoVoicing, guitarVoicing, bassPcs, placeNear, soloScaleS
 const BASS_LO = 30; // F#1
 const BASS_HI = 52; // E3
 
-// Solo instruments and practical ranges in MIDI. Horns use WebAudioFont's
-// JCLive presets (live-sampled, loop points → notes sustain properly);
-// keys use smplr's Splendid Grand Piano.
-const WAF_BASE = "https://surikov.github.io/webaudiofontdata/sound";
-export const SOLOISTS = {
-  trumpet: { label: "trumpet", waf: `0560_JCLive_sf2_file`, lo: 58, hi: 84 },
-  trombone: { label: "trombone", waf: `0570_JCLive_sf2_file`, lo: 55, hi: 77, boost: 1.8 },
-  alto: { label: "alto sax", waf: `0650_JCLive_sf2_file`, lo: 56, hi: 80 },
-  tenor: { label: "tenor sax", waf: `0660_JCLive_sf2_file`, lo: 50, hi: 76 },
-  keys: { label: "keys", lo: 60, hi: 88, splendid: true },
-};
-
-const WAF_PLAYER_URL = "https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js";
-
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src = src;
-    s.onload = resolve;
-    s.onerror = () => reject(new Error(`failed to load ${src}`));
-    document.head.appendChild(s);
-  });
-}
+// The soloist: smplr's Splendid Grand Piano, practical solo range in MIDI.
+const SOLO_LO = 60;
+const SOLO_HI = 88;
 
 const rnd = (lo, hi) => lo + Math.random() * (hi - lo);
 const choice = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -46,15 +26,15 @@ export class Band {
     this.setupPromise = null;
     this.playing = false;
     this.soloOn = false;
-    this.soloName = "trumpet";
-    this.soloDensity = 0.5;
-    this.soloInsts = {};
+    this.soloFeel = { crowd: 0.5, heat: 0.5 }; // crowd: note packing · heat: loudness/sharpness
+    this.soloInst = null;
     this.soloPart = null;
   }
 
-  /** 0 = sparse and mellow, 1 = dense and hot. Regenerates the line live. */
-  setSoloDensity(d) {
-    this.soloDensity = Math.max(0, Math.min(1, d));
+  /** Set one solo-feel dial (0..1) — "crowd" or "heat". Regenerates live. */
+  setSoloFeel(dial, v) {
+    if (!(dial in this.soloFeel)) return;
+    this.soloFeel[dial] = Math.max(0, Math.min(1, v));
     if (this.playing) this._rebuildSoloPart();
   }
 
@@ -123,31 +103,18 @@ export class Band {
     this.cb.onReady?.();
   }
 
-  async _loadSplendid() {
-    const inst = new SplendidGrandPiano(this.ctx, { destination: this.gains.solo });
-    await inst.load;
-    return inst;
-  }
-
-  /** WebAudioFont horn wrapped in the same start/stop shape smplr uses. */
-  async _loadWafInstrument(def) {
-    if (!this.wafPlayer) {
-      if (!window.WebAudioFontPlayer) await loadScript(WAF_PLAYER_URL);
-      this.wafPlayer = new window.WebAudioFontPlayer();
+  /** Lazy-load the solo piano. */
+  async loadSoloist() {
+    await this.setup();
+    if (this.soloInst) return;
+    try {
+      const inst = new SplendidGrandPiano(this.ctx, { destination: this.gains.solo });
+      await inst.load;
+      this.soloInst = inst;
+    } catch (e) {
+      console.warn("solo piano failed, using synth fallback", e);
+      this.soloInst = this._synthFallback("piano", this.gains.solo);
     }
-    const varName = `_tone_${def.waf}`;
-    if (!window[varName]) await loadScript(`${WAF_BASE}/${def.waf}.js`);
-    this.wafPlayer.loader.decodeAfterLoading(this.ctx, varName);
-    await new Promise((resolve) => this.wafPlayer.loader.waitLoad(resolve));
-    const player = this.wafPlayer;
-    const ctx = this.ctx;
-    const dest = this.gains.solo;
-    const boost = def.boost ?? 1;
-    return {
-      start: ({ note, time, duration, velocity = 90 }) =>
-        player.queueWaveTable(ctx, dest, window[varName], time ?? ctx.currentTime, note, duration, (velocity / 127) * 0.85 * boost),
-      stop: () => player.cancelQueue(ctx),
-    };
   }
 
   /** Minimal smplr-compatible adapter over a Tone synth (offline fallback). */
@@ -217,27 +184,6 @@ export class Band {
     this.soloOn = on;
   }
 
-  /** Lazy-load a solo soundfont and make it the active soloist. */
-  async setSoloInstrument(name) {
-    const def = SOLOISTS[name];
-    if (!def) return;
-    await this.setup();
-    if (!this.soloInsts[name]) {
-      try {
-        this.soloInsts[name] = def.waf
-          ? await this._loadWafInstrument(def)
-          : await this._loadSplendid();
-      } catch (e) {
-        console.warn(`soloist ${name} failed, using synth fallback`, e);
-        this.soloInsts[name] = this._synthFallback("piano", this.gains.solo);
-      }
-    }
-    const rebuildLine = name !== this.soloName;
-    this.soloName = name;
-    // range differs per horn — regenerate the line if we're mid-tune
-    if (rebuildLine && this.playing) this._rebuildSoloPart();
-  }
-
   setMuted(name, value) {
     this.muted[name] = value;
     if (this.gains?.[name]) {
@@ -294,7 +240,7 @@ export class Band {
     this.piano?.stop?.();
     this.bass?.stop?.();
     this.guitar?.stop?.();
-    Object.values(this.soloInsts).forEach((i) => i.stop?.());
+    this.soloInst?.stop?.();
   }
 
   // ---------------------------------------------------------------- events
@@ -376,17 +322,16 @@ export class Band {
     this._rebuildSoloPart();
   }
 
-  /** (Re)generate the improvised line for the current soloist's range. */
+  /** (Re)generate the improvised line. */
   _rebuildSoloPart() {
     const ctx = this._songCtx;
     if (!ctx) return;
     this.soloPart?.dispose();
-    const def = SOLOISTS[this.soloName];
-    const events = this._soloEvents(ctx.chords, ctx.totalBeats, ctx.style, def.lo, def.hi);
+    const events = this._soloEvents(ctx.chords, ctx.totalBeats, ctx.style, SOLO_LO, SOLO_HI);
     this.soloPart = new Tone.Part((time, e) => {
       if (!this.soloOn) return;
       const durSec = e.dur * ctx.beatSec();
-      this.soloInsts[this.soloName]?.start({
+      this.soloInst?.start({
         note: e.midi,
         time,
         duration: durSec,
@@ -441,14 +386,27 @@ export class Band {
       }
       return best;
     };
-    // intensity 0..1 across the form, peaking ~72% through, scaled by the
-    // user's density setting
-    const density = lerp(0.45, 1.45, this.soloDensity);
+    // Three dials shape the line: the arc (intensity rises to a peak ~72%
+    // through the form), "crowd" (how packed the notes are: 16ths, phrase
+    // length, rests, holds) and "heat" (loudness/sharpness: velocity,
+    // accents, articulation, register push).
+    const { crowd: c, heat: h } = this.soloFeel;
     const arcAt = (t) => {
       const x = (t % totalBeats) / totalBeats;
       const arc = x < 0.72 ? x / 0.72 : (1 - x) / 0.28;
-      const i = (0.18 + 0.72 * arc) * density + rnd(-0.08, 0.08);
+      const i = (0.18 + 0.72 * arc) * lerp(0.55, 1.35, (c + h) / 2) + rnd(-0.15, 0.15);
       return Math.max(0.05, Math.min(1, ballad ? i * 0.6 : i));
+    };
+    const legato = lerp(0.97, 0.8, h); // hotter = sharper articulation
+    // phrase flavors keep the line from sounding same-y
+    const pickFlavor = (i) => {
+      const wRun = 0.2 + 0.55 * i + 0.2 * c;
+      const wLong = Math.max(0.1, 0.6 - 0.5 * i - 0.3 * c);
+      const wRiff = 0.3;
+      let r = Math.random() * (wRun + wLong + wRiff);
+      if ((r -= wRun) <= 0) return "run";
+      if ((r -= wLong) <= 0) return "longtones";
+      return "riff";
     };
 
     let t = choice([0.5, 1, 1.5, 2]);
@@ -459,22 +417,40 @@ export class Band {
 
     while (t < totalBeats - 0.5) {
       const intensity = arcAt(t);
-      const registerTarget = lo + (hi - lo) * lerp(0.35, 0.72, intensity);
-      const velBase = lerp(58, 102, intensity);
+      const registerTarget = lo + (hi - lo) * Math.min(0.85, lerp(0.35, 0.72, intensity) + h * 0.08);
       const useMotif = motif && Math.random() < 0.35;
+      const flavor = useMotif ? "motif" : ballad && Math.random() < 0.5 ? "longtones" : pickFlavor(intensity);
+      let velBase = lerp(52, 84, intensity) + lerp(-4, 24, h);
+      let blueBoost = 1;
 
       let durs;
       let plannedSteps = null;
       if (useMotif) {
         durs = motif.durs;
         plannedSteps = motif.steps;
+      } else if (flavor === "longtones") {
+        // few notes, held — breathes even at high intensity
+        const len = 2 + Math.floor(Math.random() * 2);
+        durs = Array.from({ length: len }, () => choice([1.5, 2, 2.5]));
+        durs[len - 1] += 0.5;
+        velBase -= 8;
+      } else if (flavor === "riff") {
+        // short syncopated cell, leans bluesy
+        const len = 3 + Math.floor(Math.random() * 3);
+        durs = Array.from({ length: len }, (_, n) =>
+          n === len - 1 ? choice([1, 1.5]) : choice([0.5, 0.5, 0.25])
+        );
+        if (t % 1 === 0 && Math.random() < 0.6) t += 0.5; // offbeat entry
+        blueBoost = 2;
       } else {
-        const len = Math.max(2, Math.round(lerp(2.5, 10, intensity) + rnd(-1, 2)));
+        // run: the workhorse — crowd directly packs the notes
+        const len = Math.max(3, Math.round(lerp(2.5, 8 + 6 * c, intensity) + rnd(-1, 2)));
+        const p16 = Math.max(0, (intensity - 0.5) * 0.6 + c * 0.35);
         durs = [];
         for (let n = 0; n < len; n++) {
-          if (n === len - 1) durs.push(choice(ballad ? [2, 2.5, 3] : [1, 1.5, 2]));
-          else if (!ballad && intensity > 0.55 && Math.random() < (intensity - 0.55) * 0.6) durs.push(0.25);
-          else durs.push(Math.random() < 0.12 ? 1 : 0.5);
+          if (n === len - 1) durs.push(choice(ballad ? [2, 2.5, 3] : c > 0.6 ? [0.5, 1, 1.5] : [1, 1.5, 2]));
+          else if (!ballad && Math.random() < p16) durs.push(0.25);
+          else durs.push(Math.random() < 0.12 * (1 - c) ? 1 : 0.5);
         }
       }
 
@@ -504,7 +480,7 @@ export class Band {
           cur = pool[idx];
         } else if (Math.random() < 0.12) {
           takenSteps.push(0); // sit on the note
-        } else if (Math.random() < lerp(0.1, 0.22, intensity)) {
+        } else if (Math.random() < lerp(0.1, 0.22, intensity) * blueBoost) {
           const blue = blueNote(c, cur);
           if (blue !== null) cur = blue;
           takenSteps.push(0);
@@ -521,12 +497,12 @@ export class Band {
         const last = n === durs.length - 1;
         const dur = durs[n];
         const offbeat = t % 1 !== 0;
-        const vel = Math.round(Math.min(120, Math.max(45, velBase + rnd(-8, 10) + (offbeat ? 5 : 0) + (last ? 4 : 0))));
+        const vel = Math.round(Math.min(122, Math.max(40, velBase + rnd(-8, 10) + (offbeat ? lerp(2, 10, h) : 0) + (last ? 4 : 0))));
         // grace-note scoop into phrase starts and held notes
         if ((t === phraseStart || last) && t - 0.25 >= lastEnd && Math.random() < 0.18) {
           events.push({ beat: t - 0.25, midi: cur - 1, dur: 0.22, vel: Math.max(30, vel - 26) });
         }
-        events.push({ beat: t, midi: cur, dur: dur * 0.92, vel });
+        events.push({ beat: t, midi: cur, dur: dur * legato, vel });
         t += dur;
         lastEnd = t;
       }
@@ -537,7 +513,7 @@ export class Band {
         motif = null; // move on to new material
       }
 
-      t += Math.max(0.5, lerp(2.75, 0.75, intensity) + choice([-0.5, 0, 0.5, 1]) + (ballad ? 1 : 0));
+      t += Math.max(0.5, lerp(3, 0.6, (intensity + c) / 2) + choice([-0.5, 0, 0.5, 1]) + (ballad ? 1 : 0));
       t = Math.round(t * 4) / 4;
     }
     return events;
