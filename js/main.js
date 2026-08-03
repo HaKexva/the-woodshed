@@ -115,7 +115,9 @@ function renderSoloStrip(info) {
 let soloNoteTimer = null;
 
 function handleSoloNote(pc, durSec) {
-  $$(".solo-note").forEach((el) => el.classList.toggle("live", Number(el.dataset.pc) === pc));
+  $$(".solo-note").forEach((el) => el.classList.remove("live"));
+  // root appears at both ends of the strip — light only the first match
+  $$(".solo-note").find((el) => Number(el.dataset.pc) === pc)?.classList.add("live");
   clearTimeout(soloNoteTimer);
   soloNoteTimer = setTimeout(() => $$(".solo-note.live").forEach((el) => el.classList.remove("live")), Math.max(120, durSec * 900));
 }
