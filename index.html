@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>the woodshed · jazz changes trainer</title>
+  <meta name="description" content="Practice jazz chord progressions with a full backing band — piano, guitar, bass and drums. Session mode to play along, quiz mode to train your ears." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Familjen+Grotesk:ital,wght@0,400..700;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230f1216'/><rect x='14' y='14' width='44' height='44' fill='%23f08a24'/><text x='24' y='84' font-size='40' fill='%23f2e7d3' font-family='sans-serif' font-weight='bold'>w.</text></svg>" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="masthead">
+    <div class="brand">
+      <span class="brand-block" aria-hidden="true"></span>
+      <h1>the woodshed<span class="brand-dot">.</span></h1>
+      <p class="tagline">jazz changes trainer</p>
+    </div>
+    <nav class="mode-switch" aria-label="mode">
+      <button class="mode-btn active" data-mode="session">session</button>
+      <button class="mode-btn" data-mode="quiz">play</button>
+    </nav>
+  </header>
+
+  <main class="layout">
+    <aside class="sleeve">
+      <h2 class="sleeve-label">side A — standards</h2>
+      <ol id="tracklist" class="tracklist"></ol>
+      <p class="sleeve-note">add your own tunes — see the README</p>
+    </aside>
+
+    <section class="stage">
+      <div class="now">
+        <div class="now-head">
+          <h2 id="song-title">—</h2>
+          <p id="song-detail"></p>
+        </div>
+        <div class="chord-card">
+          <span id="chord-now" class="chord-now">—</span>
+        </div>
+        <div class="now-side">
+          <p id="chord-next" class="chord-next"></p>
+          <div class="beat-lights" aria-hidden="true">
+            <span class="beat-light"></span><span class="beat-light"></span><span class="beat-light"></span><span class="beat-light"></span>
+          </div>
+        </div>
+      </div>
+
+      <div id="solo-strip" class="solo-strip" hidden>
+        <span class="solo-label">solo notes · <em id="solo-scale"></em></span>
+        <div id="solo-notes" class="solo-notes"></div>
+      </div>
+
+      <div id="quiz-panel" class="quiz-panel">
+        <p class="quiz-q">what's playing?</p>
+        <div id="quiz-options" class="quiz-options"></div>
+        <dl class="scoreboard">
+          <div><dt>streak</dt><dd id="score-streak">0</dd></div>
+          <div><dt>hits</dt><dd id="score-hits">0/0</dd></div>
+          <div><dt>accuracy</dt><dd id="score-acc">—</dd></div>
+          <div><dt>missed</dt><dd id="score-missed">0</dd></div>
+          <div><dt>best streak</dt><dd id="score-best">0</dd></div>
+        </dl>
+      </div>
+
+      <div id="leadsheet" class="leadsheet"></div>
+
+      <section class="credits">
+        <h3>sources &amp; credits</h3>
+        <p>
+          This tool displays <strong>chord symbols only</strong> — no melodies, no lyrics, no recordings.
+          Song titles and composer names are shown as factual metadata. Chord changes follow common
+          lead-sheet practice, cross-checked against jazz-education references.
+        </p>
+        <p id="song-source-line">changes for this song verified against: <span id="song-source"></span></p>
+        <p id="song-note" class="song-note"></p>
+        <p>
+          Instrument samples: <a href="https://github.com/gleitz/midi-js-soundfonts" rel="noopener">FluidR3_GM soundfont (MIT)</a>
+          played via <a href="https://github.com/danigb/smplr" rel="noopener">smplr (MIT)</a> ·
+          scheduling by <a href="https://tonejs.github.io/" rel="noopener">Tone.js (MIT)</a> ·
+          drums synthesized in-browser. For personal practice &amp; education.
+        </p>
+      </section>
+    </section>
+  </main>
+
+  <footer class="transport">
+    <button id="play" class="play-btn" aria-label="play / stop">
+      <span class="play-glyph" aria-hidden="true"></span>
+    </button>
+    <span id="play-label" class="play-label">play</span>
+
+    <label class="tempo-ctl">
+      <span class="ctl-label">tempo</span>
+      <input id="tempo" type="range" min="50" max="240" value="120" />
+      <span class="tempo-readout"><span id="tempo-val">120</span> bpm</span>
+    </label>
+
+    <div class="mutes" role="group" aria-label="instruments">
+      <button class="mute" data-inst="piano">keys</button>
+      <button class="mute" data-inst="guitar">gtr</button>
+      <button class="mute" data-inst="bass">bass</button>
+      <button class="mute" data-inst="drums">drums</button>
+    </div>
+
+    <span id="status" class="status" role="status"></span>
+    <span class="hint">space · play — 1-4 · answer</span>
+  </footer>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
