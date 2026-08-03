@@ -3,7 +3,7 @@
 // supply piano / bass / guitar; drums are Tone synths (no samples to host).
 
 import * as Tone from "https://cdn.jsdelivr.net/npm/tone@15.1.22/+esm";
-import { Soundfont, SplendidGrandPiano } from "https://cdn.jsdelivr.net/npm/smplr@1.0.0/+esm";
+import { Soundfont, SplendidGrandPiano, Sampler } from "https://cdn.jsdelivr.net/npm/smplr@1.0.0/+esm";
 import { parseChord, pianoVoicing, guitarVoicing, bassPcs, placeNear, soloScaleSteps } from "./theory.js";
 
 const BASS_LO = 30; // F#1
@@ -21,7 +21,7 @@ const SOLO_HI = 88;
 //   cells = vocabulary licks as {steps: scale-step deltas, durs: beats}
 export const SOLO_STYLES = {
   miles: {
-    label: "miles",
+    label: "style 1",
     blurb: "space, short motifs, mid register, behind the beat",
     p: {
       rest: 2.2, phrase: 0.5, phraseCap: 6, regLo: 0.45, regHi: 0.6,
@@ -35,7 +35,7 @@ export const SOLO_STYLES = {
     },
   },
   parker: {
-    label: "parker",
+    label: "style 2",
     blurb: "relentless bebop 8ths, enclosures, barline-crossing phrases",
     p: {
       rest: 0.55, phrase: 1.5, phraseCap: 18, regLo: 0.45, regHi: 0.8,
@@ -50,7 +50,7 @@ export const SOLO_STYLES = {
     },
   },
   coltrane: {
-    label: "coltrane",
+    label: "style 3",
     blurb: "sheets of sound — 16th cascades, stacked arpeggios",
     p: {
       rest: 0.4, phrase: 1.9, phraseCap: 24, regLo: 0.35, regHi: 0.9,
@@ -65,7 +65,7 @@ export const SOLO_STYLES = {
     },
   },
   monk: {
-    label: "monk",
+    label: "style 4",
     blurb: "angular leaps, weak-beat jabs, sudden silences",
     p: {
       rest: 1.6, phrase: 0.7, phraseCap: 8, regLo: 0.4, regHi: 0.75,
@@ -80,7 +80,7 @@ export const SOLO_STYLES = {
     },
   },
   chet: {
-    label: "chet",
+    label: "style 5",
     blurb: "singable stepwise lines, chord tones, soft and unhurried",
     p: {
       rest: 1.5, phrase: 0.8, phraseCap: 9, regLo: 0.35, regHi: 0.55,
@@ -95,7 +95,7 @@ export const SOLO_STYLES = {
     },
   },
   dexter: {
-    label: "dexter",
+    label: "style 6",
     blurb: "way behind the beat, long even notes, sneaks in quotes",
     p: {
       rest: 1, phrase: 1, regLo: 0.4, regHi: 0.7,
@@ -109,7 +109,7 @@ export const SOLO_STYLES = {
     },
   },
   wes: {
-    label: "wes",
+    label: "style 7",
     blurb: "builds the chorus: single notes → octaves → chords",
     p: {
       rest: 1.1, phrase: 1, regLo: 0.4, regHi: 0.7,
@@ -117,7 +117,7 @@ export const SOLO_STYLES = {
     },
   },
   silver: {
-    label: "silver",
+    label: "style 8",
     blurb: "short funky riffs, repeated and squeezed, gospel smears",
     p: {
       rest: 1.2, phrase: 0.5, phraseCap: 6, regLo: 0.4, regHi: 0.65,
@@ -203,6 +203,7 @@ export class Band {
     this.gains.solo.gain.value = 1.25;
 
     this._buildDrumKit();
+    this._loadDrumSamples(); // fire-and-forget — synth kit covers until ready
 
     let loaded = 0;
     const total = 3;
@@ -259,6 +260,30 @@ export class Band {
         synth.triggerAttackRelease(Tone.Frequency(note, "midi").toFrequency(), duration, time, velocity / 127),
       stop: () => synth.releaseAll(),
     };
+  }
+
+  /** Real one-shot samples (vendored in /samples/drums) — the synth pools
+   *  keep playing until these are decoded, or forever if they're absent. */
+  async _loadDrumSamples() {
+    try {
+      const base = "samples/drums";
+      const probe = await fetch(`${base}/ride.ogg`, { method: "HEAD" });
+      if (!probe.ok) return;
+      const sampler = new Sampler(this.ctx, {
+        destination: this.gains.drums,
+        buffers: {
+          ride: `${base}/ride.ogg`,
+          hat: `${base}/hat.ogg`,
+          snare: `${base}/snare.ogg`,
+          kick: `${base}/kick.ogg`,
+          rim: `${base}/rim.ogg`,
+        },
+      });
+      await sampler.load;
+      this.drumSamples = sampler;
+    } catch (e) {
+      console.warn("drum samples unavailable — staying on the synth kit", e);
+    }
   }
 
   _buildDrumKit() {
@@ -453,6 +478,16 @@ export class Band {
     mk(ev.drums, (time, e) => {
       if (this.muted.drums) return;
       const v = e.vel / 127;
+      // sampled kit when loaded: real attacks, detune jitter per hit
+      if (this.drumSamples) {
+        this.drumSamples.start({
+          note: e.drum,
+          time,
+          velocity: Math.min(120, Math.round(e.vel * 1.5)),
+          detune: rnd(-35, 35),
+        });
+        return;
+      }
       // rotating voices + per-hit jitter: pitch, decay, and ring length all
       // vary a little, and harder hits ring longer — no two hits identical
       try {
