@@ -708,8 +708,50 @@ input[type="range"]::-moz-range-thumb {
 
 /* ------------------------------------------------------------ responsive */
 
+/* system view — mobile-only chart reading, line by line */
+.system-view { display: none; }
+
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; }
+
+  /* concept B: current 4-bar system large, neighbors ghosted; the big
+     chord card and full sheet step aside */
+  .system-view { display: block; margin-bottom: 1.6rem; }
+  .chord-card { display: none; }
+  .chord-next { display: none; }
+  .leadsheet { display: none; }
+
+  .sys-pos {
+    font-size: 0.66rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--cream-60);
+    margin-bottom: 0.55rem;
+  }
+
+  .sys-row { display: grid; grid-template-columns: repeat(4, 1fr); border: 2px solid var(--cream-25); }
+  .sys-row[hidden] { display: none; }
+  .sys-row + .sys-row { margin-top: 0.5rem; }
+  .sys-row.prev { opacity: 0.28; transform: scale(0.94); transform-origin: bottom center; }
+  .sys-row.next { opacity: 0.5; }
+  .sys-row.live { border-color: var(--cream-60); }
+
+  .sys-cell {
+    border-right: 2px solid var(--cream-25);
+    padding: 0.6rem 0.15rem;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.85rem;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sys-cell:last-child { border-right: 0; }
+  .sys-row.live .sys-cell { font-size: 1.08rem; padding: 0.95rem 0.15rem; }
+  .sys-cell.multi { font-size: 0.72rem; }
+  .sys-row.live .sys-cell.multi { font-size: 0.85rem; }
+  .sys-cell.on { background: var(--amber); color: var(--ink); }
   .sleeve { border-right: 0; border-bottom: 2px solid var(--cream-25); min-height: 0; padding-bottom: 1rem; }
 
   /* songs collapse behind a toggle on small screens */

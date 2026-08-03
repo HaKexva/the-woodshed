@@ -70,7 +70,7 @@ export class Band {
       this.gains[name] = g;
     }
     this.gains.piano.gain.value = 0.75;
-    this.gains.guitar.gain.value = 0.6;
+    this.gains.guitar.gain.value = 0.85;
     this.gains.bass.gain.value = 1.0;
     this.gains.drums.gain.value = 0.8;
     this.gains.solo.gain.value = 1.25;
@@ -192,7 +192,7 @@ export class Band {
   }
 
   _gainFor(name) {
-    return { piano: 0.75, guitar: 0.6, bass: 1.0, drums: 0.8 }[name];
+    return { piano: 0.75, guitar: 0.85, bass: 1.0, drums: 0.8, solo: 1.25 }[name];
   }
 
   setBpm(bpm) {
@@ -328,17 +328,21 @@ export class Band {
     if (!ctx) return;
     this.soloPart?.dispose();
     const events = this._soloEvents(ctx.chords, ctx.totalBeats, ctx.style, SOLO_LO, SOLO_HI);
+    // tick-based times so triplets land exactly; a touch of laid-back lag
+    // (less when playing hot) plus per-note jitter humanizes the placement
+    const ppq = Tone.getTransport().PPQ;
     this.soloPart = new Tone.Part((time, e) => {
       if (!this.soloOn) return;
       const durSec = e.dur * ctx.beatSec();
+      const when = time + 0.019 * (1 - 0.55 * this.soloFeel.heat) + rnd(-0.004, 0.004);
       this.soloInst?.start({
         note: e.midi,
-        time,
+        time: when,
         duration: durSec,
         velocity: e.vel,
       });
-      Tone.getDraw().schedule(() => this.cb.onSoloNote?.(e.midi % 12, durSec), time);
-    }, events.map((e) => [ctx.toBBS(e.beat), e]));
+      Tone.getDraw().schedule(() => this.cb.onSoloNote?.(e.midi % 12, durSec), when);
+    }, events.map((e) => [`${Math.round(e.beat * ppq)}i`, e]));
     this.soloPart.start(0);
   }
 
@@ -386,6 +390,25 @@ export class Band {
       }
       return best;
     };
+    // guide-tone thread: a voice-led line of 3rds/7ths through the whole
+    // form — the skeleton real solos hang from
+    const thread = new Map();
+    {
+      const pk = (arr, wanted) => { for (const w of wanted) if (arr.includes(w)) return w; return null; };
+      let prevT = (lo + hi) / 2;
+      for (const ch of chords) {
+        const iv = ch.info.intervals;
+        const cands = [];
+        for (const s of [pk(iv, [4, 3, 5]) ?? 4, pk(iv, [10, 11, 9]) ?? 7]) {
+          const pc = (ch.info.rootPc + s) % 12;
+          for (let m = lo + 2; m <= hi - 3; m++) if (m % 12 === pc) cands.push(m);
+        }
+        let best = cands[0] ?? Math.round(prevT);
+        for (const m of cands) if (Math.abs(m - prevT) < Math.abs(best - prevT)) best = m;
+        thread.set(ch, best);
+        prevT = best;
+      }
+    }
     // Three dials shape the line: the arc (intensity rises to a peak ~72%
     // through the form), "crowd" (how packed the notes are: 16ths, phrase
     // length, rests, holds) and "heat" (loudness/sharpness: velocity,
@@ -452,11 +475,13 @@ export class Band {
         const len = Math.min(16, Math.max(3, Math.round(lerp(3, 6, intensity) * lerp(0.6, 2.0, c) + rnd(-1, 1))));
         const p16 = Math.min(0.7, c * 0.5 + Math.max(0, intensity - 0.5) * 0.3);
         durs = [];
-        for (let n = 0; n < len; n++) {
-          if (n === len - 1) durs.push(choice(ballad ? [2, 2.5, 3] : c > 0.6 ? [0.5, 1] : [1, 1.5, 2]));
-          else if (!ballad && Math.random() < p16) durs.push(0.25);
+        while (durs.length < len - 1) {
+          if (!ballad && durs.length < len - 3 && Math.random() < 0.08 + 0.16 * intensity) {
+            durs.push(1 / 3, 1 / 3, 1 / 3); // triplet cell over one beat
+          } else if (!ballad && Math.random() < p16) durs.push(0.25);
           else durs.push(Math.random() < 0.3 * (1 - c) ? 1 : 0.5);
         }
+        durs.push(choice(ballad ? [2, 2.5, 3] : c > 0.6 ? [0.5, 1] : [1, 1.5, 2]));
       }
 
       const takenSteps = [];
@@ -466,10 +491,18 @@ export class Band {
         const pool = poolFor(c);
         const newChord = c !== lastChord;
         if (newChord || n === 0) {
-          // land on a chord tone, drawn toward the arc's register
-          const tones = new Set(c.info.intervals.filter((iv) => iv > 0).map((iv) => (c.info.rootPc + iv) % 12));
-          const idx = nearestIdx(pool, n === 0 ? (cur + registerTarget) / 2 : cur, (m) => tones.has(m % 12));
-          const target = pool[idx];
+          // land on the guide-tone thread (or a nearby chord tone), drawn
+          // toward the arc's register
+          let target;
+          let idx;
+          if (Math.random() < 0.55) {
+            target = thread.get(c);
+            idx = nearestIdx(pool, target);
+          } else {
+            const tones = new Set(c.info.intervals.filter((iv) => iv > 0).map((iv) => (c.info.rootPc + iv) % 12));
+            idx = nearestIdx(pool, n === 0 ? (cur + registerTarget) / 2 : cur, (m) => tones.has(m % 12));
+            target = pool[idx];
+          }
           lastChord = c;
           // bebop enclosure: scale step above, semitone below, then the target
           if (n === 0 && !useMotif && t - 1 >= lastEnd && Math.random() < lerp(0.15, 0.4, intensity)) {
@@ -500,9 +533,22 @@ export class Band {
           cur = pool[idx];
         }
         const last = n === durs.length - 1;
+        // phrase ends resolve — 3rd or 9th of the sounding chord, the thing
+        // that makes a line sound intentional
+        if (last && !plannedSteps && flavor !== "longtones") {
+          const iv = c.info.intervals;
+          const third = (c.info.rootPc + (iv.includes(4) ? 4 : iv.includes(3) ? 3 : 4)) % 12;
+          const ninth = (c.info.rootPc + 2) % 12;
+          const res = new Set([third, ninth]);
+          const idx = nearestIdx(pool, cur, (m) => res.has(m % 12));
+          if (idx >= 0) cur = pool[idx];
+        }
         const dur = durs[n];
-        const offbeat = t % 1 !== 0;
-        const vel = Math.round(Math.min(122, Math.max(40, velBase + rnd(-8, 10) + (offbeat ? lerp(2, 10, h) : 0) + (last ? 4 : 0))));
+        const offbeat = Math.abs(t - Math.round(t)) > 0.05;
+        // crescendo into the phrase's peak, easing after
+        const peak = Math.max(1, Math.round((durs.length - 1) * 0.65));
+        const contour = 13 * (1 - Math.abs(n - peak) / Math.max(peak, durs.length - peak, 1)) - 4;
+        const vel = Math.round(Math.min(122, Math.max(40, velBase + contour + rnd(-6, 7) + (offbeat ? lerp(2, 10, h) : 0) + (last ? 4 : 0))));
         // grace-note scoop into phrase starts and held notes
         if ((t === phraseStart || last) && t - 0.25 >= lastEnd && Math.random() < 0.18) {
           events.push({ beat: t - 0.25, midi: cur - 1, dur: 0.22, vel: Math.max(30, vel - 26) });
@@ -516,6 +562,20 @@ export class Band {
         motif = { durs, steps: takenSteps };
       } else if (Math.random() < 0.25) {
         motif = null; // move on to new material
+      }
+
+      // cross-bar anticipation: state the next chord's guide tone half a
+      // beat early and hold it over the barline
+      const nc = chords.find((x) => x.startBeat >= t + 0.5 && x.startBeat <= t + 4);
+      if (nc && !ballad && Math.random() < 0.3) {
+        const antBeat = nc.startBeat - 0.5;
+        if (antBeat >= lastEnd + 0.25 && antBeat < totalBeats - 1) {
+          cur = thread.get(nc);
+          events.push({ beat: antBeat, midi: cur, dur: 1.4 * legato, vel: Math.round(Math.min(120, velBase + 8)) });
+          lastChord = nc;
+          lastEnd = antBeat + 1.4;
+          t = lastEnd;
+        }
       }
 
       // crowd owns the space between phrases; the arc only nudges it

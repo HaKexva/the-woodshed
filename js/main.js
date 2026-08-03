@@ -60,6 +60,7 @@ function selectSong(i) {
   updateListView();
   $$(".track").forEach((el, j) => el.classList.toggle("active", j === i));
   const song = SONGS[i];
+  state.currentSong = song;
   $("#song-title").textContent = song.title;
   $("#song-detail").textContent = `${song.composer} — ${song.key} · ${song.form} · ${song.style}`;
   $("#tempo").value = song.bpm;
@@ -108,6 +109,40 @@ function resetChordDisplay() {
   $("#chord-next").textContent = "";
   $("#solo-strip").hidden = true;
   highlightBar(-1);
+  renderSystemView(-1);
+}
+
+// mobile "system view": previous / live / next 4-bar lines of the chart
+const SYS_BARS = 4;
+
+function renderSystemView(curBar) {
+  const song = state.currentSong;
+  if (!song) return;
+  const total = song.progression.length;
+  const lines = Math.ceil(total / SYS_BARS);
+  const lineIdx = curBar >= 0 ? Math.floor(curBar / SYS_BARS) : 0;
+  const row = (li) => {
+    let html = "";
+    for (let b = li * SYS_BARS; b < li * SYS_BARS + SYS_BARS; b++) {
+      const bar = song.progression[b];
+      if (!bar) {
+        html += `<span class="sys-cell"></span>`;
+        continue;
+      }
+      const cls = `sys-cell${bar.length > 1 ? " multi" : ""}${b === curBar ? " on" : ""}`;
+      html += `<span class="${cls}">${bar.map((x) => x.chord).join(" ")}</span>`;
+    }
+    return html;
+  };
+  $("#sys-live").innerHTML = row(lineIdx);
+  $("#sys-prev").hidden = lines < 2;
+  $("#sys-next").hidden = lines < 2;
+  if (lines >= 2) {
+    $("#sys-prev").innerHTML = row((lineIdx - 1 + lines) % lines);
+    $("#sys-next").innerHTML = row((lineIdx + 1) % lines);
+  }
+  const from = lineIdx * SYS_BARS + 1;
+  $("#sys-pos").textContent = `bars ${from}–${Math.min(total, from + SYS_BARS - 1)} of ${total}`;
 }
 
 function renderSoloStrip(info) {
@@ -183,6 +218,7 @@ function handleBeat(bar, beatInBar) {
   $$(".beat-light").forEach((el, i) => el.classList.toggle("on", i === beatInBar));
   if (beatInBar === 0) {
     highlightBar(bar);
+    renderSystemView(bar);
     if (state.mode === "inspire") {
       soloFeed.push([]);
       while (soloFeed.length > FEED_BARS) soloFeed.shift();
@@ -375,6 +411,7 @@ $("#ed-preview").addEventListener("click", () => {
   const wasPlaying = state.playing;
   if (wasPlaying) stop();
   state.customSong = song;
+  state.currentSong = song;
   $$(".track").forEach((el) => el.classList.remove("active"));
   $("#song-title").textContent = `${song.title} (preview)`;
   $("#song-detail").textContent = `${song.composer} — ${song.key} · ${song.form} · ${song.style}`;
