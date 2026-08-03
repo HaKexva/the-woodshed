@@ -115,7 +115,7 @@ function renderSoloStrip(info) {
 
 // rolling feed of solo notes, grouped by bar — previous bar + the ongoing one
 const soloFeed = [];
-const FEED_BARS = 2;
+const FEED_BARS = 4;
 
 function renderSoloFeed() {
   $("#solo-feed").innerHTML =
