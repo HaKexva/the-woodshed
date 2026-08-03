@@ -244,6 +244,8 @@ body {
 
 /* ----------------------------------------------------------- solo strip */
 
+.solo-strip[hidden] { display: none; }
+
 .solo-strip {
   display: flex;
   align-items: center;
