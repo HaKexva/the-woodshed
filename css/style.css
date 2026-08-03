@@ -559,7 +559,10 @@ body {
 
 .style-picker { display: flex; gap: 0.55rem; flex-wrap: wrap; margin-bottom: 1.3rem; }
 
-.style-chip {
+.voicing-picker { display: flex; gap: 0.55rem; }
+
+.style-chip,
+.voice-chip {
   font-family: var(--body);
   font-weight: 600;
   font-size: 0.8rem;
@@ -573,9 +576,11 @@ body {
   transition: all 0.12s;
 }
 
-.style-chip:hover { border-color: var(--cream); }
+.style-chip:hover,
+.voice-chip:hover { border-color: var(--cream); }
 
-.style-chip.active { background: var(--amber); border-color: var(--amber); color: var(--ink); }
+.style-chip.active,
+.voice-chip.active { background: var(--amber); border-color: var(--amber); color: var(--ink); }
 
 .feel-dials { display: flex; gap: 3rem; flex-wrap: wrap; }
 

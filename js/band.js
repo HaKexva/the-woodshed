@@ -148,8 +148,15 @@ export class Band {
     this.soloOn = false;
     this.soloFeel = { crowd: 0.5, heat: 0.5 }; // crowd: note packing · heat: loudness/sharpness
     this.soloStyleName = "dexter";
+    this.soloVoicing = "mono"; // mono: single-note line · multi: doubled holds, stabs, octaves
     this.soloInst = null;
     this.soloPart = null;
+  }
+
+  setSoloVoicing(v) {
+    if (!["mono", "multi"].includes(v) || v === this.soloVoicing) return;
+    this.soloVoicing = v;
+    if (this.playing) this._rebuildSoloPart();
   }
 
   setSoloStyle(name) {
@@ -774,7 +781,18 @@ export class Band {
         if ((t === phraseStart || last) && t - 0.25 >= lastEnd && Math.random() < (S.crush ?? 0.18)) {
           events.push({ beat: t - 0.25, midi: cur - 1, dur: S.crushDur ?? 0.22, vel: Math.max(30, vel - 26) });
         }
-        events.push({ beat: t, midi: cur, dur: dur * legato, vel });
+        const ev = { beat: t, midi: cur, dur: dur * legato, vel };
+        // multi voicing: thicken holds, phrase ends, and riff stabs — runs
+        // stay single-note so fast lines don't smear
+        if (this.soloVoicing === "multi") {
+          const p = last || dur >= 1.2 ? 0.6 : flavor === "riff" ? 0.35 : intensity > 0.7 && !offbeat ? 0.2 : 0;
+          if (Math.random() < p) {
+            const below = pool[Math.max(0, nearestIdx(pool, cur) - choice([2, 2, 3]))];
+            const add = intensity > 0.75 && Math.random() < 0.4 ? cur - 12 : below;
+            if (add !== undefined && add !== cur && add >= lo - 8) ev.extra = [add];
+          }
+        }
+        events.push(ev);
         t += dur;
         lastEnd = t;
       }

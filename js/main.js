@@ -274,6 +274,13 @@ $("#style-picker").innerHTML = Object.entries(SOLO_STYLES)
   .map(([key, s]) => `<button class="style-chip${key === band.soloStyleName ? " active" : ""}" data-style="${key}" title="${s.blurb}">${s.label}</button>`)
   .join("");
 
+$$(".voice-chip").forEach((b) =>
+  b.addEventListener("click", () => {
+    band.setSoloVoicing(b.dataset.voice);
+    $$(".voice-chip").forEach((x) => x.classList.toggle("active", x === b));
+  })
+);
+
 $$(".style-chip").forEach((b) =>
   b.addEventListener("click", () => {
     band.setSoloStyle(b.dataset.style);
