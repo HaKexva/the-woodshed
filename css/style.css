@@ -98,6 +98,22 @@ body {
 }
 
 .mode-btn + .mode-btn { border-left: 2px solid var(--cream); }
+
+.lang-toggle {
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  background: transparent;
+  color: var(--cream-60);
+  border: 2px solid var(--cream-25);
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  transition: all 0.12s;
+  align-self: center;
+}
+
+.lang-toggle:hover { color: var(--amber); border-color: var(--amber); }
 .mode-btn:hover { background: var(--cream-10); }
 .mode-btn.active { background: var(--amber); color: var(--ink); }
 

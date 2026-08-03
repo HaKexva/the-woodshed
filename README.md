@@ -15,7 +15,8 @@ A rhythm section (sampled piano, guitar, bass + synthesized drums) loops classic
 - **Inspire mode** — a generated piano soloist improvises over the changes: dynamic intensity arc per chorus, phrase flavors (runs, long tones, bluesy riffs), motif echoes, bebop enclosures, blue notes. Two live dials — **crowding** (note packing) and **loudness** (velocity/articulation) — reshape the line mid-tune. A rolling feed shows the last 4 bars the soloist played
 - **Style-aware band** — walking bass + Freddie Green guitar + swung ride for swing; clave and syncopated patterns for bossa; brushes for ballads; backbeat for funk. Patterns vary per bar and per play
 - **In-app song editor** — type changes in a simple bar syntax, preview with the full band, export JSON (or re-import previously exported JSON)
-- **Type-to-search** songbook, tempo control, per-instrument mutes
+- **Type-to-search** songbook, tempo and band-volume controls, per-instrument mutes
+- **English / 繁體中文** interface (EN default — toggle in the masthead)
 
 ## Quick start
 

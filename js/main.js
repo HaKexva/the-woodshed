@@ -3,6 +3,7 @@
 import { SONGS } from "./songs.js";
 import { Band, SOLO_STYLES } from "./band.js";
 import { parseChord, parseWarnings, soloScale, flatName } from "./theory.js";
+import { t, getLang, setLang, applyStatic } from "./i18n.js";
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -23,7 +24,7 @@ const band = new Band({
   onChord: handleChord,
   onBeat: handleBeat,
   onSoloNote: handleSoloNote,
-  onProgress: (n, total) => setStatus(`loading instruments… ${n}/${total}`),
+  onProgress: (n, total) => setStatus(t("status.loading", { n, total })),
   onReady: () => {
     state.ready = true;
     setStatus("");
@@ -145,7 +146,7 @@ function renderSystemView(curBar) {
     $("#sys-next").innerHTML = row((lineIdx + 1) % lines);
   }
   const from = lineIdx * SYS_BARS + 1;
-  $("#sys-pos").textContent = `bars ${from}–${Math.min(total, from + SYS_BARS - 1)} of ${total}`;
+  $("#sys-pos").textContent = t("bars", { from, to: Math.min(total, from + SYS_BARS - 1), total });
 }
 
 function renderSoloStrip(info) {
@@ -163,7 +164,7 @@ const FEED_BARS = 4;
 
 function renderSoloFeed() {
   $("#solo-feed").innerHTML =
-    `<span class="feed-label">played</span>` +
+    `<span class="feed-label">${t("played")}</span>` +
     soloFeed
       .map((bar) => `<span class="feed-bar">${bar.join(" ")}</span>`)
       .join(`<span class="feed-sep">|</span>`);
@@ -187,7 +188,7 @@ async function play() {
   if (state.loading) return;
   if (!state.ready) {
     state.loading = true;
-    setStatus("loading instruments…");
+    setStatus(t("status.loading", { n: 0, total: 3 }));
     $("#play").classList.add("loading");
     try {
       await band.setup();
@@ -200,7 +201,7 @@ async function play() {
   state.playing = true;
   document.body.classList.add("playing");
   $("#play").classList.add("on");
-  $("#play-label").textContent = "stop";
+  $("#play-label").textContent = t("stop");
 }
 
 function stop() {
@@ -208,7 +209,7 @@ function stop() {
   state.playing = false;
   document.body.classList.remove("playing");
   $("#play").classList.remove("on");
-  $("#play-label").textContent = "play";
+  $("#play-label").textContent = t("play");
   resetChordDisplay();
   clearSoloFeed();
 }
@@ -234,7 +235,7 @@ function handleBeat(bar, beatInBar) {
 }
 
 function handleChord(chord) {
-  $("#chord-next").textContent = `next · ${chord.next.symbol}`;
+  $("#chord-next").textContent = t("next", { chord: chord.next.symbol });
   const el = $("#chord-now");
   el.textContent = chord.symbol;
   el.classList.remove("pop");
@@ -253,7 +254,7 @@ async function setMode(mode) {
   clearSoloFeed();
   band.setSolo(mode === "inspire");
   if (mode === "inspire" && !band.soloInst) {
-    setStatus("loading solo piano…");
+    setStatus(t("status.loadingSolo"));
     await band.loadSoloist();
     setStatus("");
   }
@@ -284,7 +285,7 @@ $("#style-picker").innerHTML = Object.entries(SOLO_STYLES)
   .join("");
 
 function renderStyleBlurb() {
-  $("#style-blurb").textContent = SOLO_STYLES[band.soloStyleName]?.blurb ?? "";
+  $("#style-blurb").textContent = t(`blurb.${band.soloStyleName}`);
 }
 renderStyleBlurb();
 
@@ -343,7 +344,7 @@ function updateListView() {
     if (hit) shown++;
   });
   $("#search-empty").hidden = shown > 0;
-  $("#side-letter").textContent = String.fromCharCode(65 + state.page);
+  $("#sleeve-label").textContent = t("sideLabel", { letter: String.fromCharCode(65 + state.page) });
   const lastPage = Math.ceil(SONGS.length / PAGE_SIZE) - 1;
   $("#page-prev").disabled = !!q || state.page === 0;
   $("#page-next").disabled = !!q || state.page >= lastPage;
@@ -389,15 +390,15 @@ function parseProgressionText(text, ts) {
   const errors = [];
   const warnings = [];
   const bars = text.split("|").map((s) => s.trim()).filter(Boolean);
-  if (!bars.length) errors.push("no bars found — separate bars with |");
+  if (!bars.length) errors.push(t("err.noBars"));
   const progression = bars.map((barText, i) => {
     const tokens = barText.split(/\s+/);
     const bar = tokens.map((tok) => {
       const [sym, beatsStr] = tok.split(":");
-      if (!/^[A-G][b#]?/.test(sym)) errors.push(`bar ${i + 1}: "${sym}" doesn't look like a chord`);
+      if (!/^[A-G][b#]?/.test(sym)) errors.push(t("err.badChord", { n: i + 1, sym }));
       const beats = beatsStr ? Number(beatsStr) : ts / tokens.length;
       if (!(beats > 0) || (beats * 2) % 1 !== 0) {
-        errors.push(`bar ${i + 1}: bad beat count in "${tok}" (whole or half beats only)`);
+        errors.push(t("err.badBeats", { n: i + 1, tok }));
       }
       const before = parseWarnings.length;
       parseChord(sym);
@@ -406,7 +407,7 @@ function parseProgressionText(text, ts) {
     });
     const sum = bar.reduce((a, x) => a + x.beats, 0);
     if (Math.abs(sum - ts) > 0.001) {
-      errors.push(`bar ${i + 1}: beats sum to ${sum}, need ${ts} — use chord:beats for uneven splits`);
+      errors.push(t("err.sumMismatch", { n: i + 1, sum, ts }));
     }
     return bar;
   });
@@ -417,7 +418,7 @@ function buildEditorSong() {
   const ts = Number($("#ed-ts").value);
   const { progression, errors, warnings } = parseProgressionText($("#ed-prog").value, ts);
   const title = $("#ed-title").value.trim();
-  if (!title) errors.unshift("title is required");
+  if (!title) errors.unshift(t("err.titleRequired"));
   const song = {
     title,
     composer: $("#ed-composer").value.trim() || "unknown",
@@ -554,7 +555,7 @@ function progressionToText(progression, ts) {
 $("#ed-load").addEventListener("click", () => {
   try {
     const song = JSON.parse($("#ed-import-json").value);
-    if (!song.title || !Array.isArray(song.progression)) throw new Error("needs at least a title and a progression");
+    if (!song.title || !Array.isArray(song.progression)) throw new Error(t("err.needTitleProg"));
     const ts = song.timeSignature === 3 ? 3 : 4;
     $("#ed-title").value = song.title;
     $("#ed-composer").value = song.composer ?? "";
@@ -567,7 +568,7 @@ $("#ed-load").addEventListener("click", () => {
     $("#ed-prog").value = progressionToText(song.progression, ts);
     $("#ed-errors").textContent = "";
   } catch (err) {
-    $("#ed-errors").textContent = `couldn't load JSON: ${err.message}`;
+    $("#ed-errors").textContent = t("err.loadJson", { msg: err.message });
   }
 });
 
@@ -575,11 +576,31 @@ const CHECK_ICON = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="cu
 
 $("#ed-copy").addEventListener("click", async () => {
   await navigator.clipboard.writeText($("#ed-json").value);
-  $("#ed-copy").innerHTML = `copied ${CHECK_ICON}`;
-  setTimeout(() => ($("#ed-copy").textContent = "copy"), 1500);
+  $("#ed-copy").innerHTML = `${t("ed.copied")} ${CHECK_ICON}`;
+  setTimeout(() => ($("#ed-copy").textContent = t("ed.copy")), 1500);
+});
+
+// ------------------------------------------------------------------ language
+
+function renderLangToggle() {
+  $("#lang-toggle").textContent = getLang() === "zh" ? "EN" : "中文";
+}
+
+$("#lang-toggle").addEventListener("click", () => {
+  setLang(getLang() === "zh" ? "en" : "zh");
+  renderLangToggle();
+  // re-render everything dynamic in the new language
+  updateListView();
+  renderStyleBlurb();
+  renderSoloFeed();
+  renderSystemView(-1);
+  $("#play-label").textContent = state.playing ? t("stop") : t("play");
 });
 
 // ------------------------------------------------------------------ boot
+
+applyStatic();
+renderLangToggle();
 
 renderTracklist();
 selectSong(0);
