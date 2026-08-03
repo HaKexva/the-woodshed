@@ -13,6 +13,19 @@ const BASS_HI = 52; // E3
 const SOLO_LO = 60;
 const SOLO_HI = 88;
 
+// Song-style feel layer — composes multiplicatively with the soloist-style
+// presets so a Parker solo over a bossa still swings *bossa*. swing is the
+// baseline; ballad keeps its dedicated handling and adds nothing here.
+export const STYLE_FEEL = {
+  swing: {},
+  ballad: {},
+  bossa: { trip: 0.25, p16: 0.5, encl: 0.6, blue: 0.6, rest: 1.15, hold: 1.2, lag: 0.5, offStart: 0.35, wLong: 1.3, grammar: 0.9, velOff: -4, phrase: 0.9 },
+  latin: { trip: 0.35, p16: 0.9, encl: 0.8, blue: 0.9, lag: 0.3, offStart: 0.45, offAcc: 4, grammar: 0.9 },
+  funk: { trip: 0.15, p16: 1.6, encl: 0.5, blue: 1.7, rest: 1.05, hold: 0.8, lag: 0.25, offStart: 0.55, offAcc: 6, wRiff: 1.9, phrase: 0.75, sit: 1.5, crush: 1.3, grammar: 0.7 },
+  blues: { blue: 1.8, trip: 1.1, encl: 0.9, wRiff: 1.5, sit: 1.3, crush: 1.5, grammar: 0.85 },
+  modal: { encl: 0.4, blue: 0.8, phrase: 1.3, rest: 1.1, hold: 1.25, wRun: 1.15, grammar: 0.7, lag: 0.9 },
+};
+
 // Soloist style presets — parameter vectors over the generator, derived from
 // published analyses of each player (see README sources). Every field is an
 // override; missing fields fall back to the generic engine behavior.
@@ -645,7 +658,7 @@ export class Band {
       if (!this.soloOn) return;
       const st = SOLO_STYLES[this.soloStyleName]?.p ?? {};
       const durSec = e.dur * ctx.beatSec();
-      const when = time + ((st.lag ?? 19) / 1000) * (1 - 0.55 * this.soloFeel.heat) + ((e.lagAdj ?? 0) / 1000) + rnd(-0.004, 0.004);
+      const when = time + (((st.lag ?? 19) * (STYLE_FEEL[ctx.style]?.lag ?? 1)) / 1000) * (1 - 0.55 * this.soloFeel.heat) + ((e.lagAdj ?? 0) / 1000) + rnd(-0.004, 0.004);
       this.soloInst?.start({
         note: e.midi,
         time: when,
@@ -745,6 +758,26 @@ export class Band {
     // articulation. The arc only shapes contour within what the dials allow.
     const { crowd: c, heat: h } = this.soloFeel;
     const S = SOLO_STYLES[this.soloStyleName]?.p ?? {};
+    const F = STYLE_FEEL[style] ?? {};
+    // merged parameter view: soloist personality x song-style feel
+    const M = {
+      trip: (S.trip ?? 1) * (F.trip ?? 1),
+      p16: (S.p16 ?? 1) * (F.p16 ?? 1),
+      encl: (S.encl ?? 1) * (F.encl ?? 1),
+      blue: (S.blue ?? 1) * (F.blue ?? 1),
+      rest: (S.rest ?? 1) * (F.rest ?? 1),
+      phrase: (S.phrase ?? 1) * (F.phrase ?? 1),
+      hold: (S.hold ?? 1) * (F.hold ?? 1),
+      sit: (S.sit ?? 0.12) * (F.sit ?? 1),
+      crush: (S.crush ?? 0.18) * (F.crush ?? 1),
+      grammar: (S.grammar ?? 0.65) * (F.grammar ?? 1),
+      offStart: Math.max(S.offStart ?? 0, F.offStart ?? 0),
+      offAcc: (S.offAcc ?? 0) + (F.offAcc ?? 0),
+      velOff: (S.velOff ?? 0) + (F.velOff ?? 0),
+      wRun: (S.wRun ?? 1) * (F.wRun ?? 1),
+      wLong: (S.wLong ?? 1) * (F.wLong ?? 1),
+      wRiff: (S.wRiff ?? 1) * (F.wRiff ?? 1),
+    };
     // multi-chorus energy wave: statement → build → PEAK → layout, repeat.
     // High tide gets burn devices; the layout chorus genuinely rests.
     const chor = this._chorus ?? 0;
@@ -764,9 +797,9 @@ export class Band {
     // phrase flavors keep the line from sounding same-y; crowding squeezes
     // long-tone phrases out of the mix
     const pickFlavor = (i) => {
-      const wRun = (0.25 + 0.45 * i + 0.6 * c) * (S.wRun ?? 1);
-      const wLong = Math.max(0.06, (0.55 - 0.4 * i) * (1 - 0.8 * c)) * (S.wLong ?? 1);
-      const wRiff = 0.3 * (S.wRiff ?? 1);
+      const wRun = (0.25 + 0.45 * i + 0.6 * c) * M.wRun;
+      const wLong = Math.max(0.06, (0.55 - 0.4 * i) * (1 - 0.8 * c)) * M.wLong;
+      const wRiff = 0.3 * M.wRiff;
       let r = Math.random() * (wRun + wLong + wRiff);
       if ((r -= wRun) <= 0) return "run";
       if ((r -= wLong) <= 0) return "longtones";
@@ -797,7 +830,7 @@ export class Band {
       // something shaped instead of just more notes — then breathe
       if (!ballad && isPeakChorus && intensity > 0.8 && burns < 2 && t < windFrom - 4 && Math.random() < 0.35) {
         burns++;
-        const vb = lerp(52, 84, intensity) + lerp(-4, 24, h) + (S.velOff ?? 0);
+        const vb = lerp(52, 84, intensity) + lerp(-4, 24, h) + M.velOff;
         const c0 = chordAt(t);
         const pool0 = poolFor(c0);
         const i0 = nearestIdx(pool0, Math.max(cur, registerTarget + 3)); // shout from up high
@@ -847,7 +880,7 @@ export class Band {
       const useMotif = !useAnswer && !useSeq && motif && Math.random() < (S.motif ?? 0.35);
       const useCell = !useAnswer && !useSeq && !useMotif && S.cells && Math.random() < (S.cellProb ?? 0);
       const flavor = useAnswer || useSeq || useMotif ? "motif" : useCell ? "cell" : ballad && Math.random() < 0.5 ? "longtones" : pickFlavor(intensity);
-      let velBase = lerp(52, 84, intensity) + lerp(-4, 24, h) + (S.velOff ?? 0) + (useAnswer ? -6 : 0);
+      let velBase = lerp(52, 84, intensity) + lerp(-4, 24, h) + M.velOff + (useAnswer ? -6 : 0);
       let blueBoost = 1;
       // outside color: tritone-sub scale over dominants near the peak
       const subActive = intensity > 0.75 && Math.random() < 0.25;
@@ -875,7 +908,7 @@ export class Band {
       } else if (flavor === "longtones") {
         // few notes, held — breathes even at high intensity
         const len = 2 + Math.floor(Math.random() * 2);
-        durs = Array.from({ length: len }, () => choice(c > 0.6 ? [1, 1.5, 2] : [1.5, 2, 2.5]) * (S.hold ?? 1));
+        durs = Array.from({ length: len }, () => choice(c > 0.6 ? [1, 1.5, 2] : [1.5, 2, 2.5]) * M.hold);
         durs[len - 1] += 0.5;
         velBase -= 8;
       } else if (flavor === "riff") {
@@ -889,21 +922,21 @@ export class Band {
       } else {
         // run: the workhorse — crowd directly packs the notes, at any point
         // in the form
-        const len = Math.min(S.phraseCap ?? 16, Math.max(3, Math.round(lerp(3, 6, intensity) * lerp(0.6, 2.0, c) * (S.phrase ?? 1) * wave + rnd(-1, 1))));
-        const p16 = Math.min(0.8, (c * 0.5 + Math.max(0, intensity - 0.5) * 0.3) * (S.p16 ?? 1) * (isPeakChorus ? 1.3 : 1));
+        const len = Math.min(S.phraseCap ?? 16, Math.max(3, Math.round(lerp(3, 6, intensity) * lerp(0.6, 2.0, c) * M.phrase * wave + rnd(-1, 1))));
+        const p16 = Math.min(0.8, (c * 0.5 + Math.max(0, intensity - 0.5) * 0.3) * M.p16 * (isPeakChorus ? 1.3 : 1));
         durs = [];
         while (durs.length < len - 1) {
-          if (!ballad && durs.length < len - 3 && Math.random() < (0.08 + 0.16 * intensity) * (S.trip ?? 1)) {
+          if (!ballad && durs.length < len - 3 && Math.random() < (0.08 + 0.16 * intensity) * M.trip) {
             durs.push(1 / 3, 1 / 3, 1 / 3); // triplet cell over one beat
           } else if (!ballad && Math.random() < p16) durs.push(0.25);
           else durs.push(Math.random() < 0.3 * (1 - c) ? 1 : 0.5);
         }
-        durs.push(choice(ballad ? [2, 2.5, 3] : c > 0.6 ? [0.5, 1] : [1, 1.5, 2]) * (S.hold ?? 1));
+        durs.push(choice(ballad ? [2, 2.5, 3] : c > 0.6 ? [0.5, 1] : [1, 1.5, 2]) * M.hold);
       }
       // phrase-start timing personality: on the beat (Dexter, Silver) or
       // pushed off it (Parker)
       if (S.onBeat && Math.random() < S.onBeat) t = Math.round(t);
-      else if (S.offStart && Math.abs(t - Math.round(t)) < 0.05 && Math.random() < S.offStart) t += 0.5;
+      else if (M.offStart && Math.abs(t - Math.round(t)) < 0.05 && Math.random() < M.offStart) t += 0.5;
 
       const takenSteps = [];
       const phraseStart = t;
@@ -935,7 +968,7 @@ export class Band {
           }
           lastChord = c;
           // bebop enclosure: scale step above, semitone below, then the target
-          if (n === 0 && !useMotif && t - 1 >= lastEnd && Math.random() < lerp(0.15, 0.4, intensity) * (S.encl ?? 1)) {
+          if (n === 0 && !useMotif && t - 1 >= lastEnd && Math.random() < lerp(0.15, 0.4, intensity) * M.encl) {
             const above = pool[Math.min(pool.length - 1, idx + 1)];
             events.push({ beat: t - 1, midi: above, dur: 0.42, vel: Math.round(velBase - 14) });
             events.push({ beat: t - 0.5, midi: target - 1, dur: 0.42, vel: Math.round(velBase - 10) });
@@ -951,9 +984,9 @@ export class Band {
           // motif echo: same contour, re-rooted on this chord's scale
           const idx = Math.max(0, Math.min(pool.length - 1, nearestIdx(pool, cur) + plannedSteps[n]));
           cur = pool[idx];
-        } else if (Math.random() < (S.sit ?? 0.12)) {
+        } else if (Math.random() < M.sit) {
           takenSteps.push(0); // sit on the note
-        } else if (Math.random() < lerp(0.1, 0.22, intensity) * blueBoost * (S.blue ?? 1)) {
+        } else if (Math.random() < lerp(0.1, 0.22, intensity) * blueBoost * M.blue) {
           const blue = blueNote(c, cur);
           if (blue !== null) cur = blue;
           takenSteps.push(0);
@@ -971,7 +1004,7 @@ export class Band {
           cur = pool[idx];
           // bebop metric grammar: notes landing on the beat want to be chord
           // tones — tensions belong on the upbeats
-          if (flavor === "run" && !subActive && Math.abs(t - Math.round(t)) < 0.05 && Math.random() < (S.grammar ?? 0.65)) {
+          if (flavor === "run" && !subActive && Math.abs(t - Math.round(t)) < 0.05 && Math.random() < M.grammar) {
             const tonePcs = new Set(c.info.intervals.map((iv2) => (c.info.rootPc + iv2) % 12));
             const gi = nearestIdx(pool, cur, (m) => tonePcs.has(m % 12));
             if (gi >= 0 && Math.abs(pool[gi] - cur) <= 4) cur = pool[gi];
@@ -1016,10 +1049,10 @@ export class Band {
         prevStep = thisStep || prevStep;
         // ghosts: quiet in-between notes inside longer runs, horn-style
         const ghost = flavor === "run" && durs.length >= 5 && n > 0 && !last && n !== peak && Math.random() < 0.18;
-        let vel = Math.round(Math.min(122, Math.max(40, velBase + contour + rnd(-6, 7) + (offbeat ? lerp(2, 10, h) + (S.offAcc ?? 0) : 0) + (last ? 4 : 0) + (turned ? 4 : 0))));
+        let vel = Math.round(Math.min(122, Math.max(40, velBase + contour + rnd(-6, 7) + (offbeat ? lerp(2, 10, h) + M.offAcc : 0) + (last ? 4 : 0) + (turned ? 4 : 0))));
         if (ghost) vel = Math.max(25, Math.round(vel * 0.45));
         // grace-note scoop/crush into phrase starts and held notes
-        if ((t === phraseStart || last) && t - 0.25 >= lastEnd && Math.random() < (S.crush ?? 0.18)) {
+        if ((t === phraseStart || last) && t - 0.25 >= lastEnd && Math.random() < M.crush) {
           events.push({ beat: t - 0.25, midi: cur - 1, dur: S.crushDur ?? 0.22, vel: Math.max(30, vel - 26) });
         }
         // bebop passing tone: a chromatic 16th slipped between a whole-step
@@ -1120,7 +1153,7 @@ export class Band {
       if (!ballad && spent > 0.75) {
         t = Math.ceil(t / bpb) * bpb + bpb - 0.5; // full-bar breath, re-enter on the & of 4
       } else {
-        t += Math.max(0.5, (lerp(3.2, 0.5, c) + lerp(0.5, -0.2, intensity)) * (S.rest ?? 1) * (0.6 + 0.9 * spent) * restWave + choice([-0.5, 0, 0.5]) + (ballad ? 1 : 0));
+        t += Math.max(0.5, (lerp(3.2, 0.5, c) + lerp(0.5, -0.2, intensity)) * M.rest * (0.6 + 0.9 * spent) * restWave + choice([-0.5, 0, 0.5]) + (ballad ? 1 : 0));
       }
       t = Math.round(t * 4) / 4;
     }
