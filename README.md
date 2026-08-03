@@ -2,7 +2,7 @@
 
 **Practice jazz standards with a full backing band, right in your browser.**
 
-**▶ [Try it live](https://tubaxenor.github.io/the-woodshed/)** — no install, no login, no build step.
+**▶ [Try it live](https://hakexva.github.io/the-woodshed/)** — no install, no login, no build step.
 
 ![the woodshed — session mode](docs/screenshot.jpg)
 
@@ -19,12 +19,12 @@ A rhythm section (sampled piano, guitar, bass + synthesized drums) loops classic
 
 ## Quick start
 
-**Use it online:** [tubaxenor.github.io/the-woodshed](https://tubaxenor.github.io/the-woodshed/)
+**Use it online:** [hakexva.github.io/the-woodshed](https://hakexva.github.io/the-woodshed/)
 
 **Run locally:**
 
 ```sh
-git clone https://github.com/tubaxenor/the-woodshed.git
+git clone https://github.com/HaKexva/the-woodshed.git
 cd the-woodshed
 python3 -m http.server 8000   # any static server works
 # open http://localhost:8000
