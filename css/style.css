@@ -20,6 +20,8 @@
 
 html { color-scheme: dark; }
 
+html { overflow-x: hidden; }
+
 body {
   background: var(--ink);
   color: var(--cream);
@@ -714,6 +716,19 @@ input[type="range"]::-moz-range-thumb {
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; }
 
+  /* masthead must wrap — brand + mode switch don't share a phone row */
+  .masthead {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.5rem 1.2rem 1rem;
+  }
+  .brand h1 { font-size: clamp(1.9rem, 8vw, 2.8rem); }
+  .mode-switch { width: 100%; }
+  .mode-btn { flex: 1; text-align: center; }
+
+  .stage { padding: 1.4rem 1.2rem; }
+
   /* concept B: current 4-bar system large, neighbors ghosted; the big
      chord card and full sheet step aside */
   .system-view { display: block; margin-bottom: 1.6rem; }
@@ -770,6 +785,10 @@ input[type="range"]::-moz-range-thumb {
     cursor: pointer;
     text-align: left;
   }
+
+  /* on phones the editor button reads better after the list */
+  .sleeve-body-inner { display: flex; flex-direction: column; }
+  .add-tune { order: 10; margin: 1.1rem 1.6rem 0.3rem; }
 
   /* animated collapse: grid rows 1fr → 0fr tracks content height */
   .sleeve-body {
