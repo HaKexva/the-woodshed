@@ -24,6 +24,7 @@ export const SOLO_STYLES = {
     label: "miles",
     blurb: "space, short motifs, mid register, behind the beat",
     p: {
+      ornament: 0.1,
       rest: 2.2, phrase: 0.5, phraseCap: 6, regLo: 0.45, regHi: 0.6,
       encl: 0.3, blue: 0.8, trip: 0.4, p16: 0.2, hold: 1.6, artic: 0.98,
       lag: 28, motif: 0.5, sit: 0.2, velOff: -8, contrast: 0.8, wLong: 1.6,
@@ -38,6 +39,7 @@ export const SOLO_STYLES = {
     label: "parker",
     blurb: "relentless bebop 8ths, enclosures, barline-crossing phrases",
     p: {
+      ornament: 0.08,
       rest: 0.55, phrase: 1.5, phraseCap: 18, regLo: 0.45, regHi: 0.8,
       encl: 2.2, blue: 1.2, trip: 1.3, p16: 0.8, hold: 0.6, artic: 0.92,
       lag: 6, motif: 0.25, offStart: 0.5, wRun: 1.5, antic: 1.4,
@@ -53,6 +55,7 @@ export const SOLO_STYLES = {
     label: "coltrane",
     blurb: "sheets of sound — 16th cascades, stacked arpeggios",
     p: {
+      ornament: 0.05,
       rest: 0.4, phrase: 1.9, phraseCap: 24, regLo: 0.35, regHi: 0.9,
       encl: 0.8, blue: 0.7, trip: 1.5, p16: 2.2, hold: 0.5, artic: 0.88,
       lag: 2, motif: 0.5, wRun: 2, contrast: 1.2,
@@ -68,6 +71,7 @@ export const SOLO_STYLES = {
     label: "monk",
     blurb: "angular leaps, weak-beat jabs, sudden silences",
     p: {
+      ornament: 0,
       rest: 1.6, phrase: 0.7, phraseCap: 8, regLo: 0.4, regHi: 0.75,
       encl: 0.6, blue: 1.4, trip: 0.7, p16: 0.4, hold: 1.2, artic: 0.68,
       lag: 10, motif: 0.55, wide: 0.3, gap: 0.22, crush: 0.4, crushDur: 0.1,
@@ -83,6 +87,7 @@ export const SOLO_STYLES = {
     label: "chet",
     blurb: "singable stepwise lines, chord tones, soft and unhurried",
     p: {
+      ornament: 0.3,
       rest: 1.5, phrase: 0.8, phraseCap: 9, regLo: 0.35, regHi: 0.55,
       encl: 0.5, blue: 0.6, trip: 0.6, p16: 0.15, hold: 1.3, artic: 1,
       lag: 20, motif: 0.4, thread: 0.75, stepBias: [0.85, 0.1], velOff: -10,
@@ -98,6 +103,7 @@ export const SOLO_STYLES = {
     label: "dexter",
     blurb: "way behind the beat, long even notes, sneaks in quotes",
     p: {
+      ornament: 0.25,
       rest: 1, phrase: 1, regLo: 0.4, regHi: 0.7,
       hold: 1.5, artic: 1, lag: 38, onBeat: 0.6, contrast: 0.6,
       cellProb: 0.35,
@@ -112,6 +118,7 @@ export const SOLO_STYLES = {
     label: "wes",
     blurb: "builds the chorus: single notes → octaves → chords",
     p: {
+      ornament: 0.15,
       rest: 1.1, phrase: 1, regLo: 0.4, regHi: 0.7,
       blue: 1.3, motif: 0.45, artic: 0.95, lag: 22, wesArc: true,
     },
@@ -120,6 +127,7 @@ export const SOLO_STYLES = {
     label: "silver",
     blurb: "short funky riffs, repeated and squeezed, gospel smears",
     p: {
+      ornament: 0.15,
       rest: 1.2, phrase: 0.5, phraseCap: 6, regLo: 0.4, regHi: 0.65,
       blue: 1.8, trip: 0.7, hold: 0.9, artic: 0.78, lag: 8, motif: 0.65,
       onBeat: 0.5, crush: 0.35, wRiff: 1.8, contrast: 1.2,
@@ -151,6 +159,22 @@ export class Band {
     this.soloVoicing = "mono"; // mono: single-note line · multi: doubled holds, stabs, octaves
     this.soloInst = null;
     this.soloPart = null;
+  }
+
+  /** Background-band level (0..1.5) — scales piano/guitar/bass/drums, not the solo. */
+  setBgVolume(v) {
+    this.bgVolume = Math.max(0, Math.min(1.5, v));
+    if (!this.gains) return;
+    for (const name of ["piano", "guitar", "bass", "drums"]) {
+      if (!this.muted[name]) {
+        this.gains[name].gain.setTargetAtTime(this._gainFor(name) * this.bgVolume, this.ctx.currentTime, 0.02);
+      }
+    }
+  }
+
+  /** Throw away the current solo line and improvise a fresh one, mid-tune. */
+  newTake() {
+    if (this.playing) this._rebuildSoloPart();
   }
 
   setSoloVoicing(v) {
@@ -203,10 +227,11 @@ export class Band {
       g.connect(this.master);
       this.gains[name] = g;
     }
-    this.gains.piano.gain.value = 0.75;
-    this.gains.guitar.gain.value = 1.15;
-    this.gains.bass.gain.value = 1.0;
-    this.gains.drums.gain.value = 0.6;
+    const bg = this.bgVolume ?? 1;
+    this.gains.piano.gain.value = 0.75 * bg;
+    this.gains.guitar.gain.value = 1.15 * bg;
+    this.gains.bass.gain.value = 1.0 * bg;
+    this.gains.drums.gain.value = 0.6 * bg;
     this.gains.solo.gain.value = 1.25;
 
     this._buildDrumKit();
@@ -369,7 +394,8 @@ export class Band {
   setMuted(name, value) {
     this.muted[name] = value;
     if (this.gains?.[name]) {
-      this.gains[name].gain.setTargetAtTime(value ? 0 : this._gainFor(name), this.ctx.currentTime, 0.02);
+      const bg = name === "solo" ? 1 : this.bgVolume ?? 1;
+      this.gains[name].gain.setTargetAtTime(value ? 0 : this._gainFor(name) * bg, this.ctx.currentTime, 0.02);
     }
   }
 
@@ -449,11 +475,44 @@ export class Band {
     const straight = feel !== "swing";
     const style = song.style;
 
+    // the soloist goes first so the band can listen to it
+    this._songCtx = { chords, totalBeats, style, bpb };
+    let soloEvents = this._soloEvents(chords, totalBeats, style, SOLO_LO, SOLO_HI, bpb);
+
+    // trading fours: every 4th chorus the solo lays out in alternating
+    // 4-bar blocks and the drums fill the space
+    const trading = this.soloOn && this._chorus > 0 && this._chorus % 4 === 3;
+    const tradeBars = new Set();
+    if (trading) {
+      for (let bar = 0; bar < song.progression.length; bar++) {
+        if (Math.floor(bar / 4) % 2 === 1) tradeBars.add(bar);
+      }
+      soloEvents = soloEvents.filter((e) => !tradeBars.has(Math.floor(e.beat / bpb)));
+    }
+    this._soloEventsCache = soloEvents;
+
+    // which bars is the soloist busy in? the comp thins there and breathes
+    // in the gaps (only when the solo is actually audible)
+    const busyBars = new Set();
+    const phraseEnds = [];
+    if (this.soloOn) {
+      const perBar = new Map();
+      for (const e of soloEvents) {
+        const bar = Math.floor(e.beat / bpb);
+        perBar.set(bar, (perBar.get(bar) ?? 0) + 1);
+        if (e.dur >= 1.1) phraseEnds.push(e.beat);
+      }
+      for (const [bar, n] of perBar) if (n >= 3) busyBars.add(bar);
+    }
+    const duck = (events) =>
+      events.filter((e) => !busyBars.has(Math.floor(e.beat / bpb)) || Math.random() < 0.35)
+        .map((e) => (busyBars.has(Math.floor(e.beat / bpb)) ? { ...e, vel: Math.max(20, e.vel - 8) } : e));
+
     const ev = {
-      piano: this._pianoEvents(chords, style, straight, bpb),
-      guitar: this._guitarEvents(chords, song, style, straight, bpb),
+      piano: duck(this._pianoEvents(chords, style, straight, bpb)),
+      guitar: duck(this._guitarEvents(chords, song, style, straight, bpb)),
       bass: this._bassEvents(chords, totalBeats, style, straight, bpb),
-      drums: this._drumEvents(song, style, straight, bpb),
+      drums: this._drumEvents(song, style, straight, bpb, { phraseEnds, tradeBars }),
       meta: [],
     };
 
@@ -570,16 +629,21 @@ export class Band {
       }, time);
     });
 
-    this._songCtx = { chords, totalBeats, style, bpb, toBBS, beatSec };
-    this._rebuildSoloPart();
+    this._songCtx = { chords, totalBeats, style, bpb, beatSec };
+    this._makeSoloPart(soloEvents);
   }
 
-  /** (Re)generate the improvised line. */
+  /** Regenerate the line on demand (dial/style change, "new take"). */
   _rebuildSoloPart() {
     const ctx = this._songCtx;
     if (!ctx) return;
+    this._makeSoloPart(this._soloEvents(ctx.chords, ctx.totalBeats, ctx.style, SOLO_LO, SOLO_HI, ctx.bpb));
+  }
+
+  _makeSoloPart(events) {
+    const ctx = this._songCtx;
+    if (!ctx) return;
     this.soloPart?.dispose();
-    const events = this._soloEvents(ctx.chords, ctx.totalBeats, ctx.style, SOLO_LO, SOLO_HI);
     // tick-based times so triplets land exactly; a touch of laid-back lag
     // (less when playing hot) plus per-note jitter humanizes the placement
     const ppq = Tone.getTransport().PPQ;
@@ -587,7 +651,7 @@ export class Band {
       if (!this.soloOn) return;
       const st = SOLO_STYLES[this.soloStyleName]?.p ?? {};
       const durSec = e.dur * ctx.beatSec();
-      const when = time + ((st.lag ?? 19) / 1000) * (1 - 0.55 * this.soloFeel.heat) + rnd(-0.004, 0.004);
+      const when = time + ((st.lag ?? 19) / 1000) * (1 - 0.55 * this.soloFeel.heat) + ((e.lagAdj ?? 0) / 1000) + rnd(-0.004, 0.004);
       this.soloInst?.start({
         note: e.midi,
         time: when,
@@ -610,7 +674,7 @@ export class Band {
    * rhythm+contour replayed transposed), bebop enclosures into chord-tone
    * landings, blue notes, repeated notes, grace-note scoops.
    */
-  _soloEvents(chords, totalBeats, style, lo, hi) {
+  _soloEvents(chords, totalBeats, style, lo, hi, bpb = 4) {
     const events = [];
     const ballad = style === "ballad";
     const lerp = (a, b, x) => a + (b - a) * x;
@@ -623,6 +687,19 @@ export class Band {
         pools.set(c, pool);
       }
       return pools.get(c);
+    };
+    const isDom = (c) => c.info.intervals.includes(4) && c.info.intervals.includes(10);
+    // tritone-sub color: mixolydian a tritone away, for dominants at the peak
+    const subPools = new Map();
+    const subPoolFor = (c) => {
+      if (!subPools.has(c)) {
+        const subRoot = (c.info.rootPc + 6) % 12;
+        const pcs = new Set([0, 2, 4, 5, 7, 9, 10].map((s) => (subRoot + s) % 12));
+        const pool = [];
+        for (let m = lo; m <= hi; m++) if (pcs.has(m % 12)) pool.push(m);
+        subPools.set(c, pool);
+      }
+      return subPools.get(c);
     };
     const chordAt = (beat) => {
       let cur = chords[0];
@@ -674,12 +751,15 @@ export class Band {
     // articulation. The arc only shapes contour within what the dials allow.
     const { crowd: c, heat: h } = this.soloFeel;
     const S = SOLO_STYLES[this.soloStyleName]?.p ?? {};
-    // later choruses run hotter — a solo that builds across the loops
+    // later choruses run hotter — a solo that builds across the loops;
+    // the last two bars of every chorus wind down
     const chor = Math.min(4, this._chorus ?? 0);
+    const windFrom = totalBeats - 2 * bpb;
     const arcAt = (t) => {
       const x = (t % totalBeats) / totalBeats;
       const arc = x < 0.72 ? x / 0.72 : (1 - x) / 0.28;
-      const i = ((0.18 + 0.72 * arc) * lerp(0.75, 1.2, h) + rnd(-0.12, 0.12)) * (1 + chor * 0.06);
+      let i = ((0.18 + 0.72 * arc) * lerp(0.75, 1.2, h) + rnd(-0.12, 0.12)) * (1 + chor * 0.06);
+      if (t >= windFrom) i *= 0.5;
       return Math.max(0.05, Math.min(1, ballad ? i * 0.6 : i));
     };
     const legato = Math.min(1, lerp(0.97, 0.8, h) * (S.artic ?? 1)); // hotter = sharper articulation
@@ -700,19 +780,42 @@ export class Band {
     let lastChord = null;
     let lastEnd = 0;
     let motif = null; // { durs, steps } — signed scale-steps of a kept phrase
+    let answer = null; // pending call-&-response reply
+    let seq = null; // pending diatonic sequence repeat
+    let lastSection = -1;
 
     while (t < totalBeats - 0.5) {
       const intensity = arcAt(t);
       const registerTarget = lo + (hi - lo) * Math.min(0.85, lerp(S.regLo ?? 0.35, S.regHi ?? 0.72, intensity) + h * 0.08);
-      const useMotif = motif && Math.random() < (S.motif ?? 0.35);
-      const useCell = !useMotif && S.cells && Math.random() < (S.cellProb ?? 0);
-      const flavor = useMotif ? "motif" : useCell ? "cell" : ballad && Math.random() < 0.5 ? "longtones" : pickFlavor(intensity);
-      let velBase = lerp(52, 84, intensity) + lerp(-4, 24, h) + (S.velOff ?? 0);
+      // a new 8-bar section pulls the line back toward its home register
+      const section = Math.floor(t / (8 * bpb));
+      if (section !== lastSection) {
+        lastSection = section;
+        cur = Math.round((cur + registerTarget) / 2);
+      }
+      const useAnswer = answer !== null;
+      const useSeq = !useAnswer && seq !== null;
+      const useMotif = !useAnswer && !useSeq && motif && Math.random() < (S.motif ?? 0.35);
+      const useCell = !useAnswer && !useSeq && !useMotif && S.cells && Math.random() < (S.cellProb ?? 0);
+      const flavor = useAnswer || useSeq || useMotif ? "motif" : useCell ? "cell" : ballad && Math.random() < 0.5 ? "longtones" : pickFlavor(intensity);
+      let velBase = lerp(52, 84, intensity) + lerp(-4, 24, h) + (S.velOff ?? 0) + (useAnswer ? -6 : 0);
       let blueBoost = 1;
+      // outside color: tritone-sub scale over dominants near the peak
+      const subActive = intensity > 0.75 && Math.random() < 0.25;
+      let forceStartMidi = null;
 
       let durs;
       let plannedSteps = null;
-      if (useMotif) {
+      if (useAnswer) {
+        durs = answer.durs;
+        plannedSteps = answer.steps;
+        answer = null;
+      } else if (useSeq) {
+        durs = seq.durs;
+        plannedSteps = seq.steps;
+        forceStartMidi = seq.startMidi;
+        seq = seq.reps > 1 ? { ...seq, reps: seq.reps - 1, startMidi: seq.startMidi - 2 } : null;
+      } else if (useMotif) {
         durs = motif.durs;
         plannedSteps = motif.steps;
       } else if (useCell) {
@@ -755,11 +858,18 @@ export class Band {
 
       const takenSteps = [];
       const phraseStart = t;
+      let lastMain = null; // previous sounded note, for bebop passing tones
+      let prevStep = 0;
       for (let n = 0; n < durs.length && t < totalBeats - 0.5; n++) {
         const c = chordAt(t);
-        const pool = poolFor(c);
+        const pool = subActive && isDom(c) ? subPoolFor(c) : poolFor(c);
         const newChord = c !== lastChord;
-        if (newChord || n === 0) {
+        if (forceStartMidi !== null && n === 0) {
+          // sequence repeat: exact transposition, don't re-root on the chord
+          cur = pool[nearestIdx(pool, forceStartMidi)];
+          lastChord = c;
+          takenSteps.push(0);
+        } else if (newChord || n === 0) {
           // land on the guide-tone thread (or a nearby chord tone), drawn
           // toward the arc's register
           let target;
@@ -826,12 +936,38 @@ export class Band {
         // crescendo into the phrase's peak, easing after
         const peak = Math.max(1, Math.round((durs.length - 1) * 0.65));
         const contour = (13 * (1 - Math.abs(n - peak) / Math.max(peak, durs.length - peak, 1)) - 4) * (S.contrast ?? 1);
-        const vel = Math.round(Math.min(122, Math.max(40, velBase + contour + rnd(-6, 7) + (offbeat ? lerp(2, 10, h) + (S.offAcc ?? 0) : 0) + (last ? 4 : 0))));
+        const thisStep = takenSteps[takenSteps.length - 1] ?? 0;
+        const turned = n > 1 && Math.sign(thisStep) !== 0 && Math.sign(thisStep) !== Math.sign(prevStep); // direction change
+        prevStep = thisStep || prevStep;
+        // ghosts: quiet in-between notes inside longer runs, horn-style
+        const ghost = flavor === "run" && durs.length >= 5 && n > 0 && !last && n !== peak && Math.random() < 0.18;
+        let vel = Math.round(Math.min(122, Math.max(40, velBase + contour + rnd(-6, 7) + (offbeat ? lerp(2, 10, h) + (S.offAcc ?? 0) : 0) + (last ? 4 : 0) + (turned ? 4 : 0))));
+        if (ghost) vel = Math.max(25, Math.round(vel * 0.45));
         // grace-note scoop/crush into phrase starts and held notes
         if ((t === phraseStart || last) && t - 0.25 >= lastEnd && Math.random() < (S.crush ?? 0.18)) {
           events.push({ beat: t - 0.25, midi: cur - 1, dur: S.crushDur ?? 0.22, vel: Math.max(30, vel - 26) });
         }
-        const ev = { beat: t, midi: cur, dur: dur * legato, vel };
+        // bebop passing tone: a chromatic 16th slipped between a whole-step
+        // descent over a dominant chord
+        if (lastMain && isDom(c) && lastMain.midi - cur === 2 && lastMain.rawDur === 0.5 && !ghost && Math.random() < 0.45) {
+          lastMain.dur = 0.25 * legato;
+          events.push({ beat: lastMain.beat + 0.25, midi: cur + 1, dur: 0.23, vel: Math.max(28, vel - 12) });
+        }
+        // bebop articulation: clip every fourth note of a run
+        const clip = flavor === "run" && !last && n % 4 === 3 ? 0.75 : 1;
+        const ev = { beat: t, midi: cur, dur: dur * legato * clip, vel, rawDur: dur };
+        // drifting time feel: phrase endings sit back, climaxes push
+        if (last) ev.lagAdj = 8;
+        else if (vel > 100) ev.lagAdj = -5;
+        // ornaments on held notes — a quick upper-neighbor mordent
+        if (dur >= 1.5 && Math.random() < (S.ornament ?? 0.12)) {
+          const upper = pool[Math.min(pool.length - 1, nearestIdx(pool, cur) + 1)];
+          if (upper !== cur) {
+            events.push({ beat: t + 0.3, midi: upper, dur: 0.16, vel: Math.max(28, vel - 16) });
+            events.push({ beat: t + 0.55, midi: cur, dur: (dur - 0.6) * legato * 0.9, vel: Math.max(30, vel - 8) });
+            ev.dur = 0.28;
+          }
+        }
         // multi voicing: thicken holds, phrase ends, and riff stabs — runs
         // stay single-note so fast lines don't smear
         if (this.soloVoicing === "multi") {
@@ -843,14 +979,28 @@ export class Band {
           }
         }
         events.push(ev);
+        lastMain = ev;
         t += dur;
         lastEnd = t;
       }
 
-      if (!useMotif && !ballad && takenSteps.length >= 3 && Math.random() < 0.5) {
+      const freshPhrase = !useMotif && !useAnswer && !useSeq && !useCell;
+      if (freshPhrase && !ballad && takenSteps.length >= 3 && Math.random() < 0.5) {
         motif = { durs, steps: takenSteps };
       } else if (Math.random() < 0.25) {
         motif = null; // move on to new material
+      }
+
+      // call & response: answer the phrase with its own rhythm, bent downward
+      if (freshPhrase && !ballad && takenSteps.length >= 3 && flavor !== "longtones" && Math.random() < 0.35) {
+        const steps = [...takenSteps];
+        steps[steps.length - 1] = -Math.abs(steps[steps.length - 1] || 1);
+        if (steps.length > 1) steps[steps.length - 2] = -Math.abs(steps[steps.length - 2] || 1);
+        answer = { durs, steps };
+      }
+      // diatonic sequence: a short cell repeats a step lower, 1-2 times
+      else if (freshPhrase && !ballad && flavor === "run" && durs.length <= 5 && lastMain && Math.random() < 0.3) {
+        seq = { durs, steps: takenSteps, startMidi: lastMain.midi - 2, reps: Math.random() < 0.4 ? 2 : 1 };
       }
 
       // cross-bar anticipation: state the next chord's guide tone half a
@@ -1082,10 +1232,17 @@ export class Band {
     return events;
   }
 
-  _drumEvents(song, style, straight, bpb) {
+  _drumEvents(song, style, straight, bpb, opts = {}) {
     const events = [];
     const totalBars = song.progression.length;
     const push = (bar, off, drum, vel, extra) => events.push({ beat: bar * bpb + off, drum, vel, ...extra });
+    // where the soloist ends phrases, the drummer answers
+    const endsByBar = new Map();
+    for (const b of opts.phraseEnds ?? []) {
+      const bar = Math.floor(b / bpb);
+      if (!endsByBar.has(bar)) endsByBar.set(bar, []);
+      endsByBar.get(bar).push(b - bar * bpb);
+    }
 
     // per-bar ride pattern pool (weights sum to 1) — kept sparse; the ride
     // marks time, it doesn't chatter
@@ -1107,6 +1264,26 @@ export class Band {
     const kv = (v) => Math.max(8, Math.round(v * (1 - slow * 0.45)));
 
     for (let bar = 0; bar < totalBars; bar++) {
+      // trading fours: the drums own these bars — brushy fill figures
+      if (opts.tradeBars?.has(bar)) {
+        push(bar, 1, "hat", 46);
+        if (bpb > 3) push(bar, 3, "hat", 46);
+        const fig = choice([
+          [[0, 40], [1, 34], [1.5, 30], [2, 44], [3, 36]],
+          [[0, 38], [0.5, 28], [1.5, 40], [2.5, 32], [3, 44], [3.5, 30]],
+          [[0, 42], [2, 46], [2.5, 30], [3, 38]],
+        ]);
+        for (const [off, vel] of fig) if (off < bpb) push(bar, off, "snare", vel);
+        if (Math.random() < 0.5) push(bar, choice([0, 2]), "kick", kv(30));
+        continue;
+      }
+      // answer the soloist's phrase endings with a soft snare accent —
+      // but never in a fill bar, where pickups would stack
+      const fillBar = sectionEnd(bar) && bpb === 4 && slow < 0.3;
+      if (endsByBar.has(bar) && slow < 0.3 && !fillBar && Math.random() < 0.5) {
+        const off = Math.round(endsByBar.get(bar)[0] * 2) / 2;
+        if (off >= 0 && off < bpb) push(bar, off, "snare", 32);
+      }
       if (style === "ballad") {
         for (let b = 0; b < bpb; b++) push(bar, b, "ride", b % 2 ? 34 : 26);
         push(bar, 1, "hat", 40);
@@ -1149,7 +1326,17 @@ export class Band {
         push(bar, 3, "hat", 50);
       }
       for (let b = 0; b < bpb; b++) if (Math.random() > 0.65 + slow * 0.25) push(bar, b, "kick", kv(rnd(14, 20)));
-      if (slow < 0.3 && Math.random() < 0.08) push(bar, bpb - 0.5, "kick", kv(28)); // pickup into next bar
+      if (slow < 0.3 && !fillBar && Math.random() < 0.08) push(bar, bpb - 0.5, "kick", kv(28)); // pickup into next bar
+      if (fillBar) {
+        // a fill bar owns its bar — no comping or pickups stacked on top
+        const fill = choice([
+          [[2.5, 34], [3, 40], [3.5, 50]],
+          [[3, 38], [3.25, 42], [3.5, 46], [3.75, 52]],
+          [[3, 44], [3.5, 52]],
+        ]);
+        for (const [off, vel] of fill) push(bar, off, "snare", vel);
+        continue;
+      }
       // snare comping: ghosts and the odd accent — offbeat spots swing onto
       // triplet positions, so slow tempos comp on the beat only
       const hits = Math.random() < 0.55 - slow * 0.25 ? 1 : Math.random() < 0.25 ? 2 : 0;
@@ -1157,14 +1344,6 @@ export class Band {
       for (let h = 0; h < hits; h++) {
         const off = spots.splice(Math.floor(Math.random() * spots.length), 1)[0];
         push(bar, off, "snare", Math.round(Math.random() < 0.3 ? rnd(34, 42) : rnd(18, 28)));
-      }
-      if (sectionEnd(bar) && bpb === 4 && slow < 0.3) {
-        const fill = choice([
-          [[2.5, 34], [3, 40], [3.5, 50]],
-          [[3, 38], [3.25, 42], [3.5, 46], [3.75, 52]],
-          [[3, 44], [3.5, 52]],
-        ]);
-        for (const [off, vel] of fill) push(bar, off, "snare", vel);
       }
     }
     // the drum synths are monophonic — two hits of the same drum on the same

@@ -270,6 +270,8 @@ $("#tempo").addEventListener("input", (e) => {
   band.setBpm(bpm);
 });
 
+$("#bg-vol").addEventListener("input", (e) => band.setBgVolume(Number(e.target.value) / 100));
+
 $$(".mode-btn").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
 
 $("#feel-crowd").addEventListener("change", (e) => band.setSoloFeel("crowd", Number(e.target.value) / 100));
