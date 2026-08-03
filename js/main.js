@@ -110,6 +110,9 @@ function resetChordDisplay() {
   $("#solo-strip").hidden = true;
   highlightBar(-1);
   renderSystemView(-1);
+  // a waltz gets three beat lights, not four
+  const ts = state.currentSong?.timeSignature ?? 4;
+  $$(".beat-light").forEach((el, i) => (el.hidden = i >= ts));
 }
 
 // mobile "system view": previous / live / next 4-bar lines of the chart
