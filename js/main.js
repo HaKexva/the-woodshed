@@ -69,6 +69,7 @@ function selectSong(i) {
   renderLeadsheet(song);
   renderSources(song);
   resetChordDisplay();
+  collapseSleeve();
   if (wasPlaying) play();
 }
 
@@ -273,6 +274,22 @@ function updateListView() {
 
 $("#song-search").addEventListener("input", updateListView);
 
+// mobile: songs live behind a collapsible toggle
+const isMobile = () => window.matchMedia("(max-width: 900px)").matches;
+
+$("#sleeve-toggle").addEventListener("click", () => {
+  const open = $(".sleeve").classList.toggle("open");
+  $("#sleeve-toggle").textContent = open ? "tunes ▴" : "tunes ▾";
+  $("#sleeve-toggle").setAttribute("aria-expanded", open);
+});
+
+function collapseSleeve() {
+  if (!isMobile()) return;
+  $(".sleeve").classList.remove("open");
+  $("#sleeve-toggle").textContent = "tunes ▾";
+  $("#sleeve-toggle").setAttribute("aria-expanded", "false");
+}
+
 $("#page-prev").addEventListener("click", () => {
   state.page = Math.max(0, state.page - 1);
   updateListView();
@@ -377,6 +394,69 @@ $("#ed-export").addEventListener("click", () => {
   if (showEditorIssues(errors, warnings)) return;
   $("#ed-json").value = JSON.stringify(song, null, 2);
   $("#ed-output").hidden = false;
+});
+
+// dice: an idiomatic progression in a random key — blues, minor blues, or
+// 32-bar AABA — built from real cells (ii-V-I, turnarounds, rhythm bridge)
+function randomChanges() {
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const keyPc = Math.floor(Math.random() * 12);
+  const d = (semis, quality) => flatName((keyPc + semis) % 12) + quality;
+  const minor = Math.random() < 0.35;
+  let key, form, bars;
+
+  if (minor) {
+    key = `${flatName(keyPc)} minor`;
+    form = "12-bar minor blues";
+    bars = [
+      d(0, "m7"), d(0, "m7"), d(0, "m7"), d(0, "m7"),
+      d(5, "m7"), d(5, "m7"), d(0, "m7"), d(0, "m7"),
+      d(8, "7"), d(7, "7b9"), d(0, "m7"),
+      pick([d(7, "7b9"), `${d(2, "m7b5")}:2 ${d(7, "7b9")}:2`]),
+    ];
+  } else if (Math.random() < 0.4) {
+    key = `${flatName(keyPc)} major`;
+    form = "12-bar blues";
+    bars = [
+      d(0, "7"), pick([d(5, "7"), d(0, "7")]), d(0, "7"), d(0, "7"),
+      d(5, "7"), pick([d(6, "dim7"), d(5, "7")]), d(0, "7"), d(9, "7"),
+      d(2, "m7"), d(7, "7"),
+      `${d(0, "7")}:2 ${d(9, "7")}:2`, `${d(2, "m7")}:2 ${d(7, "7")}:2`,
+    ];
+  } else {
+    key = `${flatName(keyPc)} major`;
+    form = "32-bar AABA";
+    const A = [
+      d(0, "Maj7"), pick([d(9, "m7"), d(9, "7")]), d(2, "m7"), d(7, "7"),
+      pick([`${d(4, "m7")}:2 ${d(9, "7")}:2`, d(0, "Maj7")]),
+      `${d(2, "m7")}:2 ${d(7, "7")}:2`, d(0, "Maj7"), `${d(2, "m7")}:2 ${d(7, "7")}:2`,
+    ];
+    const B = pick([
+      [d(4, "7"), d(4, "7"), d(9, "7"), d(9, "7"), d(2, "7"), d(2, "7"), d(7, "7"), d(7, "7")], // rhythm bridge
+      [d(5, "Maj7"), d(5, "m6"), d(0, "Maj7"), d(9, "7"), d(2, "m7"), d(7, "7"), d(0, "Maj7"), d(7, "7#5")],
+    ]);
+    bars = [...A, ...A, ...B, ...A.slice(0, 6), d(0, "Maj7"), d(0, "Maj7")];
+  }
+
+  return {
+    key,
+    form,
+    bars,
+    style: pick(minor ? ["swing", "swing", "bossa", "funk"] : ["swing", "swing", "bossa", "latin"]),
+    bpm: 90 + Math.floor(Math.random() * 80),
+  };
+}
+
+$("#ed-random").addEventListener("click", () => {
+  const gen = randomChanges();
+  $("#ed-prog").value = gen.bars.join(" | ");
+  $("#ed-key").value = gen.key;
+  $("#ed-form").value = gen.form;
+  $("#ed-style").value = gen.style;
+  $("#ed-bpm").value = gen.bpm;
+  if (!$("#ed-title").value.trim()) $("#ed-title").value = `Dice in ${gen.key}`;
+  if (!$("#ed-composer").value.trim()) $("#ed-composer").value = "the woodshed dice";
+  $("#ed-errors").textContent = "";
 });
 
 function progressionToText(progression, ts) {
