@@ -482,19 +482,7 @@ export class Band {
 
     // the soloist goes first so the band can listen to it
     this._songCtx = { chords, totalBeats, style, bpb };
-    let soloEvents = this._soloEvents(chords, totalBeats, style, SOLO_LO, SOLO_HI, bpb);
-
-    // trading fours: every 4th chorus the solo lays out in alternating
-    // 4-bar blocks and the drums fill the space
-    const trading = this.soloOn && this._chorus > 0 && this._chorus % 4 === 3;
-    const tradeBars = new Set();
-    if (trading) {
-      for (let bar = 0; bar < song.progression.length; bar++) {
-        if (Math.floor(bar / 4) % 2 === 1) tradeBars.add(bar);
-      }
-      soloEvents = soloEvents.filter((e) => !tradeBars.has(Math.floor(e.beat / bpb)));
-    }
-    this._tradeBars = trading ? tradeBars : null;
+    const soloEvents = this._soloEvents(chords, totalBeats, style, SOLO_LO, SOLO_HI, bpb);
     this._soloEventsCache = soloEvents;
 
     // which bars is the soloist busy in? the comp thins there and breathes
@@ -518,7 +506,7 @@ export class Band {
       piano: duck(this._pianoEvents(chords, style, straight, bpb)),
       guitar: duck(this._guitarEvents(chords, song, style, straight, bpb)),
       bass: this._bassEvents(chords, totalBeats, style, straight, bpb),
-      drums: this._drumEvents(song, style, straight, bpb, { phraseEnds, tradeBars }),
+      drums: this._drumEvents(song, style, straight, bpb, { phraseEnds }),
       meta: [],
     };
 
@@ -643,10 +631,7 @@ export class Band {
   _rebuildSoloPart() {
     const ctx = this._songCtx;
     if (!ctx) return;
-    let ev = this._soloEvents(ctx.chords, ctx.totalBeats, ctx.style, SOLO_LO, SOLO_HI, ctx.bpb);
-    // mid-trading-chorus rebuilds must keep honoring the drum fours
-    if (this._tradeBars) ev = ev.filter((e) => !this._tradeBars.has(Math.floor(e.beat / ctx.bpb)));
-    this._makeSoloPart(ev);
+    this._makeSoloPart(this._soloEvents(ctx.chords, ctx.totalBeats, ctx.style, SOLO_LO, SOLO_HI, ctx.bpb));
   }
 
   _makeSoloPart(events) {
@@ -1382,19 +1367,6 @@ export class Band {
     const kv = (v) => Math.max(8, Math.round(v * (1 - slow * 0.45)));
 
     for (let bar = 0; bar < totalBars; bar++) {
-      // trading fours: the drums own these bars — brushy fill figures
-      if (opts.tradeBars?.has(bar)) {
-        push(bar, 1, "hat", 46);
-        if (bpb > 3) push(bar, 3, "hat", 46);
-        const fig = choice([
-          [[0, 40], [1, 34], [1.5, 30], [2, 44], [3, 36]],
-          [[0, 38], [0.5, 28], [1.5, 40], [2.5, 32], [3, 44], [3.5, 30]],
-          [[0, 42], [2, 46], [2.5, 30], [3, 38]],
-        ]);
-        for (const [off, vel] of fig) if (off < bpb) push(bar, off, "snare", vel);
-        if (Math.random() < 0.5) push(bar, choice([0, 2]), "kick", kv(30));
-        continue;
-      }
       // answer the soloist's phrase endings with a soft snare accent —
       // but never in a fill bar, where pickups would stack
       const fillBar = sectionEnd(bar) && bpb === 4 && slow < 0.3;
