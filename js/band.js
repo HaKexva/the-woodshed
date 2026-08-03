@@ -262,49 +262,73 @@ export class Band {
   }
 
   _buildDrumKit() {
-    this.kick = new Tone.MembraneSynth({
-      pitchDecay: 0.03,
-      octaves: 5,
-      envelope: { attack: 0.001, decay: 0.35, sustain: 0 },
-    });
-    this.kick.volume.value = -10;
-    this.kick.connect(this.gains.drums);
+    // Voice pools: each drum gets multiple rotating voices so overlapping
+    // hits ring into each other like a real kit (and same-tick retriggers
+    // land on different voices instead of throwing).
+    const pool = (n, make) => {
+      const voices = Array.from({ length: n }, make);
+      let i = 0;
+      return { next: () => voices[i++ % voices.length] };
+    };
 
-    this.ride = new Tone.MetalSynth({
-      envelope: { attack: 0.001, decay: 1.1, release: 0.3 },
-      harmonicity: 5.1,
-      modulationIndex: 18,
-      resonance: 7000,
-      octaves: 1.2,
+    this.kickPool = pool(2, () => {
+      const s = new Tone.MembraneSynth({
+        pitchDecay: 0.03,
+        octaves: 5,
+        envelope: { attack: 0.001, decay: 0.35, sustain: 0 },
+      });
+      s.volume.value = -10;
+      s.connect(this.gains.drums);
+      return s;
     });
-    this.ride.volume.value = -22;
-    this.ride.connect(this.gains.drums);
+
+    this.ridePool = pool(3, () => {
+      const s = new Tone.MetalSynth({
+        envelope: { attack: 0.001, decay: 1.1, release: 0.3 },
+        harmonicity: 5.1,
+        modulationIndex: 18,
+        resonance: 7000,
+        octaves: 1.2,
+      });
+      s.volume.value = -22;
+      s.connect(this.gains.drums);
+      return s;
+    });
 
     this.hatFilter = new Tone.Filter(6000, "highpass");
     this.hatFilter.connect(this.gains.drums);
-    this.hat = new Tone.NoiseSynth({
-      noise: { type: "white" },
-      envelope: { attack: 0.001, decay: 0.045, sustain: 0 },
+    this.hatPool = pool(2, () => {
+      const s = new Tone.NoiseSynth({
+        noise: { type: "white" },
+        envelope: { attack: 0.001, decay: 0.045, sustain: 0 },
+      });
+      s.volume.value = -16;
+      s.connect(this.hatFilter);
+      return s;
     });
-    this.hat.volume.value = -16;
-    this.hat.connect(this.hatFilter);
 
     this.snareFilter = new Tone.Filter(1800, "bandpass");
     this.snareFilter.connect(this.gains.drums);
-    this.snare = new Tone.NoiseSynth({
-      noise: { type: "pink" },
-      envelope: { attack: 0.002, decay: 0.13, sustain: 0 },
+    this.snarePool = pool(2, () => {
+      const s = new Tone.NoiseSynth({
+        noise: { type: "pink" },
+        envelope: { attack: 0.002, decay: 0.13, sustain: 0 },
+      });
+      s.volume.value = -14;
+      s.connect(this.snareFilter);
+      return s;
     });
-    this.snare.volume.value = -14;
-    this.snare.connect(this.snareFilter);
 
-    this.rim = new Tone.MembraneSynth({
-      pitchDecay: 0.005,
-      octaves: 1.5,
-      envelope: { attack: 0.001, decay: 0.06, sustain: 0 },
+    this.rimPool = pool(2, () => {
+      const s = new Tone.MembraneSynth({
+        pitchDecay: 0.005,
+        octaves: 1.5,
+        envelope: { attack: 0.001, decay: 0.06, sustain: 0 },
+      });
+      s.volume.value = -14;
+      s.connect(this.gains.drums);
+      return s;
     });
-    this.rim.volume.value = -14;
-    this.rim.connect(this.gains.drums);
   }
 
   setSolo(on) {
@@ -429,17 +453,24 @@ export class Band {
     mk(ev.drums, (time, e) => {
       if (this.muted.drums) return;
       const v = e.vel / 127;
-      // mono synths throw on same-tick retriggers (rare loop-boundary
-      // collisions) — dropping one hit beats crashing the callback
+      // rotating voices + per-hit jitter: pitch, decay, and ring length all
+      // vary a little, and harder hits ring longer — no two hits identical
       try {
         switch (e.drum) {
-          case "ride": this.ride.triggerAttackRelease(e.freq ?? 320, e.len ?? 0.5, time, v); break;
-          case "hat": this.hat.triggerAttackRelease(0.04, time, v); break;
-          case "snare": this.snare.triggerAttackRelease(0.12, time, v); break;
-          case "kick": this.kick.triggerAttackRelease("G1", 0.1, time, v); break;
-          case "rim": this.rim.triggerAttackRelease("E4", 0.05, time, v); break;
+          case "ride":
+            this.ridePool.next().triggerAttackRelease(
+              (e.freq ?? 320) + rnd(-22, 22),
+              (e.len ?? 0.5) * (0.7 + v * 0.7) * rnd(0.9, 1.1),
+              time,
+              v
+            );
+            break;
+          case "hat": this.hatPool.next().triggerAttackRelease(rnd(0.028, 0.05), time, v); break;
+          case "snare": this.snarePool.next().triggerAttackRelease(rnd(0.1, 0.16) * (0.8 + v * 0.5), time, v); break;
+          case "kick": this.kickPool.next().triggerAttackRelease(rnd(46, 52), 0.1, time, v); break;
+          case "rim": this.rimPool.next().triggerAttackRelease(rnd(312, 345), 0.05, time, v); break;
         }
-      } catch { /* skip colliding hit */ }
+      } catch { /* same-tick voice collision — skip the hit */ }
     });
 
     mk(ev.meta, (time, e) => {
