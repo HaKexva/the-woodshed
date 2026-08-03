@@ -849,7 +849,9 @@ input[type="range"]::-moz-range-thumb {
   .now-side { justify-self: center; text-align: center; }
   .beat-lights { justify-content: center; }
   .leadsheet { grid-template-columns: repeat(2, 1fr); }
-  .transport { flex-wrap: wrap; gap: 0.8rem; padding: 0.8rem 1.2rem; }
+  .transport { flex-wrap: wrap; justify-content: center; gap: 0.8rem; padding: 0.8rem 1.2rem; }
+  .transport .status { flex: 0 1 100%; text-align: center; }
+  .transport .status:empty { display: none; }
   .hint { display: none; }
   body { padding-bottom: 140px; }
 }
