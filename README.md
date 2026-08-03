@@ -75,7 +75,8 @@ Per-song source URLs live in `js/songs.js` and are displayed in the app. Where c
 - **What's included:** chord symbols, song titles, composer names, form/tempo metadata. Song titles and composer credits are factual metadata; the chord progressions are shown as commonly taught in jazz education.
 - **What's deliberately NOT included:** melodies, lyrics, published lead-sheet layouts, or audio recordings of the original works — those are the copyrighted elements of these songs.
 - **Chord-change references:** learnjazzstandards.com, jazz-circle.com, antonjazz.com, jazz-guitar-licks.com, jazzleadsheet.com, jazzingly.com, saxteacheruk.com, brunojazz.com, jazzimprov.net, musictheorymanual.com, Wikipedia, swiss-jazz.ch (per-song URLs in `js/songs.js`).
-- **Instrument samples:** [FluidR3_GM soundfont](https://github.com/gleitz/midi-js-soundfonts) (MIT-licensed distribution) loaded via [smplr](https://github.com/danigb/smplr) (MIT). Scheduling by [Tone.js](https://tonejs.github.io/) (MIT). Drums are synthesized in-browser — no samples.
+- **Instrument samples:** band = [MusyngKite soundfont kit](https://github.com/gleitz/midi-js-soundfonts) (CC BY-SA 3.0, hosted by gleitz.github.io as intended) via [smplr](https://github.com/danigb/smplr) (MIT); keys soloist = smplr's Splendid Grand Piano; horn soloists = [WebAudioFont](https://github.com/surikov/webaudiofont) JCLive presets (GPLv3 player, live-sampled with loop points). Scheduling by [Tone.js](https://tonejs.github.io/) (MIT). Drums are synthesized in-browser — no samples.
+- **License:** this project is licensed under [GPLv3](LICENSE) (required by the WebAudioFont player it links).
 - **Purpose:** personal practice and music education.
 
 This is a good-faith educational project, not legal advice; if you plan to commercialize it, consult a music-licensing professional.

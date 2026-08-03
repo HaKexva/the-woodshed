@@ -353,6 +353,28 @@ body {
   color: var(--cream-25);
 }
 
+.mood-label { margin-top: 1.2rem; }
+
+.mood-picker { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+
+.mood {
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: 0.82rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--cream);
+  border: 2px solid var(--cream-25);
+  padding: 0.45rem 1rem;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.mood:hover { border-color: var(--cream); }
+
+.mood.active { background: var(--blue); border-color: var(--blue); color: var(--ink); }
+
 /* -------------------------------------------------------------- credits */
 
 .credits {

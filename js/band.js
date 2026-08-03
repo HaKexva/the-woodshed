@@ -3,20 +3,77 @@
 // supply piano / bass / guitar; drums are Tone synths (no samples to host).
 
 import * as Tone from "https://cdn.jsdelivr.net/npm/tone@15.1.22/+esm";
-import { Soundfont } from "https://cdn.jsdelivr.net/npm/smplr@1.0.0/+esm";
+import { Soundfont, SplendidGrandPiano } from "https://cdn.jsdelivr.net/npm/smplr@1.0.0/+esm";
 import { parseChord, pianoVoicing, guitarVoicing, bassPcs, placeNear, soloScaleSteps } from "./theory.js";
 
 const BASS_LO = 30; // F#1
 const BASS_HI = 52; // E3
 
-// Solo instruments (GM soundfont name + practical range in MIDI).
-export const SOLOISTS = {
-  trumpet: { label: "trumpet", sf: "trumpet", lo: 58, hi: 84 },
-  trombone: { label: "trombone", sf: "trombone", lo: 45, hi: 70 },
-  alto: { label: "alto sax", sf: "alto_sax", lo: 56, hi: 80 },
-  tenor: { label: "tenor sax", sf: "tenor_sax", lo: 50, hi: 76 },
-  keys: { label: "keys", sf: "acoustic_grand_piano", lo: 60, hi: 88 },
+// How the soloist plays. phrase = [min,max] notes; rests in beats between
+// phrases; stepProbs = [P(1 step), P(2 steps)], remainder leaps; register =
+// preferred spot in the instrument range (0 low, 1 high).
+export const SOLO_MOODS = {
+  aggressive: {
+    label: "aggressive",
+    phrase: [5, 12],
+    rests: [0.5, 0.5, 1, 1.5],
+    vel: [88, 112],
+    stepProbs: [0.5, 0.3],
+    sixteenth: 0.22,
+    holds: [1, 1.5],
+    legato: 0.85,
+    register: 0.62,
+  },
+  soft: {
+    label: "soft",
+    phrase: [2, 6],
+    rests: [1.5, 2, 2, 3, 4],
+    vel: [55, 76],
+    stepProbs: [0.75, 0.18],
+    sixteenth: 0,
+    holds: [1.5, 2, 3],
+    legato: 0.98,
+    register: 0.4,
+  },
+  soul: {
+    label: "soul",
+    phrase: [3, 8],
+    rests: [1, 1.5, 2, 2.5],
+    vel: [72, 100],
+    stepProbs: [0.6, 0.25],
+    sixteenth: 0.06,
+    holds: [1, 2, 2.5],
+    legato: 0.92,
+    register: 0.55,
+    bluesy: 0.25,
+    scoop: 0.22,
+    repeat: 0.18,
+  },
 };
+
+// Solo instruments and practical ranges in MIDI. Horns use WebAudioFont's
+// JCLive presets (live-sampled, loop points → notes sustain properly);
+// keys use smplr's Splendid Grand Piano.
+const WAF_BASE = "https://surikov.github.io/webaudiofontdata/sound";
+export const SOLOISTS = {
+  trumpet: { label: "trumpet", waf: `0560_JCLive_sf2_file`, lo: 58, hi: 84 },
+  trombone: { label: "trombone", waf: `0570_JCLive_sf2_file`, lo: 45, hi: 70 },
+  alto: { label: "alto sax", waf: `0650_JCLive_sf2_file`, lo: 56, hi: 80 },
+  tenor: { label: "tenor sax", waf: `0660_JCLive_sf2_file`, lo: 50, hi: 76 },
+  keys: { label: "keys", lo: 60, hi: 88, splendid: true },
+};
+
+const WAF_PLAYER_URL = "https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js";
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error(`failed to load ${src}`));
+    document.head.appendChild(s);
+  });
+}
 
 const rnd = (lo, hi) => lo + Math.random() * (hi - lo);
 const choice = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -32,8 +89,15 @@ export class Band {
     this.playing = false;
     this.soloOn = false;
     this.soloName = "trumpet";
+    this.soloMood = "soul";
     this.soloInsts = {};
     this.soloPart = null;
+  }
+
+  setSoloMood(mood) {
+    if (!(mood in SOLO_MOODS) || mood === this.soloMood) return;
+    this.soloMood = mood;
+    if (this.playing) this._rebuildSoloPart();
   }
 
   /** Create audio context + start loading instruments. Safe to call early. */
@@ -99,6 +163,32 @@ export class Band {
     ]);
 
     this.cb.onReady?.();
+  }
+
+  async _loadSplendid() {
+    const inst = new SplendidGrandPiano(this.ctx, { destination: this.gains.solo });
+    await inst.load;
+    return inst;
+  }
+
+  /** WebAudioFont horn wrapped in the same start/stop shape smplr uses. */
+  async _loadWafInstrument(presetName) {
+    if (!this.wafPlayer) {
+      if (!window.WebAudioFontPlayer) await loadScript(WAF_PLAYER_URL);
+      this.wafPlayer = new window.WebAudioFontPlayer();
+    }
+    const varName = `_tone_${presetName}`;
+    if (!window[varName]) await loadScript(`${WAF_BASE}/${presetName}.js`);
+    this.wafPlayer.loader.decodeAfterLoading(this.ctx, varName);
+    await new Promise((resolve) => this.wafPlayer.loader.waitLoad(resolve));
+    const player = this.wafPlayer;
+    const ctx = this.ctx;
+    const dest = this.gains.solo;
+    return {
+      start: ({ note, time, duration, velocity = 90 }) =>
+        player.queueWaveTable(ctx, dest, window[varName], time ?? ctx.currentTime, note, duration, (velocity / 127) * 0.85),
+      stop: () => player.cancelQueue(ctx),
+    };
   }
 
   /** Minimal smplr-compatible adapter over a Tone synth (offline fallback). */
@@ -175,11 +265,11 @@ export class Band {
     await this.setup();
     if (!this.soloInsts[name]) {
       try {
-        const inst = new Soundfont(this.ctx, { instrument: def.sf, destination: this.gains.solo });
-        await inst.load;
-        this.soloInsts[name] = inst;
+        this.soloInsts[name] = def.waf
+          ? await this._loadWafInstrument(def.waf)
+          : await this._loadSplendid();
       } catch (e) {
-        console.warn(`soloist ${def.sf} failed, using synth fallback`, e);
+        console.warn(`soloist ${name} failed, using synth fallback`, e);
         this.soloInsts[name] = this._synthFallback("piano", this.gains.solo);
       }
     }
@@ -295,7 +385,7 @@ export class Band {
     mk(ev.guitar, (time, e) => {
       if (this.muted.guitar) return;
       e.midis.forEach((m, i) =>
-        this.guitar.start({ note: m, time: time + i * 0.008, duration: e.dur * beatSec(), velocity: e.vel })
+        this.guitar.start({ note: m, time: time + i * (e.roll ? 0.025 : 0.008), duration: e.dur * beatSec(), velocity: e.vel })
       );
     });
 
@@ -308,7 +398,7 @@ export class Band {
       if (this.muted.drums) return;
       const v = e.vel / 127;
       switch (e.drum) {
-        case "ride": this.ride.triggerAttackRelease(320, 0.5, time, v); break;
+        case "ride": this.ride.triggerAttackRelease(e.freq ?? 320, e.len ?? 0.5, time, v); break;
         case "hat": this.hat.triggerAttackRelease(0.04, time, v); break;
         case "snare": this.snare.triggerAttackRelease(0.12, time, v); break;
         case "kick": this.kick.triggerAttackRelease("G1", 0.1, time, v); break;
@@ -347,14 +437,16 @@ export class Band {
   }
 
   /**
-   * Phrase-based improv: rest, then a run of swing 8ths walking the chord
+   * Phrase-based improv shaped by mood: rest, then a run walking the chord
    * scale — mostly stepwise, occasional leaps, landing on a chord tone at
    * every chord change, held note at phrase ends. Ballads breathe more.
+   * Soul adds blue notes, repeated notes, and grace-note scoops.
    */
   _soloEvents(chords, totalBeats, style, lo, hi) {
+    const mood = SOLO_MOODS[this.soloMood];
     const events = [];
     const ballad = style === "ballad";
-    const center = (lo + hi) / 2;
+    const target = lo + (hi - lo) * mood.register;
     const pools = new Map();
     const poolFor = (c) => {
       if (!pools.has(c)) {
@@ -378,12 +470,25 @@ export class Band {
       }
       return best === -1 ? Math.floor(pool.length / 2) : best;
     };
+    const blueNote = (c, near) => {
+      // b3 / b5 / b7 against the chord root, closest to where we are
+      const pcs = [3, 6, 10].map((s) => (c.info.rootPc + s) % 12);
+      let best = null;
+      for (let m = Math.max(lo, near - 8); m <= Math.min(hi, near + 8); m++) {
+        if (!pcs.includes(m % 12)) continue;
+        if (best === null || Math.abs(m - near) < Math.abs(best - near)) best = m;
+      }
+      return best;
+    };
 
+    const [phMin, phMax] = mood.phrase;
     let t = choice([0.5, 1, 2]);
-    let cur = center;
+    let cur = target;
     let lastChord = null;
     while (t < totalBeats) {
-      const len = ballad ? 2 + Math.floor(Math.random() * 4) : 3 + Math.floor(Math.random() * 7);
+      const maxLen = ballad ? Math.max(2, phMax - 3) : phMax;
+      const len = phMin + Math.floor(Math.random() * (maxLen - phMin + 1));
+      const phraseStart = t;
       for (let n = 0; n < len && t < totalBeats - 0.5; n++) {
         const c = chordAt(t);
         const pool = poolFor(c);
@@ -391,36 +496,43 @@ export class Band {
         if (c !== lastChord) {
           // land on 3rd/5th/7th of the fresh chord, close to where we are
           const tones = new Set(c.info.intervals.filter((iv) => iv > 0).map((iv) => (c.info.rootPc + iv) % 12));
-          idx = nearestIdx(pool, cur, (m) => tones.has(m % 12));
+          idx = nearestIdx(pool, n === 0 ? (cur + target) / 2 : cur, (m) => tones.has(m % 12));
           lastChord = c;
+          cur = pool[idx];
+        } else if (mood.repeat && Math.random() < mood.repeat) {
+          // soul: sit on the note
+        } else if (mood.bluesy && Math.random() < mood.bluesy) {
+          cur = blueNote(c, cur) ?? cur;
         } else {
           const r = Math.random();
-          const step = r < 0.62 ? 1 : r < 0.86 ? 2 : 3 + Math.floor(Math.random() * 2);
-          let dir = Math.random() < 0.5 ? -1 : 1;
-          if (cur < lo + 5) dir = 1;
-          if (cur > hi - 5) dir = -1;
+          const step = r < mood.stepProbs[0] ? 1 : r < mood.stepProbs[0] + mood.stepProbs[1] ? 2 : 3 + Math.floor(Math.random() * 2);
+          let dir = Math.random() < (cur > target ? 0.6 : 0.4) ? -1 : 1; // drift home
+          if (cur < lo + 4) dir = 1;
+          if (cur > hi - 4) dir = -1;
           idx = Math.max(0, Math.min(pool.length - 1, nearestIdx(pool, cur) + dir * step));
+          cur = pool[idx];
         }
-        cur = pool[idx];
         const last = n === len - 1;
         const dur = last
-          ? choice(ballad ? [2, 2.5, 3] : [1, 1.5, 2])
+          ? choice(ballad ? mood.holds.map((h) => h + 0.5) : mood.holds)
           : ballad
             ? choice([0.5, 1, 1])
-            : Math.random() < 0.12
-              ? 1
-              : 0.5;
+            : Math.random() < mood.sixteenth
+              ? 0.25
+              : Math.random() < 0.12
+                ? 1
+                : 0.5;
         const offbeat = t % 1 !== 0;
-        events.push({
-          beat: t,
-          midi: cur,
-          dur: dur * 0.92,
-          vel: Math.round(Math.min(120, Math.max(50, rnd(74, 96) + (offbeat ? 6 : 0) + (last ? 4 : 0)))),
-        });
+        const vel = Math.round(Math.min(120, Math.max(45, rnd(mood.vel[0], mood.vel[1]) + (offbeat ? 5 : 0) + (last ? 4 : 0))));
+        // soul: scoop into phrase starts and held notes from a semitone below
+        if (mood.scoop && (t === phraseStart || last) && t >= 0.25 && Math.random() < mood.scoop) {
+          events.push({ beat: t - 0.25, midi: cur - 1, dur: 0.22, vel: Math.max(30, vel - 26) });
+        }
+        events.push({ beat: t, midi: cur, dur: dur * mood.legato, vel });
         t += dur;
       }
-      t += ballad ? choice([1.5, 2, 3, 4]) : choice([0.5, 1, 1.5, 2, 3]);
-      t = Math.round(t * 2) / 2;
+      t += choice(ballad ? mood.rests.map((r) => r + 1) : mood.rests);
+      t = Math.round(t * 4) / 4;
     }
     return events;
   }
@@ -481,34 +593,66 @@ export class Band {
 
   _guitarEvents(chords, song, style, straight, bpb) {
     const events = [];
-    if (style === "ballad") {
-      // sparse: one soft pad per bar
-      song.progression.forEach((bar, barIdx) => {
-        const c = chords.find((x) => x.bar === barIdx);
-        events.push({ beat: barIdx * bpb, dur: bpb, midis: guitarVoicing(c.info), vel: 28 });
-      });
-      return events;
-    }
-    const bossaA = [0, 1.5, 2.5];
-    const bossaB = [0.5, 1.5, 3];
-    const funk = [1.5, 3.5];
     const chordAt = (beat) => {
       let cur = chords[0];
       for (const c of chords) if (c.startBeat <= beat) cur = c;
       return cur;
     };
     const totalBars = song.progression.length;
+
+    if (style === "ballad") {
+      // sparse pads, some rolled, resting every few bars
+      song.progression.forEach((bar, barIdx) => {
+        if (Math.random() < 0.25) return;
+        const c = chords.find((x) => x.bar === barIdx);
+        events.push({
+          beat: barIdx * bpb,
+          dur: bpb,
+          midis: guitarVoicing(c.info, Math.random() < 0.4 ? 1 : 0),
+          vel: 28,
+          roll: Math.random() < 0.5,
+        });
+      });
+      return events;
+    }
+
+    // pattern pools give each bar its own rhythm
+    const bossaPool = [
+      [0, 1.5, 2.5],
+      [0.5, 1.5, 3],
+      [0, 1.5, 3, 3.5],
+      [0.5, 2, 2.5],
+    ];
+    const funkPool = [[1.5, 3.5], [0.5, 1.5, 3.5], [1.5, 2.5]];
+
     for (let bar = 0; bar < totalBars; bar++) {
-      const offsets = style === "funk" ? funk : straight ? (bar % 2 ? bossaB : bossaA) : [...Array(bpb).keys()]; // Freddie Green quarters
+      const variant = Math.random() < 0.35 ? 1 : 0;
+      let offsets;
+      if (style === "funk") offsets = choice(funkPool);
+      else if (straight) offsets = choice(bossaPool);
+      else if (Math.random() < 0.1) offsets = [1, 3]; // breathe: comp 2 & 4 only
+      else offsets = [...Array(bpb).keys()]; // Freddie Green quarters
+
       for (const off of offsets) {
         const beat = bar * bpb + off;
         const c = chordAt(beat);
-        const accent = !straight && off % 2 === 1;
+        const accent = !straight && off % 2 === 1; // lean on 2 & 4
         events.push({
           beat,
           dur: straight ? 0.6 : 0.42,
-          midis: guitarVoicing(c.info),
-          vel: Math.round(rnd(30, 38)) + (accent ? 5 : 0),
+          midis: guitarVoicing(c.info, variant),
+          vel: Math.round(rnd(30, 38)) + (accent ? 6 : 0),
+        });
+      }
+
+      // swing: occasional push — anticipate next bar's chord on the & of 4
+      if (!straight && style !== "funk" && bar < totalBars - 1 && Math.random() < 0.15) {
+        const next = chordAt((bar + 1) * bpb);
+        events.push({
+          beat: bar * bpb + bpb - 0.5,
+          dur: 0.3,
+          midis: guitarVoicing(next.info, variant),
+          vel: Math.round(rnd(40, 46)),
         });
       }
     }
@@ -595,7 +739,21 @@ export class Band {
   _drumEvents(song, style, straight, bpb) {
     const events = [];
     const totalBars = song.progression.length;
-    const push = (bar, off, drum, vel) => events.push({ beat: bar * bpb + off, drum, vel });
+    const push = (bar, off, drum, vel, extra) => events.push({ beat: bar * bpb + off, drum, vel, ...extra });
+
+    // per-bar ride pattern pool (weights sum to 1) — the pulse breathes
+    const ridePool = [
+      { w: 0.55, p: [[0, 46], [1, 54], [1.5, 32], [2, 46], [3, 54], [3.5, 32]] }, // standard ding-ding-a
+      { w: 0.2, p: [[0, 46], [1, 54], [2, 46], [3, 54], [3.5, 32]] },             // drop one skip note
+      { w: 0.15, p: [[0, 46], [1, 54], [1.5, 32], [2, 46], [2.5, 28], [3, 54], [3.5, 32]] }, // busier
+      { w: 0.1, p: [[0, 46], [1.5, 34], [2, 48], [3, 54]] },                      // broken up
+    ];
+    const pickRide = () => {
+      let r = Math.random();
+      for (const { w, p } of ridePool) { if ((r -= w) <= 0) return p; }
+      return ridePool[0].p;
+    };
+    const sectionEnd = (bar) => bar % 8 === 7 || bar === totalBars - 1;
 
     for (let bar = 0; bar < totalBars; bar++) {
       if (style === "ballad") {
@@ -603,42 +761,67 @@ export class Band {
         push(bar, 1, "hat", 40);
         if (bpb > 3) push(bar, 3, "hat", 40);
         push(bar, 0, "kick", 22);
+        if (bar % 8 === 7 && Math.random() < 0.6) push(bar, bpb - 0.5, "snare", 24); // brush pickup
         continue;
       }
       if (style === "funk") {
         for (let e = 0; e < bpb * 2; e++) push(bar, e / 2, "hat", e % 2 ? 26 : 42);
         push(bar, 1, "snare", 58);
         if (bpb > 3) push(bar, 3, "snare", 58);
-        push(bar, 0, "kick", 60);
-        push(bar, 2.5, "kick", 48);
+        for (const off of choice([[0, 2.5], [0, 1.75, 2.5], [0, 2.5, 3.75]])) push(bar, off, "kick", off === 0 ? 60 : 46);
+        if (sectionEnd(bar)) for (const off of [3.25, 3.5, 3.75]) push(bar, off, "snare", 34 + Math.round(off * 4));
         continue;
       }
       if (straight) {
         // bossa: straight 8th hats, 3-2 rim clave, kick on 1 & 3
-        for (let e = 0; e < bpb * 2; e++) push(bar, e / 2, "hat", e % 2 ? 28 : 44);
+        const lift = bar % 4 === 3 ? 6 : 0; // every 4th bar leans a little
+        for (let e = 0; e < bpb * 2; e++) push(bar, e / 2, "hat", (e % 2 ? 28 : 44) + lift);
         const clave = bar % 2 === 0 ? [0, 1.5, 3] : [1, 2.5];
         for (const off of clave) if (off < bpb) push(bar, off, "rim", 52);
         push(bar, 0, "kick", 50);
         if (bpb > 2) push(bar, 2, "kick", 44);
+        if (sectionEnd(bar) && Math.random() < 0.5) push(bar, 3.5, "rim", 46);
         continue;
       }
       // swing
+      const crash = bar > 0 && bar % 8 === 0; // top of a section
       if (bpb === 3) {
         for (const [off, vel] of [[0, 52], [1, 40], [1.5, 30], [2, 44]]) push(bar, off, "ride", vel);
         push(bar, 1, "hat", 46);
       } else {
-        for (const [off, vel] of [[0, 46], [1, 54], [1.5, 32], [2, 46], [3, 54], [3.5, 32]]) push(bar, off, "ride", vel);
+        const pattern = pickRide();
+        for (const [off, vel] of pattern) {
+          if (crash && off === 0) push(bar, 0, "ride", 68, { len: 1.8, freq: 260 });
+          else push(bar, off, "ride", vel);
+        }
         push(bar, 1, "hat", 50);
         push(bar, 3, "hat", 50);
       }
       for (let b = 0; b < bpb; b++) if (Math.random() > 0.3) push(bar, b, "kick", Math.round(rnd(14, 20)));
-      // sparse snare comping
-      if (Math.random() < 0.55) push(bar, choice([0.5, 1.5, 2, 2.5, 3.5]), "snare", Math.round(rnd(22, 34)));
-      if (bar === totalBars - 1 && bpb === 4) {
-        push(bar, 3, "snare", 44);
-        push(bar, 3.5, "snare", 52);
+      if (Math.random() < 0.15) push(bar, bpb - 0.5, "kick", 30); // pickup into next bar
+      // snare comping: ghosts and the odd accent
+      const hits = Math.random() < 0.55 ? 1 : Math.random() < 0.25 ? 2 : 0;
+      const spots = [0.5, 1.5, 2, 2.5, 3.5];
+      for (let h = 0; h < hits; h++) {
+        const off = spots.splice(Math.floor(Math.random() * spots.length), 1)[0];
+        push(bar, off, "snare", Math.round(Math.random() < 0.3 ? rnd(34, 42) : rnd(18, 28)));
+      }
+      if (sectionEnd(bar) && bpb === 4) {
+        const fill = choice([
+          [[2.5, 34], [3, 40], [3.5, 50]],
+          [[3, 38], [3.25, 42], [3.5, 46], [3.75, 52]],
+          [[3, 44], [3.5, 52]],
+        ]);
+        for (const [off, vel] of fill) push(bar, off, "snare", vel);
       }
     }
-    return events;
+    // the drum synths are monophonic — two hits of the same drum on the same
+    // tick throw in Tone; keep the louder one
+    const seen = new Map();
+    for (const e of events) {
+      const k = `${e.drum}:${e.beat}`;
+      if (!seen.has(k) || seen.get(k).vel < e.vel) seen.set(k, e);
+    }
+    return [...seen.values()];
   }
 }

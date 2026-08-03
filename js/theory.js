@@ -148,16 +148,30 @@ export function pianoVoicing(chord) {
   return [...new Set(midis)].sort((a, b) => a - b);
 }
 
-/** Compact 3-note guitar voicing: root + 3rd + 7th (or 5th), low-mid register. */
-export function guitarVoicing(chord) {
+/**
+ * Compact 3-note guitar voicing, low-mid register.
+ * variant 0: shell — root + 3rd + 7th (or 5th).
+ * variant 1: rootless color — 3rd + 7th + 9th/5th, a touch higher.
+ */
+export function guitarVoicing(chord, variant = 0) {
   const iv = chord.intervals;
   const third = pick(iv, [4, 3, 5]) ?? 4;
   const seventh = pick(iv, [10, 11, 9, 7]) ?? 7;
-  const midis = [
-    placeNear(chord.rootPc, 48, 43, 55),
-    placeNear((chord.rootPc + third) % 12, 55, 50, 62),
-    placeNear((chord.rootPc + seventh) % 12, 58, 50, 64),
-  ];
+  let midis;
+  if (variant === 1) {
+    const color = pick(iv, [14, 13, 15, 7, 8, 6]) ?? 7;
+    midis = [
+      placeNear((chord.rootPc + third) % 12, 52, 46, 58),
+      placeNear((chord.rootPc + seventh) % 12, 57, 50, 62),
+      placeNear((chord.rootPc + color) % 12, 62, 55, 66),
+    ];
+  } else {
+    midis = [
+      placeNear(chord.rootPc, 48, 43, 55),
+      placeNear((chord.rootPc + third) % 12, 55, 50, 62),
+      placeNear((chord.rootPc + seventh) % 12, 58, 50, 64),
+    ];
+  }
   return [...new Set(midis)].sort((a, b) => a - b);
 }
 

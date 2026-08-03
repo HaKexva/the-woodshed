@@ -171,6 +171,11 @@ function setMode(mode) {
   if (mode === "inspire") setSoloist(state.soloist);
 }
 
+function setMood(mood) {
+  $$(".mood").forEach((b) => b.classList.toggle("active", b.dataset.mood === mood));
+  band.setSoloMood(mood);
+}
+
 async function setSoloist(name) {
   state.soloist = name;
   $$(".soloist").forEach((b) => b.classList.toggle("active", b.dataset.solo === name));
@@ -194,6 +199,8 @@ $("#tempo").addEventListener("input", (e) => {
 $$(".mode-btn").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
 
 $$(".soloist").forEach((b) => b.addEventListener("click", () => setSoloist(b.dataset.solo)));
+
+$$(".mood").forEach((b) => b.addEventListener("click", () => setMood(b.dataset.mood)));
 
 $$(".mute").forEach((b) =>
   b.addEventListener("click", () => {
