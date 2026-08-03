@@ -100,16 +100,17 @@ body {
 .mode-btn + .mode-btn { border-left: 2px solid var(--cream); }
 
 .beta {
+  display: inline-block;
   font-family: var(--body);
   font-weight: 700;
-  font-size: 0.5em;
-  letter-spacing: 0.1em;
+  font-size: 0.45em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   border: 1.5px solid currentColor;
-  border-radius: 3px;
-  padding: 0.05em 0.3em;
-  margin-left: 0.4em;
-  vertical-align: super;
+  border-radius: 4px;
+  padding: 0.18em 0.45em;
+  margin-left: 0.7em;
+  transform: translateY(-0.7em);
 }
 
 .lang-toggle {
