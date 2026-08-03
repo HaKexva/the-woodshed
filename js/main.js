@@ -444,7 +444,9 @@ function showEditorIssues(errors, warnings) {
     ...errors.map(esc),
     ...warnings.map((w) => `${ALERT_ICON} ${esc(w)}`),
   ].join("<br>");
-  return errors.length > 0;
+  // warnings block too — an unrecognized chord quality would play as the
+  // wrong chord, so don't let it be previewed or exported
+  return errors.length > 0 || warnings.length > 0;
 }
 
 $("#open-editor").addEventListener("click", () => ($("#editor-overlay").hidden = false));
