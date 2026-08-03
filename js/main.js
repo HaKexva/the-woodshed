@@ -7,9 +7,12 @@ import { parseChord, parseWarnings, soloScale, flatName } from "./theory.js";
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
 
+const PAGE_SIZE = 10;
+
 const state = {
   mode: "session", // session | inspire
   songIndex: 0,
+  page: 0,
   customSong: null, // song loaded from the editor instead of the songbook
   playing: false,
   loading: false,
@@ -53,6 +56,8 @@ function selectSong(i) {
   if (wasPlaying) stop();
   state.songIndex = i;
   state.customSong = null;
+  state.page = Math.floor(i / PAGE_SIZE);
+  updateListView();
   $$(".track").forEach((el, j) => el.classList.toggle("active", j === i));
   const song = SONGS[i];
   $("#song-title").textContent = song.title;
@@ -244,19 +249,38 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-// ------------------------------------------------------------------ search
+// ------------------------------------------------- search & pagination
 
-$("#song-search").addEventListener("input", (e) => {
-  const q = e.target.value.trim().toLowerCase();
+// search looks across the whole book; otherwise the list shows one
+// 10-track "side" at a time
+function updateListView() {
+  const q = $("#song-search").value.trim().toLowerCase();
   let shown = 0;
   $$("#tracklist li").forEach((li, i) => {
     const s = SONGS[i];
-    const hay = `${s.title} ${s.composer} ${s.key} ${s.style}`.toLowerCase();
-    const hit = !q || hay.includes(q);
+    const hit = q
+      ? `${s.title} ${s.composer} ${s.key} ${s.style}`.toLowerCase().includes(q)
+      : Math.floor(i / PAGE_SIZE) === state.page;
     li.hidden = !hit;
     if (hit) shown++;
   });
   $("#search-empty").hidden = shown > 0;
+  $("#side-letter").textContent = String.fromCharCode(65 + state.page);
+  const lastPage = Math.ceil(SONGS.length / PAGE_SIZE) - 1;
+  $("#page-prev").disabled = !!q || state.page === 0;
+  $("#page-next").disabled = !!q || state.page >= lastPage;
+}
+
+$("#song-search").addEventListener("input", updateListView);
+
+$("#page-prev").addEventListener("click", () => {
+  state.page = Math.max(0, state.page - 1);
+  updateListView();
+});
+
+$("#page-next").addEventListener("click", () => {
+  state.page = Math.min(Math.ceil(SONGS.length / PAGE_SIZE) - 1, state.page + 1);
+  updateListView();
 });
 
 // "/" focuses search from anywhere
@@ -394,4 +418,5 @@ $("#ed-copy").addEventListener("click", async () => {
 
 renderTracklist();
 selectSong(0);
+updateListView();
 setMode("session");

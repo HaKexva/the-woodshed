@@ -117,13 +117,37 @@ body {
   min-height: 60vh;
 }
 
+.sleeve-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.6rem 0.9rem;
+}
+
 .sleeve-label {
   font-size: 0.72rem;
   letter-spacing: 0.35em;
   text-transform: uppercase;
   color: var(--amber);
-  padding: 0 1.6rem 0.9rem;
 }
+
+.pager { display: flex; gap: 0.35rem; }
+
+.pager button {
+  width: 1.6rem;
+  height: 1.6rem;
+  background: transparent;
+  color: var(--cream);
+  border: 2px solid var(--cream-25);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.pager button:hover:not(:disabled) { border-color: var(--amber); color: var(--amber); }
+
+.pager button:disabled { color: var(--cream-25); border-color: var(--cream-10); cursor: default; }
 
 .song-search {
   display: block;

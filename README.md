@@ -2,7 +2,7 @@
 
 **Practice jazz standards with a full backing band, right in your browser.**
 
-**▶ [Try it live](https://tubaxenor.github.io/chord_practice/)** — no install, no login, no build step.
+**▶ [Try it live](https://tubaxenor.github.io/the-woodshed/)** — no install, no login, no build step.
 
 ![the woodshed — session mode](docs/screenshot.jpg)
 
@@ -19,13 +19,13 @@ A rhythm section (sampled piano, guitar, bass + synthesized drums) loops classic
 
 ## Quick start
 
-**Use it online:** [tubaxenor.github.io/chord_practice](https://tubaxenor.github.io/chord_practice/)
+**Use it online:** [tubaxenor.github.io/the-woodshed](https://tubaxenor.github.io/the-woodshed/)
 
 **Run locally:**
 
 ```sh
-git clone https://github.com/tubaxenor/chord_practice.git
-cd chord_practice
+git clone https://github.com/tubaxenor/the-woodshed.git
+cd the-woodshed
 python3 -m http.server 8000   # any static server works
 # open http://localhost:8000
 ```
