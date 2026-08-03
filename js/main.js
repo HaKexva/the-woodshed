@@ -62,6 +62,7 @@ function selectSong(i) {
   $$(".track").forEach((el, j) => el.classList.toggle("active", j === i));
   const song = SONGS[i];
   state.currentSong = song;
+  $("#edit-preview").hidden = true;
   $("#song-title").textContent = song.title;
   $("#song-detail").textContent = `${song.composer} — ${song.key} · ${song.form} · ${song.style}`;
   $("#tempo").value = song.bpm;
@@ -447,6 +448,7 @@ function showEditorIssues(errors, warnings) {
 }
 
 $("#open-editor").addEventListener("click", () => ($("#editor-overlay").hidden = false));
+$("#edit-preview").addEventListener("click", () => ($("#editor-overlay").hidden = false));
 $("#ed-close").addEventListener("click", () => ($("#editor-overlay").hidden = true));
 $("#editor-overlay").addEventListener("click", (e) => {
   if (e.target === $("#editor-overlay")) $("#editor-overlay").hidden = true;
@@ -461,6 +463,7 @@ $("#ed-preview").addEventListener("click", () => {
   state.currentSong = song;
   $$(".track").forEach((el) => el.classList.remove("active"));
   $("#song-title").textContent = `${song.title} (preview)`;
+  $("#edit-preview").hidden = false;
   $("#song-detail").textContent = `${song.composer} — ${song.key} · ${song.form} · ${song.style}`;
   $("#tempo").value = song.bpm;
   $("#tempo-val").textContent = song.bpm;

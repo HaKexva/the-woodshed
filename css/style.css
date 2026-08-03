@@ -255,6 +255,28 @@ body {
 
 .now-head p { margin-top: 0.35rem; color: var(--cream-60); font-size: 0.85rem; }
 
+.edit-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--amber);
+  border: 2px solid var(--amber);
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.edit-preview:hover { background: var(--amber); color: var(--ink); }
+
+.edit-preview[hidden] { display: none; }
+
 .chord-card {
   position: relative;
   background: var(--amber);
