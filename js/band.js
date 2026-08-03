@@ -9,55 +9,13 @@ import { parseChord, pianoVoicing, guitarVoicing, bassPcs, placeNear, soloScaleS
 const BASS_LO = 30; // F#1
 const BASS_HI = 52; // E3
 
-// How the soloist plays. phrase = [min,max] notes; rests in beats between
-// phrases; stepProbs = [P(1 step), P(2 steps)], remainder leaps; register =
-// preferred spot in the instrument range (0 low, 1 high).
-export const SOLO_MOODS = {
-  aggressive: {
-    label: "aggressive",
-    phrase: [5, 12],
-    rests: [0.5, 0.5, 1, 1.5],
-    vel: [88, 112],
-    stepProbs: [0.5, 0.3],
-    sixteenth: 0.22,
-    holds: [1, 1.5],
-    legato: 0.85,
-    register: 0.62,
-  },
-  soft: {
-    label: "soft",
-    phrase: [2, 6],
-    rests: [1.5, 2, 2, 3, 4],
-    vel: [55, 76],
-    stepProbs: [0.75, 0.18],
-    sixteenth: 0,
-    holds: [1.5, 2, 3],
-    legato: 0.98,
-    register: 0.4,
-  },
-  soul: {
-    label: "soul",
-    phrase: [3, 8],
-    rests: [1, 1.5, 2, 2.5],
-    vel: [72, 100],
-    stepProbs: [0.6, 0.25],
-    sixteenth: 0.06,
-    holds: [1, 2, 2.5],
-    legato: 0.92,
-    register: 0.55,
-    bluesy: 0.25,
-    scoop: 0.22,
-    repeat: 0.18,
-  },
-};
-
 // Solo instruments and practical ranges in MIDI. Horns use WebAudioFont's
 // JCLive presets (live-sampled, loop points → notes sustain properly);
 // keys use smplr's Splendid Grand Piano.
 const WAF_BASE = "https://surikov.github.io/webaudiofontdata/sound";
 export const SOLOISTS = {
   trumpet: { label: "trumpet", waf: `0560_JCLive_sf2_file`, lo: 58, hi: 84 },
-  trombone: { label: "trombone", waf: `0570_JCLive_sf2_file`, lo: 45, hi: 70 },
+  trombone: { label: "trombone", waf: `0570_JCLive_sf2_file`, lo: 55, hi: 77, boost: 1.8 },
   alto: { label: "alto sax", waf: `0650_JCLive_sf2_file`, lo: 56, hi: 80 },
   tenor: { label: "tenor sax", waf: `0660_JCLive_sf2_file`, lo: 50, hi: 76 },
   keys: { label: "keys", lo: 60, hi: 88, splendid: true },
@@ -89,14 +47,14 @@ export class Band {
     this.playing = false;
     this.soloOn = false;
     this.soloName = "trumpet";
-    this.soloMood = "soul";
+    this.soloDensity = 0.5;
     this.soloInsts = {};
     this.soloPart = null;
   }
 
-  setSoloMood(mood) {
-    if (!(mood in SOLO_MOODS) || mood === this.soloMood) return;
-    this.soloMood = mood;
+  /** 0 = sparse and mellow, 1 = dense and hot. Regenerates the line live. */
+  setSoloDensity(d) {
+    this.soloDensity = Math.max(0, Math.min(1, d));
     if (this.playing) this._rebuildSoloPart();
   }
 
@@ -172,21 +130,22 @@ export class Band {
   }
 
   /** WebAudioFont horn wrapped in the same start/stop shape smplr uses. */
-  async _loadWafInstrument(presetName) {
+  async _loadWafInstrument(def) {
     if (!this.wafPlayer) {
       if (!window.WebAudioFontPlayer) await loadScript(WAF_PLAYER_URL);
       this.wafPlayer = new window.WebAudioFontPlayer();
     }
-    const varName = `_tone_${presetName}`;
-    if (!window[varName]) await loadScript(`${WAF_BASE}/${presetName}.js`);
+    const varName = `_tone_${def.waf}`;
+    if (!window[varName]) await loadScript(`${WAF_BASE}/${def.waf}.js`);
     this.wafPlayer.loader.decodeAfterLoading(this.ctx, varName);
     await new Promise((resolve) => this.wafPlayer.loader.waitLoad(resolve));
     const player = this.wafPlayer;
     const ctx = this.ctx;
     const dest = this.gains.solo;
+    const boost = def.boost ?? 1;
     return {
       start: ({ note, time, duration, velocity = 90 }) =>
-        player.queueWaveTable(ctx, dest, window[varName], time ?? ctx.currentTime, note, duration, (velocity / 127) * 0.85),
+        player.queueWaveTable(ctx, dest, window[varName], time ?? ctx.currentTime, note, duration, (velocity / 127) * 0.85 * boost),
       stop: () => player.cancelQueue(ctx),
     };
   }
@@ -266,7 +225,7 @@ export class Band {
     if (!this.soloInsts[name]) {
       try {
         this.soloInsts[name] = def.waf
-          ? await this._loadWafInstrument(def.waf)
+          ? await this._loadWafInstrument(def)
           : await this._loadSplendid();
       } catch (e) {
         console.warn(`soloist ${name} failed, using synth fallback`, e);
@@ -426,27 +385,30 @@ export class Band {
     const events = this._soloEvents(ctx.chords, ctx.totalBeats, ctx.style, def.lo, def.hi);
     this.soloPart = new Tone.Part((time, e) => {
       if (!this.soloOn) return;
+      const durSec = e.dur * ctx.beatSec();
       this.soloInsts[this.soloName]?.start({
         note: e.midi,
         time,
-        duration: e.dur * ctx.beatSec(),
+        duration: durSec,
         velocity: e.vel,
       });
+      Tone.getDraw().schedule(() => this.cb.onSoloNote?.(e.midi % 12, durSec), time);
     }, events.map((e) => [ctx.toBBS(e.beat), e]));
     this.soloPart.start(0);
   }
 
   /**
-   * Phrase-based improv shaped by mood: rest, then a run walking the chord
-   * scale — mostly stepwise, occasional leaps, landing on a chord tone at
-   * every chord change, held note at phrase ends. Ballads breathe more.
-   * Soul adds blue notes, repeated notes, and grace-note scoops.
+   * Phrase-based improv with a dynamic arc — no fixed mood. Intensity rises
+   * across the chorus (sparse/soft open → busy/loud peak ~3/4 in → cool-down)
+   * and every phrase parameter interpolates with it: length, rest, velocity,
+   * register, 16th-note runs. Realism devices: motif echoes (a phrase's
+   * rhythm+contour replayed transposed), bebop enclosures into chord-tone
+   * landings, blue notes, repeated notes, grace-note scoops.
    */
   _soloEvents(chords, totalBeats, style, lo, hi) {
-    const mood = SOLO_MOODS[this.soloMood];
     const events = [];
     const ballad = style === "ballad";
-    const target = lo + (hi - lo) * mood.register;
+    const lerp = (a, b, x) => a + (b - a) * x;
     const pools = new Map();
     const poolFor = (c) => {
       if (!pools.has(c)) {
@@ -471,7 +433,6 @@ export class Band {
       return best === -1 ? Math.floor(pool.length / 2) : best;
     };
     const blueNote = (c, near) => {
-      // b3 / b5 / b7 against the chord root, closest to where we are
       const pcs = [3, 6, 10].map((s) => (c.info.rootPc + s) % 12);
       let best = null;
       for (let m = Math.max(lo, near - 8); m <= Math.min(hi, near + 8); m++) {
@@ -480,58 +441,103 @@ export class Band {
       }
       return best;
     };
+    // intensity 0..1 across the form, peaking ~72% through, scaled by the
+    // user's density setting
+    const density = lerp(0.45, 1.45, this.soloDensity);
+    const arcAt = (t) => {
+      const x = (t % totalBeats) / totalBeats;
+      const arc = x < 0.72 ? x / 0.72 : (1 - x) / 0.28;
+      const i = (0.18 + 0.72 * arc) * density + rnd(-0.08, 0.08);
+      return Math.max(0.05, Math.min(1, ballad ? i * 0.6 : i));
+    };
 
-    const [phMin, phMax] = mood.phrase;
-    let t = choice([0.5, 1, 2]);
-    let cur = target;
+    let t = choice([0.5, 1, 1.5, 2]);
+    let cur = lo + (hi - lo) * 0.45;
     let lastChord = null;
-    while (t < totalBeats) {
-      const maxLen = ballad ? Math.max(2, phMax - 3) : phMax;
-      const len = phMin + Math.floor(Math.random() * (maxLen - phMin + 1));
+    let lastEnd = 0;
+    let motif = null; // { durs, steps } — signed scale-steps of a kept phrase
+
+    while (t < totalBeats - 0.5) {
+      const intensity = arcAt(t);
+      const registerTarget = lo + (hi - lo) * lerp(0.35, 0.72, intensity);
+      const velBase = lerp(58, 102, intensity);
+      const useMotif = motif && Math.random() < 0.35;
+
+      let durs;
+      let plannedSteps = null;
+      if (useMotif) {
+        durs = motif.durs;
+        plannedSteps = motif.steps;
+      } else {
+        const len = Math.max(2, Math.round(lerp(2.5, 10, intensity) + rnd(-1, 2)));
+        durs = [];
+        for (let n = 0; n < len; n++) {
+          if (n === len - 1) durs.push(choice(ballad ? [2, 2.5, 3] : [1, 1.5, 2]));
+          else if (!ballad && intensity > 0.55 && Math.random() < (intensity - 0.55) * 0.6) durs.push(0.25);
+          else durs.push(Math.random() < 0.12 ? 1 : 0.5);
+        }
+      }
+
+      const takenSteps = [];
       const phraseStart = t;
-      for (let n = 0; n < len && t < totalBeats - 0.5; n++) {
+      for (let n = 0; n < durs.length && t < totalBeats - 0.5; n++) {
         const c = chordAt(t);
         const pool = poolFor(c);
-        let idx;
-        if (c !== lastChord) {
-          // land on 3rd/5th/7th of the fresh chord, close to where we are
+        const newChord = c !== lastChord;
+        if (newChord || n === 0) {
+          // land on a chord tone, drawn toward the arc's register
           const tones = new Set(c.info.intervals.filter((iv) => iv > 0).map((iv) => (c.info.rootPc + iv) % 12));
-          idx = nearestIdx(pool, n === 0 ? (cur + target) / 2 : cur, (m) => tones.has(m % 12));
+          const idx = nearestIdx(pool, n === 0 ? (cur + registerTarget) / 2 : cur, (m) => tones.has(m % 12));
+          const target = pool[idx];
           lastChord = c;
+          // bebop enclosure: scale step above, semitone below, then the target
+          if (n === 0 && !useMotif && t - 1 >= lastEnd && Math.random() < lerp(0.15, 0.4, intensity)) {
+            const above = pool[Math.min(pool.length - 1, idx + 1)];
+            events.push({ beat: t - 1, midi: above, dur: 0.42, vel: Math.round(velBase - 14) });
+            events.push({ beat: t - 0.5, midi: target - 1, dur: 0.42, vel: Math.round(velBase - 10) });
+          }
+          cur = target;
+          takenSteps.push(0);
+        } else if (plannedSteps) {
+          // motif echo: same contour, re-rooted on this chord's scale
+          const idx = Math.max(0, Math.min(pool.length - 1, nearestIdx(pool, cur) + plannedSteps[n]));
           cur = pool[idx];
-        } else if (mood.repeat && Math.random() < mood.repeat) {
-          // soul: sit on the note
-        } else if (mood.bluesy && Math.random() < mood.bluesy) {
-          cur = blueNote(c, cur) ?? cur;
+        } else if (Math.random() < 0.12) {
+          takenSteps.push(0); // sit on the note
+        } else if (Math.random() < lerp(0.1, 0.22, intensity)) {
+          const blue = blueNote(c, cur);
+          if (blue !== null) cur = blue;
+          takenSteps.push(0);
         } else {
           const r = Math.random();
-          const step = r < mood.stepProbs[0] ? 1 : r < mood.stepProbs[0] + mood.stepProbs[1] ? 2 : 3 + Math.floor(Math.random() * 2);
-          let dir = Math.random() < (cur > target ? 0.6 : 0.4) ? -1 : 1; // drift home
+          const mag = r < lerp(0.72, 0.52, intensity) ? 1 : r < 0.86 ? 2 : 3 + Math.floor(Math.random() * 2);
+          let dir = Math.random() < (cur > registerTarget ? 0.62 : 0.38) ? -1 : 1; // drift toward the arc
           if (cur < lo + 4) dir = 1;
           if (cur > hi - 4) dir = -1;
-          idx = Math.max(0, Math.min(pool.length - 1, nearestIdx(pool, cur) + dir * step));
+          const idx = Math.max(0, Math.min(pool.length - 1, nearestIdx(pool, cur) + dir * mag));
+          takenSteps.push(idx - nearestIdx(pool, cur));
           cur = pool[idx];
         }
-        const last = n === len - 1;
-        const dur = last
-          ? choice(ballad ? mood.holds.map((h) => h + 0.5) : mood.holds)
-          : ballad
-            ? choice([0.5, 1, 1])
-            : Math.random() < mood.sixteenth
-              ? 0.25
-              : Math.random() < 0.12
-                ? 1
-                : 0.5;
+        const last = n === durs.length - 1;
+        const dur = durs[n];
         const offbeat = t % 1 !== 0;
-        const vel = Math.round(Math.min(120, Math.max(45, rnd(mood.vel[0], mood.vel[1]) + (offbeat ? 5 : 0) + (last ? 4 : 0))));
-        // soul: scoop into phrase starts and held notes from a semitone below
-        if (mood.scoop && (t === phraseStart || last) && t >= 0.25 && Math.random() < mood.scoop) {
+        const vel = Math.round(Math.min(120, Math.max(45, velBase + rnd(-8, 10) + (offbeat ? 5 : 0) + (last ? 4 : 0))));
+        // grace-note scoop into phrase starts and held notes
+        if ((t === phraseStart || last) && t - 0.25 >= lastEnd && Math.random() < 0.18) {
           events.push({ beat: t - 0.25, midi: cur - 1, dur: 0.22, vel: Math.max(30, vel - 26) });
         }
-        events.push({ beat: t, midi: cur, dur: dur * mood.legato, vel });
+        events.push({ beat: t, midi: cur, dur: dur * 0.92, vel });
         t += dur;
+        lastEnd = t;
       }
-      t += choice(ballad ? mood.rests.map((r) => r + 1) : mood.rests);
+
+      if (!useMotif && !ballad && takenSteps.length >= 3 && Math.random() < 0.5) {
+        motif = { durs, steps: takenSteps };
+      } else if (Math.random() < 0.25) {
+        motif = null; // move on to new material
+      }
+
+      t += Math.max(0.5, lerp(2.75, 0.75, intensity) + choice([-0.5, 0, 0.5, 1]) + (ballad ? 1 : 0));
       t = Math.round(t * 4) / 4;
     }
     return events;

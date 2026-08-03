@@ -239,7 +239,8 @@ export function soloScale(chord) {
   } else {
     notes = scale.steps.map((s) => (s % 12 === 0 ? chord.rootName : flatName(chord.rootPc + s)));
   }
-  return { label: `${chord.rootName} ${scale.label}`, notes };
+  const pcs = scale.steps.map((s) => (chord.rootPc + s) % 12);
+  return { label: `${chord.rootName} ${scale.label}`, notes, pcs };
 }
 
 /** Pitch classes a bass line draws from. */

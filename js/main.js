@@ -19,6 +19,7 @@ const state = {
 const band = new Band({
   onChord: handleChord,
   onBeat: handleBeat,
+  onSoloNote: handleSoloNote,
   onProgress: (n, total) => setStatus(`loading instruments… ${n}/${total}`),
   onReady: () => {
     state.ready = true;
@@ -103,12 +104,20 @@ function resetChordDisplay() {
 }
 
 function renderSoloStrip(info) {
-  const { label, notes } = soloScale(info);
+  const { label, notes, pcs } = soloScale(info);
   $("#solo-scale").textContent = label;
   $("#solo-notes").innerHTML = notes
-    .map((n, i) => `<span class="solo-note${i === 0 || i === notes.length - 1 ? " root" : ""}">${n}</span>`)
+    .map((n, i) => `<span class="solo-note${i === 0 || i === notes.length - 1 ? " root" : ""}" data-pc="${pcs[i]}">${n}</span>`)
     .join("");
   $("#solo-strip").hidden = false;
+}
+
+let soloNoteTimer = null;
+
+function handleSoloNote(pc, durSec) {
+  $$(".solo-note").forEach((el) => el.classList.toggle("live", Number(el.dataset.pc) === pc));
+  clearTimeout(soloNoteTimer);
+  soloNoteTimer = setTimeout(() => $$(".solo-note.live").forEach((el) => el.classList.remove("live")), Math.max(120, durSec * 900));
 }
 
 // ------------------------------------------------------------------ transport
@@ -171,11 +180,6 @@ function setMode(mode) {
   if (mode === "inspire") setSoloist(state.soloist);
 }
 
-function setMood(mood) {
-  $$(".mood").forEach((b) => b.classList.toggle("active", b.dataset.mood === mood));
-  band.setSoloMood(mood);
-}
-
 async function setSoloist(name) {
   state.soloist = name;
   $$(".soloist").forEach((b) => b.classList.toggle("active", b.dataset.solo === name));
@@ -200,7 +204,7 @@ $$(".mode-btn").forEach((b) => b.addEventListener("click", () => setMode(b.datas
 
 $$(".soloist").forEach((b) => b.addEventListener("click", () => setSoloist(b.dataset.solo)));
 
-$$(".mood").forEach((b) => b.addEventListener("click", () => setMood(b.dataset.mood)));
+$("#density").addEventListener("change", (e) => band.setSoloDensity(Number(e.target.value) / 100));
 
 $$(".mute").forEach((b) =>
   b.addEventListener("click", () => {

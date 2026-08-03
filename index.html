@@ -64,12 +64,12 @@
           <button class="soloist" data-solo="tenor"><span class="key-hint">4</span>tenor sax</button>
           <button class="soloist" data-solo="keys"><span class="key-hint">5</span>keys</button>
         </div>
-        <p class="inspire-label mood-label">mood</p>
-        <div class="mood-picker" role="group" aria-label="solo mood">
-          <button class="mood" data-mood="aggressive">aggressive</button>
-          <button class="mood" data-mood="soft">soft</button>
-          <button class="mood active" data-mood="soul">soul</button>
-        </div>
+        <p class="inspire-label mood-label">solo density</p>
+        <label class="density-ctl">
+          <span class="density-tag">sparse</span>
+          <input id="density" type="range" min="0" max="100" value="50" />
+          <span class="density-tag">dense</span>
+        </label>
       </div>
 
       <div id="leadsheet" class="leadsheet"></div>

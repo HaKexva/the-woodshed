@@ -5,7 +5,7 @@ A jazz chord-progression practice tool that runs entirely in the browser — no 
 ## Modes
 
 - **Session** — the band loops the tune continuously. The lead sheet highlights the current bar, the big card shows the current chord, and the next chord is previewed. A **solo-notes strip** shows the 8-note chord scale to improvise with over the current chord (e.g. `Dm7 → D dorian: D E F G A B C D`), root notes highlighted.
-- **Inspire** — the band plays and a generated soloist improvises over the changes so you can hear the scales in action. Pick the soloist (keys `1`–`5`): **trumpet, trombone, alto sax, tenor sax, or keys** (grand piano — distinct from the electric-piano comping). Lines are phrase-based: mostly stepwise scale runs with occasional leaps, landing on a chord tone at every change, breathing between phrases (ballads breathe more). Each soloist is a ~2 MB soundfont, lazy-loaded on first selection. A new line is generated every play.
+- **Inspire** — the band plays and a generated soloist improvises over the changes so you can hear the scales in action. Pick the soloist (keys `1`–`5`): **trumpet, trombone, alto sax, tenor sax, or keys** (Splendid Grand — distinct from the electric-piano comping). Lines follow a dynamic arc across each chorus (sparse open → peak ~3/4 through → cool-down) with motif echoes, bebop enclosures into chord changes, blue notes, and grace-note scoops; the **solo density** slider scales the whole arc from sparse to hot, live. The note currently being played lights up in the solo-notes strip. Horn soloists are ~70–150 KB WebAudioFont presets; a new line is generated every play.
 
 Other controls: tempo slider (50–240 bpm), per-instrument mutes, `space` to play/stop.
 

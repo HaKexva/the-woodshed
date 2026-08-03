@@ -276,6 +276,13 @@ body {
 
 .solo-note.root { border-color: var(--amber); color: var(--amber); }
 
+.solo-note.live {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: var(--ink);
+  transition: background 0.05s;
+}
+
 /* ------------------------------------------------------------ leadsheet */
 
 .leadsheet {
@@ -355,25 +362,14 @@ body {
 
 .mood-label { margin-top: 1.2rem; }
 
-.mood-picker { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.density-ctl { display: flex; align-items: center; gap: 0.8rem; }
 
-.mood {
-  font-family: var(--body);
-  font-weight: 600;
-  font-size: 0.82rem;
-  letter-spacing: 0.14em;
+.density-tag {
+  font-size: 0.68rem;
+  letter-spacing: 0.25em;
   text-transform: uppercase;
-  background: transparent;
-  color: var(--cream);
-  border: 2px solid var(--cream-25);
-  padding: 0.45rem 1rem;
-  cursor: pointer;
-  transition: all 0.12s;
+  color: var(--cream-60);
 }
-
-.mood:hover { border-color: var(--cream); }
-
-.mood.active { background: var(--blue); border-color: var(--blue); color: var(--ink); }
 
 /* -------------------------------------------------------------- credits */
 
