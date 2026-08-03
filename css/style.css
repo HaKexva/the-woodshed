@@ -706,7 +706,19 @@ input[type="range"]::-moz-range-thumb {
 
 .status { font-size: 0.8rem; color: var(--blue); flex: 1; text-align: right; }
 
-.hint { font-size: 0.72rem; color: var(--cream-25); letter-spacing: 0.06em; }
+.hint { font-size: 0.78rem; color: var(--cream-60); letter-spacing: 0.06em; }
+
+.hint kbd {
+  font-family: var(--body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--cream);
+  border: 1.5px solid var(--cream-60);
+  border-bottom-width: 3px;
+  border-radius: 4px;
+  padding: 0.12rem 0.5rem;
+  margin-right: 0.25rem;
+}
 
 /* ------------------------------------------------------------ responsive */
 
