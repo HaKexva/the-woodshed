@@ -244,6 +244,29 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+// ------------------------------------------------------------------ search
+
+$("#song-search").addEventListener("input", (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  let shown = 0;
+  $$("#tracklist li").forEach((li, i) => {
+    const s = SONGS[i];
+    const hay = `${s.title} ${s.composer} ${s.key} ${s.style}`.toLowerCase();
+    const hit = !q || hay.includes(q);
+    li.hidden = !hit;
+    if (hit) shown++;
+  });
+  $("#search-empty").hidden = shown > 0;
+});
+
+// "/" focuses search from anywhere
+document.addEventListener("keydown", (e) => {
+  if (e.key === "/" && !["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) {
+    e.preventDefault();
+    $("#song-search").focus();
+  }
+});
+
 // ------------------------------------------------------------------ editor
 
 function parseProgressionText(text, ts) {

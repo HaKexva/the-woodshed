@@ -29,7 +29,9 @@
   <main class="layout">
     <aside class="sleeve">
       <h2 class="sleeve-label">side A — standards</h2>
+      <input id="song-search" class="song-search" type="search" placeholder="search tunes…" spellcheck="false" />
       <ol id="tracklist" class="tracklist"></ol>
+      <p id="search-empty" class="sleeve-note" hidden>no tunes match</p>
       <button id="open-editor" class="add-tune">+ add a tune</button>
       <p class="sleeve-note">export JSON and open a PR to share it</p>
     </aside>
