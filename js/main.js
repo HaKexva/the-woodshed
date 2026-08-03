@@ -355,6 +355,35 @@ $("#ed-export").addEventListener("click", () => {
   $("#ed-output").hidden = false;
 });
 
+function progressionToText(progression, ts) {
+  return progression
+    .map((bar) => {
+      const even = bar.every((c) => c.beats === ts / bar.length);
+      return bar.map((c) => (even ? c.chord : `${c.chord}:${c.beats}`)).join(" ");
+    })
+    .join(" | ");
+}
+
+$("#ed-load").addEventListener("click", () => {
+  try {
+    const song = JSON.parse($("#ed-import-json").value);
+    if (!song.title || !Array.isArray(song.progression)) throw new Error("needs at least a title and a progression");
+    const ts = song.timeSignature === 3 ? 3 : 4;
+    $("#ed-title").value = song.title;
+    $("#ed-composer").value = song.composer ?? "";
+    $("#ed-key").value = song.key ?? "";
+    $("#ed-bpm").value = song.bpm ?? 120;
+    $("#ed-style").value = [...$("#ed-style").options].some((o) => o.value === song.style) ? song.style : "swing";
+    $("#ed-ts").value = String(ts);
+    $("#ed-form").value = song.form ?? "";
+    $("#ed-source").value = song.source?.[0] ?? "";
+    $("#ed-prog").value = progressionToText(song.progression, ts);
+    $("#ed-errors").textContent = "";
+  } catch (err) {
+    $("#ed-errors").textContent = `couldn't load JSON: ${err.message}`;
+  }
+});
+
 $("#ed-copy").addEventListener("click", async () => {
   await navigator.clipboard.writeText($("#ed-json").value);
   $("#ed-copy").textContent = "copied ✓";

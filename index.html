@@ -28,11 +28,11 @@
 
   <main class="layout">
     <aside class="sleeve">
+      <button id="open-editor" class="add-tune">+ add a tune</button>
       <h2 class="sleeve-label">side A — standards</h2>
       <input id="song-search" class="song-search" type="search" placeholder="search tunes…" spellcheck="false" />
       <ol id="tracklist" class="tracklist"></ol>
       <p id="search-empty" class="sleeve-note" hidden>no tunes match</p>
-      <button id="open-editor" class="add-tune">+ add a tune</button>
       <p class="sleeve-note">export JSON and open a PR to share it</p>
     </aside>
 
@@ -129,6 +129,7 @@
   <div id="editor-overlay" class="editor-overlay" hidden>
     <div class="editor" role="dialog" aria-label="add a tune">
       <h2>add a tune<span class="brand-dot">.</span></h2>
+      <p class="ed-warning">nothing is saved here — a refresh or closed tab clears your tune. <strong>export the JSON</strong> to keep it: paste it back below later, or PR it into the songbook.</p>
       <div class="ed-grid">
         <label>title<input id="ed-title" placeholder="My Tune" /></label>
         <label>composer<input id="ed-composer" placeholder="Somebody" /></label>
@@ -154,6 +155,12 @@
         <button id="ed-export">export json</button>
         <button id="ed-close">close</button>
       </div>
+      <div class="ed-import">
+        <label class="ed-prog-label" for="ed-import-json">or paste a previously exported tune JSON</label>
+        <textarea id="ed-import-json" rows="3" spellcheck="false" placeholder='{ "title": "My Tune", … }'></textarea>
+        <div class="ed-actions"><button id="ed-load">load json</button></div>
+      </div>
+
       <div id="ed-output" hidden>
         <textarea id="ed-json" rows="9" readonly spellcheck="false"></textarea>
         <div class="ed-actions">

@@ -374,7 +374,7 @@ body {
 
 .add-tune {
   display: block;
-  margin: 1.4rem 1.6rem 0;
+  margin: 0 1.6rem 1.3rem;
   font-family: var(--display);
   font-size: 1rem;
   letter-spacing: 0.05em;
@@ -492,6 +492,23 @@ body {
 .ed-link:hover { color: var(--amber); }
 
 .ed-hint { font-size: 0.78rem; color: var(--cream-60); margin-top: 0.6rem; line-height: 1.5; }
+
+.ed-warning {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--cream-60);
+  border-left: 4px solid var(--amber);
+  padding-left: 0.8rem;
+  margin-bottom: 1.2rem;
+}
+
+.ed-warning strong { color: var(--amber); }
+
+.ed-import {
+  margin-top: 1.4rem;
+  border-top: 2px solid var(--cream-10);
+  padding-top: 1rem;
+}
 
 #ed-output { margin-top: 1.2rem; }
 

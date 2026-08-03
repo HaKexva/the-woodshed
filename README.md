@@ -1,47 +1,50 @@
 # the woodshed 🎷
 
-A jazz chord-progression practice tool that runs entirely in the browser — no build step, no server, no login. A synthesized-and-sampled backing band (piano, guitar, bass, drums) plays classic jazz standards while you practice.
+**Practice jazz standards with a full backing band, right in your browser.**
 
-## Modes
+**▶ [Try it live](https://tubaxenor.github.io/chord_practice/)** — no install, no login, no build step.
 
-- **Session** — the band loops the tune continuously. The lead sheet highlights the current bar, the big card shows the current chord, and the next chord is previewed. A **solo-notes strip** shows the 8-note chord scale to improvise with over the current chord (e.g. `Dm7 → D dorian: D E F G A B C D`), root notes highlighted.
-- **Inspire** — the band plays and a generated solo piano (smplr's Splendid Grand — distinct from the electric-piano comping) improvises over the changes so you can hear the scales in action. Lines follow a dynamic arc across each chorus (sparse open → peak ~3/4 through → cool-down) built from phrase flavors (runs, long tones, bluesy riffs, motif echoes) with bebop enclosures into chord changes, blue notes, and grace-note scoops. Two live dials shape the feel: **crowding** (how packed the notes are — phrase length, 16th runs, rests, holds) and **loudness** (velocity, offbeat accents, articulation sharpness, register push). A rolling **played-notes feed** shows the last 4 bars of the solo, ongoing bar highlighted. A new line is generated every play.
+![the woodshed — session mode](docs/screenshot.jpg)
 
-## Add your own tunes — in the app
+A rhythm section (sampled piano, guitar, bass + synthesized drums) loops classic jazz standards while you practice. The lead sheet follows along, every chord shows its recommended solo scale, and an optional generated soloist demonstrates lines over the changes.
 
-Click **+ add a tune** in the sidebar. Fill in the metadata and type the changes with a simple syntax: bars separated by `|`, chords in a bar by spaces, optional beats with `:` (e.g. `Dm7b5:3 G7:1`). Preview it with the full band, then **export JSON** and paste the object into `js/songs.js` via the GitHub link to open a pull request.
+## Features
 
-Other controls: tempo slider (50–240 bpm), per-instrument mutes, `space` to play/stop.
+- **20-ish classic standards** — swing, bossa, ballad, blues, modal, funk — each with chord changes cross-checked against at least two jazz-education sources (cited per song, in-app and in `js/songs.js`)
+- **Session mode** — the band loops the tune; the lead sheet highlights the current bar and a solo-notes strip shows the 8-note chord scale to improvise with (e.g. `Dm7 → D dorian`), roots highlighted
+- **Inspire mode** — a generated piano soloist improvises over the changes: dynamic intensity arc per chorus, phrase flavors (runs, long tones, bluesy riffs), motif echoes, bebop enclosures, blue notes. Two live dials — **crowding** (note packing) and **loudness** (velocity/articulation) — reshape the line mid-tune. A rolling feed shows the last 4 bars the soloist played
+- **Style-aware band** — walking bass + Freddie Green guitar + swung ride for swing; clave and syncopated patterns for bossa; brushes for ballads; backbeat for funk. Patterns vary per bar and per play
+- **In-app song editor** — type changes in a simple bar syntax, preview with the full band, export JSON (or re-import previously exported JSON)
+- **Type-to-search** songbook, tempo control, per-instrument mutes
 
-## Tech
+## Quick start
 
-| Piece | Choice | Why |
-|---|---|---|
-| Scheduling | [Tone.js](https://tonejs.github.io/) | Transport with native swing, BPM ramps, looping, lookahead scheduling on the Web Audio clock |
-| Piano / bass / guitar | [smplr](https://github.com/danigb/smplr) soundfonts | Real sampled instruments from a CDN, ~2 MB each, browser-cached; successor to the archived soundfont-player |
-| Drums | Tone.js synths | Instant start, zero assets to host; ride/hat/kick/brush-snare/rim synthesized |
-| Theory | `js/theory.js` (own, zero-dep) | Chord-symbol parser + guide-tone voicings + walking-bass helpers |
+**Use it online:** [tubaxenor.github.io/chord_practice](https://tubaxenor.github.io/chord_practice/)
 
-Everything loads from CDNs (jsDelivr, Google Fonts); the repo itself is pure static files.
-
-## Run locally
+**Run locally:**
 
 ```sh
-python3 -m http.server 8000
+git clone https://github.com/tubaxenor/chord_practice.git
+cd chord_practice
+python3 -m http.server 8000   # any static server works
 # open http://localhost:8000
 ```
 
-Any static file server works. Opening `index.html` via `file://` will NOT work (ES modules need http).
+ES modules require http — opening `index.html` via `file://` won't work.
 
-## Deploy to GitHub Pages
+**Deploy your own:** fork → repo Settings → Pages → deploy from branch `main`, folder `/ (root)`. Everything is static files; samples and libraries load from public CDNs.
 
-1. Create a GitHub repo and push these files to the `main` branch.
-2. Repo **Settings → Pages → Source**: select `Deploy from a branch`, branch `main`, folder `/ (root)`.
-3. Your app is live at `https://<user>.github.io/<repo>/`.
+## Contributing a tune
 
-## Add your own songs
+The easiest path is the in-app editor:
 
-Append an object to `js/songs.js`:
+1. Click **+ add a tune**, enter the metadata and the changes:
+   - bars separated by `|`, chords in a bar by spaces
+   - uneven splits with `:beats` — e.g. `Dm7b5:3 G7:1`
+2. **Preview in player** to hear it with the full band.
+3. **Export JSON**, then paste the object into [`js/songs.js`](js/songs.js) (before the closing `];`) and open a pull request.
+
+Song object shape:
 
 ```js
 {
@@ -49,38 +52,42 @@ Append an object to `js/songs.js`:
   composer: "Somebody",
   key: "F major",
   bpm: 132,
-  style: "swing",        // swing | bossa | ballad | blues | modal | latin
+  style: "swing",        // swing | bossa | ballad | blues | modal | latin | funk
   timeSignature: 4,      // beats per bar (3 for waltz)
   form: "32-bar AABA",
+  source: ["https://…"], // where the changes were verified — please include
+  note: "…",             // optional: known chart variants
   progression: [
-    [{ chord: "Gm7", beats: 2 }, { chord: "C7", beats: 2 }],  // one bar, two chords
-    [{ chord: "FMaj7", beats: 4 }],                            // one bar, one chord
-    // ... beats in each bar must sum to timeSignature
+    [{ chord: "Gm7", beats: 2 }, { chord: "C7", beats: 2 }],
+    [{ chord: "FMaj7", beats: 4 }],
+    // beats in each bar must sum to timeSignature
   ],
 }
 ```
 
-Supported chord symbols: major/minor/dominant with the usual jazz extensions and alterations (`Maj7`, `m7`, `7b9`, `7#11`, `m7b5`, `dim7`, `alt`, `sus`, `6`, `69`, slash chords like `F7/C`, …). Unknown suffixes degrade gracefully to the closest known quality — check the browser console for parse warnings.
+PR guidelines: verify the changes against at least two independent sources and list them in `source`; chord symbols only — no melodies or lyrics (see [Sources & legal](#sources--legal)). Supported symbols: the usual jazz vocabulary (`Maj7`, `m7`, `7b9`, `7#11`, `m7b5`, `dim7`, `alt`, `sus`, `6`, `69`, slash chords…) — unknown suffixes degrade to the closest known quality with a console warning.
 
-The `style` field picks the band's feel: swing tunes get walking bass + Freddie Green guitar + swung ride; bossa/latin get clave, straight 8ths, and a bossa bass pattern; ballads get sparse brushed accompaniment; funk gets backbeat drums and a syncopated bass riff.
+Bug reports and feature ideas are welcome as issues.
 
-Optional fields: `source` (array of URLs the changes were verified against — shown in the app's credits section) and `note` (known chart variants).
+## How it works
 
-## The songbook (MVP)
+| Piece | Choice | Why |
+|---|---|---|
+| Scheduling | [Tone.js](https://tonejs.github.io/) | Transport with native swing, BPM ramps, looping, lookahead scheduling on the Web Audio clock |
+| Band instruments | [smplr](https://github.com/danigb/smplr) + MusyngKite soundfonts | Real sampled piano/bass/guitar from a CDN, browser-cached |
+| Solo piano | smplr's Splendid Grand | Multi-velocity Steinway samples |
+| Drums | Tone.js synths | Instant start, zero assets to host |
+| Theory | `js/theory.js` (zero-dep) | Chord-symbol parser, guide-tone voicings, chord-scale mapping, walking-bass helpers |
 
-14 standards, each cross-checked against at least two jazz-education sources:
-
-Autumn Leaves · Blue Bossa · Fly Me to the Moon · All the Things You Are · Take the A Train · So What · Misty · Satin Doll · Summertime · Cantaloupe Island · The Girl from Ipanema · Black Orpheus · Blue Monk · There Will Never Be Another You
-
-Per-song source URLs live in `js/songs.js` and are displayed in the app. Where charts commonly diverge (e.g. the last 8 bars of There Will Never Be Another You, the Misty bridge, Black Orpheus in general), the `note` field says which variant was chosen and why.
+No framework, no bundler — plain ES modules (`js/band.js` is the band engine, `js/main.js` the UI, `js/songs.js` the songbook).
 
 ## Sources & legal
 
-- **What's included:** chord symbols, song titles, composer names, form/tempo metadata. Song titles and composer credits are factual metadata; the chord progressions are shown as commonly taught in jazz education.
-- **What's deliberately NOT included:** melodies, lyrics, published lead-sheet layouts, or audio recordings of the original works — those are the copyrighted elements of these songs.
-- **Chord-change references:** learnjazzstandards.com, jazz-circle.com, antonjazz.com, jazz-guitar-licks.com, jazzleadsheet.com, jazzingly.com, saxteacheruk.com, brunojazz.com, jazzimprov.net, musictheorymanual.com, Wikipedia, swiss-jazz.ch (per-song URLs in `js/songs.js`).
-- **Instrument samples:** band = [MusyngKite soundfont kit](https://github.com/gleitz/midi-js-soundfonts) (CC BY-SA 3.0, hosted by gleitz.github.io as intended) via [smplr](https://github.com/danigb/smplr) (MIT); soloist = smplr's Splendid Grand Piano. Scheduling by [Tone.js](https://tonejs.github.io/) (MIT). Drums are synthesized in-browser — no samples.
-- **License:** this project is licensed under [GPLv3](LICENSE).
-- **Purpose:** personal practice and music education.
+- **Included:** chord symbols, song titles, composer names, form/tempo metadata. Progressions follow common lead-sheet practice as taught by jazz-education sources (per-song URLs in `js/songs.js`, shown in-app).
+- **Deliberately not included:** melodies, lyrics, published lead-sheet layouts, or recordings — the copyrighted elements of these songs.
+- **Samples:** [MusyngKite soundfont kit](https://github.com/gleitz/midi-js-soundfonts) (CC BY-SA 3.0) and smplr's Splendid Grand Piano, via [smplr](https://github.com/danigb/smplr) (MIT). Scheduling by [Tone.js](https://tonejs.github.io/) (MIT).
+- **Purpose:** personal practice and music education. This is a good-faith educational project, not legal advice; consult a music-licensing professional before commercializing anything derived from it.
 
-This is a good-faith educational project, not legal advice; if you plan to commercialize it, consult a music-licensing professional.
+## License
+
+[GPLv3](LICENSE)
