@@ -418,9 +418,13 @@ body {
   color: var(--cream-60);
 }
 
+.ed-grid label { min-width: 0; }
+
 .editor input,
 .editor select,
 .editor textarea {
+  width: 100%;
+  min-width: 0;
   font-family: var(--body);
   font-size: 0.95rem;
   background: var(--ink);
