@@ -433,7 +433,15 @@ body {
 .editor select:focus,
 .editor textarea:focus { outline: none; border-color: var(--amber); }
 
-.ed-prog-label { margin-bottom: 0.4rem; }
+.editor .ed-prog-label {
+  display: block;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-size: 0.82rem;
+  color: var(--cream-60);
+  margin-bottom: 0.4rem;
+  line-height: 1.5;
+}
 
 .ed-prog-label code, .ed-hint code { color: var(--amber); font-size: 0.85em; }
 
