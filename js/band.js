@@ -3,7 +3,7 @@
 // supply piano / bass / guitar; drums are Tone synths (no samples to host).
 
 import * as Tone from "https://cdn.jsdelivr.net/npm/tone@15.1.22/+esm";
-import { Soundfont, SplendidGrandPiano, Sampler, Smolken } from "https://cdn.jsdelivr.net/npm/smplr@1.0.0/+esm";
+import { Soundfont, SplendidGrandPiano, Sampler } from "https://cdn.jsdelivr.net/npm/smplr@1.0.0/+esm";
 import { parseChord, pianoVoicing, guitarVoicing, bassPcs, placeNear, soloScaleSteps } from "./theory.js";
 
 const BASS_LO = 30; // F#1
@@ -179,7 +179,6 @@ export class Band {
     this.soloPart = null;
     // sound-quality A/B: mixing polish flags + instrument upgrades
     this.polish = { pan: true, eq: true, comp: true, reverb: true, sat: true, vel: true, drumTone: true };
-    this.uprightOn = true;
     this.grandOn = true;
     this.rideOn = false;
   }
@@ -332,34 +331,9 @@ export class Band {
     ]);
     this.piano = this.pianoEP;
     this.bass = this.bassGM;
-    if (this.uprightOn) this._loadUpright(); // hot-swaps when ready
     if (this.grandOn) this._loadGrand();
 
     this.cb.onReady?.();
-  }
-
-  /** Real double bass (Smolken, CC0) — replaces the GM bass when loaded. */
-  async _loadUpright() {
-    if (this.bassUp) {
-      if (this.uprightOn) this.bass = this.bassUp;
-      return;
-    }
-    try {
-      const inst = new Smolken(this.ctx, { instrument: "Pizzicato", destination: this.gains.bass });
-      await inst.load;
-      this.bassUp = inst;
-      if (this.uprightOn) this.bass = inst;
-      this._refreshGain("bass");
-    } catch (e) {
-      console.warn("upright bass unavailable, staying on GM bass", e);
-    }
-  }
-
-  setUpright(on) {
-    this.uprightOn = on;
-    if (on) this._loadUpright();
-    else if (this.bassGM) this.bass = this.bassGM;
-    this._refreshGain("bass");
   }
 
   /** Acoustic grand for the comping piano (Splendid, public domain). */
@@ -615,8 +589,7 @@ export class Band {
   }
 
   _gainFor(name) {
-    const base = { piano: 0.75, guitar: 1.15, bass: 1.0, drums: 0.75, solo: 1.25 }[name];
-    return name === "bass" && this.uprightOn ? base * 0.45 : base;
+    return { piano: 0.75, guitar: 1.15, bass: 1.0, drums: 0.75, solo: 1.25 }[name];
   }
 
   setBpm(bpm) {

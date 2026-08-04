@@ -41,11 +41,10 @@ function stop() {
 
 $("#play").addEventListener("click", () => (playing ? stop() : play()));
 
-// ---- A/B: A forces every polish element off + GM bass; B restores the
-// checkbox state + upright preference
+// ---- A/B: A forces every polish element off; B restores the
+// checkbox state
 function applyB() {
   $$("input[data-mix]").forEach((c) => band.setMix(c.dataset.mix, c.checked));
-  band.setUpright($("#upright").checked);
   band.setGrand($("#grand").checked);
 }
 
@@ -54,7 +53,6 @@ function setSide(side) {
   $("#ab-b").classList.toggle("active", side === "b");
   if (side === "a") {
     band.setMix("on", false);
-    band.setUpright(false);
     band.setGrand(false);
   } else {
     applyB();
@@ -70,7 +68,6 @@ $$("input[data-mix]").forEach((c) =>
   })
 );
 
-$("#upright").addEventListener("change", () => setSide("b"));
 $("#grand").addEventListener("change", () => setSide("b"));
 
 $("#ride").addEventListener("change", (e) => band.setRide(e.target.checked));
