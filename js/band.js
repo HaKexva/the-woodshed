@@ -313,6 +313,41 @@ export class Band {
       this.gains[name] = g;
       this.strips[name] = { sat, cut, air, pan, send };
     }
+
+    // Virtual bass, engaged by Bass+. A phone speaker moves nothing below
+    // ~250 Hz — the driver is far smaller than the wavelength — and a walking
+    // line lives at 41 Hz (E1) to 196 Hz (G3), so on a phone the fundamental
+    // is simply absent and turning the strip up only buys cone distortion.
+    // Instead, generate the harmonics of that low content and let the ear put
+    // the fundamental back: the "missing fundamental" that consumer kit has
+    // leaned on for decades. Rectifier for the even harmonics, soft clip for
+    // the odd; 2nd through 4th together are what make the illusion hold.
+    const vbCurve = new Float32Array(1024);
+    for (let i = 0; i < 1024; i++) {
+      const x = i / 511.5 - 1;
+      vbCurve[i] = 0.5 * (Math.abs(x) - 0.5) + (0.5 * Math.tanh(2.6 * x)) / Math.tanh(2.6);
+    }
+    const bass = this.strips.bass;
+    const vbLow = ctx.createBiquadFilter(); // the fundamentals, not the pluck
+    vbLow.type = "lowpass";
+    vbLow.frequency.value = 220;
+    const vbShape = ctx.createWaveShaper();
+    vbShape.curve = vbCurve;
+    const vbHi = ctx.createBiquadFilter(); // drop the DC the rectifier adds
+    vbHi.type = "highpass";
+    vbHi.frequency.value = 200;
+    const vbTop = ctx.createBiquadFilter(); // keep it out of the piano's way
+    vbTop.type = "lowpass";
+    vbTop.frequency.value = 1400;
+    const vbMix = ctx.createGain();
+    vbMix.gain.value = 0; // silent unless Bass+ is on — see _applyPolish
+    bass.sat.connect(vbLow);
+    vbLow.connect(vbShape);
+    vbShape.connect(vbHi);
+    vbHi.connect(vbTop);
+    vbTop.connect(vbMix);
+    vbMix.connect(bass.cut);
+    bass.vb = vbMix;
     // _gainFor owns the levels — setting them literally here only held until the
     // first mute / band-volume / style change refreshed the strip from it
     const bg = this.bgVolume ?? 1;
@@ -532,6 +567,9 @@ export class Band {
       set(s.air.gain, P.eq ? e.air : 0);
       set(s.send.gain, P.reverb ? sends[name] : 0);
     }
+    // the harmonics that stand in for the fundamental a phone cannot produce
+    if (this.strips.bass.vb) set(this.strips.bass.vb.gain, this.bassBoost ? 1.8 : 0);
+
     set(this.legacyWet.gain, P.reverb ? 0 : 0.35); // legacy inline-ish wash
 
     // bass warmth: gentle tanh drive
@@ -725,7 +763,7 @@ export class Band {
     let g = { piano: 0.69, guitar: 1.15, bass: 0.7, drums: 0.78, solo: 1.25 }[name];
     // boost pulls the bass back up front for practising walking lines — phone
     // speakers and cheap earbuds lose the fundamental at the mixed level
-    if (name === "bass" && this.bassBoost) g = 1.2;
+    if (name === "bass" && this.bassBoost) g = 1.5;
     if (name === "piano" && this.hqOn) g *= 1.05; // keys sit up a touch in the Real mix
     if (name === "bass" && this._bassChoice?.includes("electric")) g *= 0.78;
     return g;
