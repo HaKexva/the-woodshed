@@ -312,7 +312,13 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-$$(".mute").forEach((b) =>
+$("#ride-toggle").addEventListener("click", () => {
+  const on = $("#ride-toggle").classList.contains("off");
+  $("#ride-toggle").classList.toggle("off", !on);
+  band.setRide(on);
+});
+
+$$(".mute:not(#ride-toggle)").forEach((b) =>
   b.addEventListener("click", () => {
     const inst = b.dataset.inst;
     const nowMuted = !b.classList.contains("off");

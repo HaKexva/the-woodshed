@@ -364,7 +364,10 @@ export class Band {
         return;
       }
     }
-    if (this._bassChoice === key) this.bass = this._bassCache[key];
+    if (this._bassChoice === key) {
+      this.bass = this._bassCache[key];
+      this._refreshGain("bass");
+    }
   }
 
   /** Acoustic grand for the comping piano (Splendid, public domain). */
@@ -620,7 +623,8 @@ export class Band {
   }
 
   _gainFor(name) {
-    return { piano: 0.75, guitar: 1.15, bass: 1.0, drums: 0.75, solo: 1.25 }[name];
+    const base = { piano: 0.75, guitar: 1.15, bass: 1.0, drums: 0.75, solo: 1.25 }[name];
+    return name === "bass" && this._bassChoice?.includes("electric") ? base * 0.78 : base;
   }
 
   setBpm(bpm) {
@@ -1488,7 +1492,7 @@ export class Band {
       [0, 1.5, 3, 3.5],
       [0.5, 2, 2.5],
     ];
-    const funkPool = [[1.5, 3.5], [0.5, 1.5, 3.5], [1.5, 2.5]];
+    const funkPool = [[0.5, 1.5, 2.5, 3.5], [1.5, 2.5, 3.5], [0.5, 1.5, 3], [1.5, 3.5]];
 
     for (let bar = 0; bar < totalBars; bar++) {
       const variant = Math.random() < 0.35 ? 1 : 0;
@@ -1506,7 +1510,7 @@ export class Band {
           beat,
           dur: straight ? 0.6 : 0.42,
           midis: guitarVoicing(c.info, variant),
-          vel: Math.round(rnd(30, 38)) + (accent ? 6 : 0),
+          vel: Math.round(rnd(30, 38)) + (accent ? 6 : 0) + (style === "funk" ? 10 : 0),
         });
       }
 
