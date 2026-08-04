@@ -340,7 +340,6 @@ export class Band {
   // fingered electric for the groove styles
   static STYLE_BASS = {
     funk: ["MusyngKite", "electric_bass_finger"],
-    latin: ["MusyngKite", "electric_bass_finger"],
     default: ["FluidR3_GM", "acoustic_bass"],
   };
 
@@ -1695,6 +1694,8 @@ export class Band {
 
       if (style === "latin") {
         // calypso/latin gets its own voice instead of borrowing the bossa clave
+        for (const [off, vel] of [[0, 42], [1, 46], [2, 42], [3, 46]]) if (off < bpb) push(bar, off, "ride", vel);
+        if (Math.random() < 0.3) push(bar, choice([1.5, 3.5]), "ride", 30);
         for (let e = 0; e < bpb * 2; e++) push(bar, e / 2, "hat", e % 2 ? 30 : 46);
         if (combo === 0) {
           for (const off of [0.5, 1.5, 2.5, 3.5]) if (off < bpb) push(bar, off, "rim", Math.round(rnd(36, 46)));
