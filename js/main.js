@@ -156,6 +156,8 @@ function highlightBar(barIdx) {
 }
 
 function resetChordDisplay() {
+  // clear any shrink left over from a long symbol before the dash goes back
+  $("#chord-now").style.fontSize = "";
   $("#chord-now").textContent = "—";
   $("#chord-next").textContent = "";
   $("#solo-strip").hidden = true;
@@ -284,10 +286,58 @@ function handleBeat(bar, beatInBar) {
   }
 }
 
+// The chord card is a fixed width so the columns beside it never reflow, which
+// means a long symbol has to come down to meet the card rather than bleed past
+// its edge — "Gbm7b5" overflowed where "Cmaj7" fit. Measured rather than
+// derived from the character count, because Anton's glyphs are far from equal
+// width. offsetWidth/clientWidth are layout values, so the card's rotation
+// doesn't skew them. Cached per symbol and card width; chords change often.
+const chordFit = new Map();
+
+function setChordText(el, text) {
+  el.textContent = text;
+  const card = el.parentElement;
+  const room = card.clientWidth - 2 * parseFloat(getComputedStyle(card).paddingLeft);
+  if (room <= 0) return; // card hidden at this breakpoint — nothing to fit to
+  const key = `${text}@${card.clientWidth}`;
+  if (chordFit.has(key)) {
+    el.style.fontSize = chordFit.get(key);
+    return;
+  }
+  el.style.fontSize = ""; // measure at the size the stylesheet asks for
+  const base = parseFloat(getComputedStyle(el).fontSize);
+  const wide = el.offsetWidth;
+  const size = wide > room ? `${Math.floor(base * (room / wide) * 100) / 100}px` : "";
+  el.style.fontSize = size;
+  chordFit.set(key, size);
+}
+
+function refitChord() {
+  chordFit.clear();
+  const el = $("#chord-now");
+  el.style.fontSize = "";
+  if (el.textContent && el.textContent !== "—") setChordText(el, el.textContent);
+}
+
+// Anton is loaded with display=swap, so anything measured before it arrives is
+// measured in the fallback face and fits to the wrong metrics
+document.fonts?.ready.then(refitChord);
+
+// the base size is viewport-relative, so a resize invalidates every fit
+let refitPending = false;
+addEventListener("resize", () => {
+  if (refitPending) return;
+  refitPending = true;
+  requestAnimationFrame(() => {
+    refitPending = false;
+    refitChord();
+  });
+});
+
 function handleChord(chord) {
   $("#chord-next").textContent = t("next", { chord: chord.next.symbol });
   const el = $("#chord-now");
-  el.textContent = chord.symbol;
+  setChordText(el, chord.symbol);
   el.classList.remove("pop");
   void el.offsetWidth; // restart animation
   el.classList.add("pop");
