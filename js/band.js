@@ -450,6 +450,11 @@ export class Band {
   }
 
   _refreshGain(name) {
+    if (name === "bass" && this.strips?.bass && this.polish.reverb) {
+      // electric (funk) bass wants to sit dry up front — barely any room on it
+      const send = this._bassChoice?.includes("electric") ? 0.012 : 0.04;
+      this.strips.bass.send.gain.setTargetAtTime(send, this.ctx.currentTime, 0.03);
+    }
     if (!this.gains?.[name] || this.muted[name]) return;
     const bg = name === "solo" ? 1 : this.bgVolume ?? 1;
     this.gains[name].gain.setTargetAtTime(this._gainFor(name) * bg, this.ctx.currentTime, 0.03);
