@@ -623,7 +623,7 @@ export class Band {
   }
 
   _gainFor(name) {
-    const base = { piano: 0.75, guitar: 1.15, bass: 1.0, drums: 0.75, solo: 1.25 }[name];
+    const base = { piano: 0.75, guitar: 1.3, bass: 1.0, drums: 0.75, solo: 1.25 }[name];
     return name === "bass" && this._bassChoice?.includes("electric") ? base * 0.78 : base;
   }
 
