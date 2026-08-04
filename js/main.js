@@ -362,6 +362,19 @@ async function setMode(mode) {
 
 // ------------------------------------------------------------------ controls
 
+// the transport is fixed to the bottom and wraps to two or three rows on a
+// phone; publish its real height so the page can reserve that much padding.
+// Without it the tail of the credits — the report-a-problem link — sits under
+// the transport with nothing left to scroll.
+(function trackTransportHeight() {
+  const bar = $(".transport");
+  const publish = () =>
+    document.documentElement.style.setProperty("--transport-h", `${Math.ceil(bar.getBoundingClientRect().height)}px`);
+  publish();
+  if (window.ResizeObserver) new ResizeObserver(publish).observe(bar);
+  else window.addEventListener("resize", publish);
+})();
+
 $("#play").addEventListener("click", () => (state.playing ? stop() : play()));
 
 $("#tempo").addEventListener("input", (e) => {
