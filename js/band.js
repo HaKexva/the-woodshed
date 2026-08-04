@@ -306,7 +306,7 @@ export class Band {
     const bg = this.bgVolume ?? 1;
     this.gains.piano.gain.value = 0.75 * bg;
     this.gains.guitar.gain.value = 1.15 * bg;
-    this.gains.bass.gain.value = 1.38 * bg; // soft velocity layer — see _gainFor
+    this.gains.bass.gain.value = 1.36 * bg; // soft velocity layer — see _gainFor
     this.gains.drums.gain.value = 0.75 * bg;
     this.gains.solo.gain.value = 1.25;
 
@@ -504,7 +504,7 @@ export class Band {
       guitar: { f: 320, cut: -3, airF: 7000, air: 1 },
       // the shelf runs *down* on bass: the pluck's click lives up here, and
       // rolling it off is what turns an obvious attack into a hazier note
-      bass: { f: 300, cut: -2, airF: 3500, air: -5 },
+      bass: { f: 300, cut: -2, airF: 3000, air: -7 },
       drums: { f: 400, cut: -2, airF: 9000, air: 2 },
       solo: { f: 300, cut: -2, airF: 8000, air: 1.5 },
     };
@@ -704,9 +704,10 @@ export class Band {
   }
 
   _gainFor(name) {
-    // bass runs at 1.38 to buy back the level lost by playing the soft
-    // velocity layer — see the velocity scaling in _bassEvents
-    let g = { piano: 0.75, guitar: 1.3, bass: 1.38, drums: 0.75, solo: 1.25 }[name];
+    // bass runs hot to buy back the level lost by playing the soft velocity
+    // layer (see _bassEvents). This tracks the velocity scale: soften the
+    // touch and this goes up to match, so "softer" costs attack, not level.
+    let g = { piano: 0.75, guitar: 1.3, bass: 1.36, drums: 0.75, solo: 1.25 }[name];
     if (name === "piano" && this.hqOn) g *= 1.05; // keys sit up a touch in the Real mix
     if (name === "bass" && this._bassChoice?.includes("electric")) g *= 0.78;
     return g;
@@ -984,9 +985,49 @@ export class Band {
     const ctx = this._songCtx;
     if (!ctx) return;
     this.soloPart?.dispose();
-    // tick-based times so triplets land exactly; a touch of laid-back lag
-    // (less when playing hot) plus per-note jitter humanizes the placement
     const ppq = Tone.getTransport().PPQ;
+
+    // Tone swings at the tick level: every event off the beat is displaced by
+    //   shift(x) = (swing / 3) · sin(π · x)     [x = position within the beat]
+    // which is right for 8th notes and wrong for everything else — a triplet
+    // came out long-medium-short and a 16th run decelerated. The curve is
+    // monotonic, so invert it: 8ths keep Tone's swing, and triplets and 16ths
+    // are pre-compensated to land where the generator actually wrote them.
+    const swing = Tone.getTransport().swing;
+    const invert = (beat) => {
+      const whole = Math.floor(beat);
+      const x = beat - whole;
+      let lo = 0;
+      let hi = 1;
+      for (let i = 0; i < 40; i++) {
+        const mid = (lo + hi) / 2;
+        if (mid + (swing / 3) * Math.sin(Math.PI * mid) < x) lo = mid;
+        else hi = mid;
+      }
+      return whole + (lo + hi) / 2;
+    };
+
+    // Which notes belong to a figure finer than an 8th? Position alone can't
+    // say — a note on the & of a beat is a swung 8th in one line and the third
+    // of four even 16ths in another. The gap to its neighbours can: anything
+    // spaced tighter than an 8th is a triplet or a 16th burst, and those are
+    // played even, so they get compensated and the plain 8ths keep their swing.
+    const order = [...events].sort((a, b) => a.beat - b.beat);
+    const fine = new Set();
+    const tight = (g) => g > 1e-6 && g < 0.45;
+    for (let i = 0; i < order.length; i++) {
+      const before = i > 0 ? order[i].beat - order[i - 1].beat : Infinity;
+      const after = i < order.length - 1 ? order[i + 1].beat - order[i].beat : Infinity;
+      if (tight(before) || tight(after)) fine.add(order[i]);
+    }
+
+    const preSwing = (e) => {
+      if (!swing) return e.beat;
+      const x = e.beat - Math.floor(e.beat);
+      if (x < 1e-6) return e.beat; // on the beat — Tone leaves these alone
+      if (!fine.has(e) && Math.abs(x - 0.5) < 1e-6) return e.beat; // a plain 8th: swing it
+      return invert(e.beat);
+    };
     this.soloPart = new Tone.Part((time, e) => {
       if (!this.soloOn) return;
       const st = SOLO_STYLES[this.soloStyleName]?.p ?? {};
@@ -1002,7 +1043,7 @@ export class Band {
         this.soloInst?.start({ note: m, time: when + 0.006, duration: durSec, velocity: this._vel(Math.max(30, e.vel - 14)) });
       }
       Tone.getDraw().schedule(() => this.cb.onSoloNote?.(e.midi % 12, durSec), when);
-    }, events.map((e) => [`${Math.round((e.beat + ctx.bpb) * ppq)}i`, e]));
+    }, events.map((e) => [`${Math.round((preSwing(e) + ctx.bpb) * ppq)}i`, e]));
     this.soloPart.start(0);
   }
 
@@ -1613,6 +1654,32 @@ export class Band {
 
     const funkPatterns = [ [[1.5, 0.5], [3, 0.5]], [[0, 0.5], [2.5, 0.5]], [[1.5, 0.5], [2.5, 0.5], [3.5, 0.5]] ];
 
+    // Afro-Cuban comping is organised by the clave, not drawn from a pool: the
+    // 3-2 son clave is the structural core the whole band locks to, so these
+    // are fixed per side of the two-bar cycle. Same strokes the soloist snaps
+    // to in _soloEvents, which is what keeps the section out of cruzado.
+    const CLAVE_3 = [[0, 1], [1.5, 1], [3, 1]];
+    const CLAVE_2 = [[1, 1], [2, 1.5]];
+
+    // Blues leans on the backbeat and plays straighter than swing — chords on
+    // 2 and 4 with the odd 8th, rather than the upbeat-led swing shapes.
+    const bluesPatterns = [
+      [[1, 1], [3, 1]],
+      [[1, 1], [2.5, 0.5], [3, 1]],
+      [[0, 0.5], [1, 1], [3, 1]],
+      [[1, 0.5], [1.5, 0.5], [3, 1]],
+      [[1, 1], [3, 0.5], [3.5, 0.5]],
+      [[1, 1.5], [3, 1]],
+    ];
+
+    // Modal comping is defined by how little of it there is — long rootless
+    // held voicings and open space, not density. The empty pattern is the
+    // point: a bar of air is idiomatic here, not a missing feature.
+    const modalPatterns = [
+      [[0, 3.5]], [[1.5, 2.5]], [[0, 2]], [[2.5, 1.5]],
+      [[0, 1.5], [2.5, 1.5]], [[1.5, 1], [3, 1]], [],
+    ];
+
     // did the previous chord get anticipated? then this one is already
     // sounding and must not restate its own downbeat. and if it ended on a
     // chromatic approach, this one *must* state the downbeat — an approach
@@ -1638,8 +1705,24 @@ export class Band {
       const pushBeat = pushes ? next.startBeat - 0.5 : null;
 
       let hits;
-      if (style === "ballad") hits = [[0, c.beats]];
-      else if (style === "funk") hits = c.beats >= 4 ? choice(funkPatterns) : [[0, 0.5]];
+      if (style === "ballad") {
+        // a held pad most of the time, but a ballad that only ever lands on
+        // beat 1 sits still — let it move once in a while
+        hits = c.beats < 4 || Math.random() < 0.55
+          ? [[0, c.beats]]
+          : choice([[[0, 2], [2, c.beats - 2]], [[0, 1.5], [2.5, c.beats - 2.5]]]);
+      } else if (style === "funk") hits = c.beats >= 4 ? choice(funkPatterns) : [[0, 0.5]];
+      else if (style === "latin" && bpb === 4 && c.startBeat % bpb === 0) {
+        // walk the clave across however many bars this chord lasts, so a
+        // two-bar chord still gets 3-side then 2-side rather than one repeated
+        hits = [];
+        for (let b = 0; b + bpb <= c.beats; b += bpb) {
+          const side = Math.floor((c.startBeat + b) / bpb) % 2 === 0 ? CLAVE_3 : CLAVE_2;
+          for (const [off, dur] of side) hits.push([b + off, dur]);
+        }
+        if (!hits.length) hits = [[0, Math.min(1, c.beats)]];
+      } else if (style === "modal" && c.beats >= 4) hits = choice(modalPatterns);
+      else if (style === "blues" && c.beats >= 4) hits = choice(bluesPatterns);
       else if (c.beats >= 4) hits = choice(patterns4);
       else if (c.beats >= 2) hits = choice(patterns2);
       else hits = [[0, c.beats]];
@@ -1653,11 +1736,19 @@ export class Band {
         if (off >= c.beats) continue;
         const beat = c.startBeat + off;
         if (pushBeat !== null && beat >= pushBeat) continue; // the push owns the turn
+        // blues puts its weight on 2 and 4; modal sits back and stays out of
+        // the way, since the space is the sound
+        const inBar = beat % bpb;
+        const lean =
+          style === "blues" ? (inBar === 1 || inBar === 3 ? 9 : -2)
+          : style === "modal" ? -9
+          : style === "latin" && inBar === 0 ? 4
+          : 0;
         events.push({
           beat,
           dur: Math.min(dur, c.beats - off),
           midis,
-          vel: Math.round(rnd(50, 68)),
+          vel: Math.max(24, Math.round(rnd(50, 68) + lean)),
           roll: style === "ballad",
         });
       }
@@ -1710,24 +1801,37 @@ export class Band {
       [0.5, 2, 2.5],
     ];
     const funkPool = [[0.5, 1.5, 2.5, 3.5], [1.5, 2.5, 3.5], [0.5, 1.5, 3], [1.5, 3.5]];
+    // blues chops the backbeat rather than running Freddie Green quarters
+    const bluesPool = [[1, 3], [1, 3], [0, 1, 2, 3], [1, 2.5, 3], [0.5, 1, 3]];
+    // modal lays out or holds — the guitar is texture here, not time
+    const modalPool = [[0], [1.5], [2.5], [], [], [0, 2.5]];
 
     for (let bar = 0; bar < totalBars; bar++) {
       const variant = Math.random() < 0.35 ? 1 : 0;
       let offsets;
       if (style === "funk") offsets = choice(funkPool);
+      // latin before the straight branch: it locks to clave instead of a pool
+      else if (style === "latin" && bpb === 4) offsets = bar % 2 === 0 ? [0, 1.5, 3] : [1, 2];
       else if (straight) offsets = choice(bossaPool);
+      else if (style === "modal") offsets = choice(modalPool);
+      else if (style === "blues") offsets = choice(bluesPool);
       else if (Math.random() < 0.1) offsets = [1, 3]; // breathe: comp 2 & 4 only
       else offsets = [...Array(bpb).keys()]; // Freddie Green quarters
+
+      // modal holds its voicings; latin's guajeo is short and percussive
+      const hold = style === "modal" ? 2.2 : style === "latin" ? 0.5 : straight ? 0.6 : 0.42;
 
       for (const off of offsets) {
         const beat = bar * bpb + off;
         const c = chordAt(beat);
         const accent = !straight && off % 2 === 1; // lean on 2 & 4
+        const lean =
+          style === "blues" && (off === 1 || off === 3) ? 8 : style === "modal" ? -8 : 0;
         events.push({
           beat,
-          dur: straight ? 0.6 : 0.42,
+          dur: hold,
           midis: guitarVoicing(c.info, variant),
-          vel: Math.round(rnd(30, 38)) + (accent ? 6 : 0) + (style === "funk" ? 10 : 0),
+          vel: Math.max(18, Math.round(rnd(30, 38)) + (accent ? 6 : 0) + (style === "funk" ? 10 : 0) + lean),
         });
       }
 
@@ -1765,7 +1869,7 @@ export class Band {
     // layer, which is the attack that reads as too obvious. Scaled down, most
     // notes take the gentler layer and only accents cross over; _gainFor pushes
     // the level back up so this costs no loudness, just edge.
-    for (const e of events) e.vel = Math.max(28, Math.round(e.vel * 0.68));
+    for (const e of events) e.vel = Math.max(28, Math.round(e.vel * 0.6));
     return events;
   }
 
@@ -1836,48 +1940,111 @@ export class Band {
       return events;
     }
 
-    // Swing: walking quarters. The quarters themselves stay relentless — that's
-    // the job — so the variation lives in how the line *approaches* each change,
-    // where it starts, and the occasional 8th-note skip between beats.
+    // Swing: walking quarters, built the way the method books teach it. Each
+    // chord gets a TARGET on its first beat and an APPROACH on its last; the
+    // beats between walk from one to the other along the chord scale. Two
+    // rules carry it, and the old beat-by-beat random pick broke both:
+    //   · an approach note is a half or whole step from its target, never a
+    //     leap — a jump right at the barline is the most audible kind
+    //   · the line holds a direction rather than re-rolling one every beat
     const clamp = (m) => Math.max(BASS_LO, Math.min(BASS_HI, m));
     const leadIns = new Set(); // beats that walk into a new chord
-    let prev = 38;
+    const CENTRE = (BASS_LO + BASS_HI) / 2;
 
-    for (let b = 0; b < totalBeats; b++) {
-      const c = chordAt(b);
-      const pcs = bassPcs(c.info);
-      const chordEnd = c.startBeat + c.beats;
-      const beatInBar = b % bpb;
-      let midi;
+    // every note of the chord scale that fits the instrument, low to high —
+    // walking "by step" means moving one rung along this
+    const ladderFor = (info) => {
+      const pcs = new Set(soloScaleSteps(info).map((s) => (info.rootPc + s) % 12));
+      const out = [];
+      for (let m = BASS_LO; m <= BASS_HI; m++) if (pcs.has(m % 12)) out.push(m);
+      return out.length ? out : [clamp(info.rootPc + 36)];
+    };
+    const nearestIdx = (ladder, midi) => {
+      let best = 0;
+      for (let i = 1; i < ladder.length; i++) {
+        if (Math.abs(ladder[i] - midi) < Math.abs(ladder[best] - midi)) best = i;
+      }
+      return best;
+    };
+    const targetPcFor = (info) => {
+      const p = bassPcs(info);
+      const r = Math.random();
+      // mostly the root; other chord tones keep it from spelling out every bar
+      return r < 0.14 ? p.third : r < 0.22 ? p.fifth : p.root;
+    };
 
-      if (b === c.startBeat) {
-        // usually the root — but landing on it at every single change
-        // telegraphs the harmony, so sometimes take the 3rd or 5th
-        const r = Math.random();
-        const pc = r < 0.14 ? pcs.third : r < 0.22 ? pcs.fifth : pcs.root;
-        midi = placeNear(pc, prev, BASS_LO, BASS_HI);
-      } else if (b === chordEnd - 1) {
-        // the approach into the next chord — four ways in, not one. Always
-        // going chromatic is the tell that gave the old line its sameness.
-        leadIns.add(b);
-        const nextPc = c.next.info.bassPc;
-        const nextRoot = placeNear(nextPc, prev, BASS_LO, BASS_HI);
-        const r = Math.random();
-        if (r < 0.45) midi = nextRoot + (Math.random() < 0.5 ? 1 : -1); // chromatic, either side
-        else if (r < 0.7) midi = placeNear((nextPc + 10) % 12, prev, BASS_LO, BASS_HI); // scalar from below
-        else if (r < 0.85) midi = placeNear((nextPc + 7) % 12, prev, BASS_LO, BASS_HI); // dominant, a 5th up
-        else midi = placeNear(pcs.fifth, prev, BASS_LO, BASS_HI); // stay home, land flat
-      } else {
-        const cands = [pcs.third, pcs.fifth, pcs.seventh]
-          .map((pc) => placeNear(pc, prev + (Math.random() < 0.5 ? 2 : -2), BASS_LO, BASS_HI))
-          .filter((m) => m !== prev);
-        midi = cands.length ? choice(cands) : prev + 2;
+    let dir = 1;
+    let target = placeNear(bassPcs(chords[0].info).root, 38, BASS_LO, BASS_HI);
+
+    for (const c of chords) {
+      const startBeat = c.startBeat;
+      const emit = (off, midi) => {
+        const accent = (startBeat + off) % bpb === 0 ? 6 : (startBeat + off) % bpb === 2 ? 2 : 0;
+        events.push({
+          beat: startBeat + off,
+          midi: clamp(midi),
+          dur: rnd(0.55, 0.7),
+          vel: Math.round(rnd(84, 96) + accent),
+        });
+      };
+
+      // Where the next chord starts is decided here, so this bar knows what
+      // it is walking toward. Bias the octave back toward the middle of the
+      // range so the line can't drift off to an extreme and stay there.
+      const nextTarget = placeNear(
+        targetPcFor(c.next.info),
+        target - (target - CENTRE) * 0.5,
+        BASS_LO,
+        BASS_HI
+      );
+
+      if (c.beats <= 1) {
+        emit(0, target);
+        dir = Math.sign(nextTarget - target) || dir;
+        target = nextTarget;
+        continue;
       }
 
-      midi = clamp(midi);
-      const accent = beatInBar === 0 ? 6 : beatInBar === 2 ? 2 : 0;
-      events.push({ beat: b, midi, dur: rnd(0.55, 0.7), vel: Math.round(rnd(84, 96) + accent) });
-      prev = midi;
+      // APPROACH — a half or whole step into the next target, taken from the
+      // side the line is already travelling so the motion stays continuous
+      const toward = Math.sign(nextTarget - target) || dir;
+      let approach = clamp(nextTarget - toward * (Math.random() < 0.55 ? 1 : 2));
+      // at the very bottom or top of the instrument the clamp can land the
+      // approach on its own target — come at it from the other side instead
+      if (approach === nextTarget) approach = clamp(nextTarget + toward);
+
+      // walk the inner beats along the scale, spacing them evenly between
+      // target and approach so each move is a step or two rather than a jump
+      const ladder = ladderFor(c.info);
+      const iA = nearestIdx(ladder, target);
+      const iB = nearestIdx(ladder, approach);
+      const moves = c.beats - 1;
+      const step = Math.sign(iB - iA) || dir;
+      const path = [target];
+      let prevIdx = iA;
+      for (let k = 1; k < moves; k++) {
+        let idx = Math.round(iA + ((iB - iA) * k) / moves);
+        if (idx === prevIdx) idx = prevIdx + step;
+        idx = Math.max(0, Math.min(ladder.length - 1, idx));
+        path.push(ladder[idx]);
+        prevIdx = idx;
+      }
+      path.push(approach);
+
+      // A walking line never plays the same note twice running — a repeat
+      // stalls the forward motion the quarters exist to create. The approach
+      // is the note that has to stay put, so nudge the one before it; a
+      // chromatic step out is idiomatic anyway.
+      for (let i = 1; i < path.length; i++) {
+        if (path[i] !== path[i - 1]) continue;
+        if (i > 1) path[i - 1] = clamp(path[i - 1] - step);
+        else path[i] = clamp(path[i] + 2 * step); // target and approach collided
+      }
+      path.forEach((m, i) => emit(i, m));
+      leadIns.add(startBeat + c.beats - 1);
+
+      dir = Math.sign(approach - target) || dir;
+      target = nextTarget;
     }
 
     // Second pass: 8th-note skips between quarters. Done after the line exists
@@ -1986,7 +2153,9 @@ export class Band {
           push(bar, 0, "kick", 50);
           if (bpb > 2) push(bar, 2, "kick", 46);
         } else {
-          const clave = bar % 2 === 0 ? [1, 2.5] : [0, 1.5, 3];
+          // 3-2 son clave, same orientation as the soloist and the comp — the
+          // drums used to start on the 2-side, which put the section cruzado
+          const clave = bar % 2 === 0 ? [0, 1.5, 3] : [1, 2];
           for (const off of clave) if (off < bpb) push(bar, off, "rim", 50);
           push(bar, 0, "kick", 50);
           if (Math.random() < 0.4) push(bar, 2.5, "kick", kv(38));
