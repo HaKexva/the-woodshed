@@ -174,7 +174,7 @@
       "base": "samples/hq/guitar/",
       "type": "keyed",
       "release": 0.25,
-      "gainTrim": 1.4,
+      "gainTrim": 1.75,
       "samples": [
         {
           "file": "twang_e3_p_rr1.m4a",
