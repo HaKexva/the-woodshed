@@ -833,6 +833,65 @@ input[type="range"]::-moz-range-thumb {
   cursor: pointer;
 }
 
+.real-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cream-60);
+  user-select: none;
+}
+
+.real-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.real-toggle .switch {
+  width: 2.1rem;
+  height: 1.15rem;
+  border: 2px solid var(--cream-25);
+  border-radius: 999px;
+  position: relative;
+  transition: background 0.15s, border-color 0.15s;
+  flex: none;
+}
+
+.real-toggle .switch::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--cream-60);
+  transition: transform 0.15s, background 0.15s;
+}
+
+.real-toggle input:checked + .switch {
+  background: var(--amber);
+  border-color: var(--amber);
+}
+
+.real-toggle input:checked + .switch::after {
+  transform: translateX(0.95rem);
+  background: var(--ink-2);
+}
+
+.real-toggle input:focus-visible + .switch {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.real-toggle:has(input:checked) {
+  color: var(--cream);
+}
+
 .hint { font-size: 0.78rem; color: var(--cream-60); letter-spacing: 0.06em; }
 
 .hint kbd {

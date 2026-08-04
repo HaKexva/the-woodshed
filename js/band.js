@@ -442,6 +442,7 @@ export class Band {
     this._applyPiano();
     this._applyGuitar();
     this._applyStyleBass(this._lastStyle ?? "swing");
+    this._refreshGain("piano");
   }
 
   /** Switch between the HQ sample pack and the standard soundfonts, live. */
@@ -688,8 +689,10 @@ export class Band {
   }
 
   _gainFor(name) {
-    const base = { piano: 0.75, guitar: 1.3, bass: 1.0, drums: 0.75, solo: 1.25 }[name];
-    return name === "bass" && this._bassChoice?.includes("electric") ? base * 0.78 : base;
+    let g = { piano: 0.75, guitar: 1.3, bass: 1.0, drums: 0.75, solo: 1.25 }[name];
+    if (name === "piano" && this.hqOn) g *= 1.05; // keys sit up a touch in the Real mix
+    if (name === "bass" && this._bassChoice?.includes("electric")) g *= 0.78;
+    return g;
   }
 
   setBpm(bpm) {
@@ -888,8 +891,10 @@ export class Band {
       if (buf) {
         // Real samples are peak-normalized to -3 dB, so these trims mirror the
         // standard kit's per-voice balance
+        // Real ride is an overhead-mic take — soft attack, so it needs a much
+        // hotter trim than the dry standard one-shot to read in the mix
         const trim = hqBuf
-          ? { hat: 0.7, snare: 1.35, kick: 0.9, rim: 1.2, ride: 0.32 }[e.drum] ?? 0.5
+          ? { hat: 0.7, snare: 1.35, kick: 0.9, rim: 1.2, ride: 0.65 }[e.drum] ?? 0.5
           : { hat: 0.6, snare: 1.3, kick: 0.7, rim: 1.1, ride: 0.35 }[e.drum] ?? 1;
         const src = this.ctx.createBufferSource();
         src.buffer = buf;

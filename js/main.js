@@ -312,16 +312,10 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-$("#ride-toggle").addEventListener("click", () => {
-  const on = $("#ride-toggle").classList.contains("off");
-  $("#ride-toggle").classList.toggle("off", !on);
-  band.setRide(on);
-});
-
-// ---- HQ sample pack: on by default, switchable any time, choice persisted.
+// ---- Real sample pack: on by default, switchable any time, choice persisted.
 // While loading, the status pill shows progress plus a "skip" escape hatch.
 function setHqUi(on) {
-  $("#hq-toggle").classList.toggle("off", !on);
+  $("#hq-toggle").checked = on;
   localStorage.setItem("woodshed-hq", on ? "1" : "0");
 }
 
@@ -340,8 +334,8 @@ function hqPill(n, total) {
   };
 }
 
-$("#hq-toggle").addEventListener("click", () => {
-  const enable = $("#hq-toggle").classList.contains("off");
+$("#hq-toggle").addEventListener("change", (e) => {
+  const enable = e.target.checked;
   setHqUi(enable);
   if (enable) band.setHq(true, hqPill);
   else {
@@ -356,8 +350,7 @@ if (localStorage.getItem("woodshed-hq") !== "0") {
   band.cb.onHqProgress = hqPill;
 }
 
-$$(".mute:not(#ride-toggle):not(#hq-toggle)").forEach((b) =>
-
+$$(".mute").forEach((b) =>
   b.addEventListener("click", () => {
     const inst = b.dataset.inst;
     const nowMuted = !b.classList.contains("off");

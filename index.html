@@ -158,9 +158,13 @@
       <button class="mute" data-inst="guitar" data-i18n="mute.gtr">gtr</button>
       <button class="mute" data-inst="bass" data-i18n="mute.bass">bass</button>
       <button class="mute" data-inst="drums" data-i18n="mute.drums">drums</button>
-      <button class="mute" id="ride-toggle" data-i18n="mute.ride">ride</button>
-      <button class="mute" id="hq-toggle" data-i18n="mute.hq" title="Real: sampled instruments (~3.5 MB, cached after first load)">Real</button>
     </div>
+
+    <label class="real-toggle" title="Real: sampled instruments (~3.5 MB, cached after first load)">
+      <span data-i18n="mute.hq">Real</span>
+      <input id="hq-toggle" type="checkbox" />
+      <span class="switch" aria-hidden="true"></span>
+    </label>
 
     <span id="status" class="status" role="status"></span>
     <span class="hint"><kbd>space</kbd> <span data-i18n="hint">play / stop</span></span>

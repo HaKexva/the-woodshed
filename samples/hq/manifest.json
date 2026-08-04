@@ -6,7 +6,7 @@
       "base": "samples/hq/bass/",
       "type": "keyed",
       "release": 0.35,
-      "gainTrim": 0.47,
+      "gainTrim": 0.42,
       "samples": [
         {
           "file": "eb1_vl2_rr1.m4a",
@@ -530,7 +530,7 @@
       "base": "samples/hq/bassElectric/",
       "type": "keyed",
       "release": 0.25,
-      "gainTrim": 0.45,
+      "gainTrim": 0.41,
       "samples": [
         {
           "file": "e2_vl2_rr1.m4a",
