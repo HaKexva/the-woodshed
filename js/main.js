@@ -25,6 +25,7 @@ const state = {
   letter: "ALL", // "ALL", "#", or A-Z — which slice of the book the list shows
   customSong: null, // song loaded from the editor instead of the songbook
   playing: false,
+  paused: false, // playing && paused = held on the bar, position kept
   loading: false,
   ready: false,
 };
@@ -252,19 +253,42 @@ async function play() {
   }
   await band.play();
   state.playing = true;
-  document.body.classList.add("playing");
-  $("#play").classList.add("on");
-  $("#play-label").textContent = t("stop");
+  state.paused = false;
+  renderTransport();
+}
+
+// pause holds the bar you are on; stop goes back to the top of the form
+function pause() {
+  band.pause();
+  state.paused = true;
+  renderTransport();
+}
+
+function resume() {
+  band.resume();
+  state.paused = false;
+  renderTransport();
 }
 
 function stop() {
   band.stop();
   state.playing = false;
-  document.body.classList.remove("playing");
-  $("#play").classList.remove("on");
-  $("#play-label").textContent = t("play");
+  state.paused = false;
+  renderTransport();
   resetChordDisplay();
   clearSoloFeed();
+}
+
+// the round button plays what it shows: a triangle to start or pick up, two
+// bars to hold. Stop is its own button because it throws the position away.
+function renderTransport() {
+  const running = state.playing && !state.paused;
+  document.body.classList.toggle("playing", state.playing);
+  document.body.classList.toggle("paused", state.paused);
+  $("#play").classList.toggle("on", running);
+  $("#play").setAttribute("aria-label", running ? t("pause") : t("play"));
+  $("#stop").disabled = !state.playing;
+  $("#play-label").textContent = running ? t("pause") : state.paused ? t("resume") : t("play");
 }
 
 function setStatus(msg) {
@@ -376,7 +400,13 @@ async function setMode(mode) {
   else window.addEventListener("resize", publish);
 })();
 
-$("#play").addEventListener("click", () => (state.playing ? stop() : play()));
+$("#play").addEventListener("click", () => {
+  if (!state.playing) play();
+  else if (state.paused) resume();
+  else pause();
+});
+
+$("#stop").addEventListener("click", stop);
 
 $("#tempo").addEventListener("input", (e) => {
   const bpm = Number(e.target.value);
@@ -478,7 +508,9 @@ document.addEventListener("keydown", (e) => {
   if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
   if (e.code === "Space") {
     e.preventDefault();
-    state.playing ? stop() : play();
+    if (!state.playing) play();
+    else if (state.paused) resume();
+    else pause();
   }
 });
 
@@ -763,7 +795,7 @@ $("#lang-toggle").addEventListener("click", () => {
   renderStyleBlurb();
   renderSoloFeed();
   renderSystemView(-1);
-  $("#play-label").textContent = state.playing ? t("stop") : t("play");
+  renderTransport();
 });
 
 // ------------------------------------------------------------------ boot
