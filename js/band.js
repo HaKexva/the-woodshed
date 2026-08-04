@@ -10,8 +10,8 @@ const BASS_LO = 30; // F#1
 const BASS_HI = 52; // E3
 
 // The soloist: smplr's Splendid Grand Piano, practical solo range in MIDI.
-export const SOLO_LO = 60;
-export const SOLO_HI = 88;
+const SOLO_LO = 60;
+const SOLO_HI = 88;
 
 // Song-style feel layer — composes multiplicatively with the soloist-style
 // presets so a Parker solo over a bossa still swings *bossa*. swing is the
