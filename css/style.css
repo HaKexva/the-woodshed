@@ -27,7 +27,7 @@ body {
   color: var(--cream);
   font-family: var(--body);
   min-height: 100vh;
-  padding-bottom: 96px;
+  padding-bottom: 150px; /* transport is fixed and may wrap to two rows */
   overflow-x: hidden;
 }
 
@@ -183,6 +183,8 @@ body {
 
 /* jump-to-letter: one big control opens a grid of full-size letters. Sized for
    thumbs — the horizontal A-Z strip it replaces was ~18px per target. */
+.letter-trigger[hidden] { display: none; }
+
 .letter-trigger {
   display: flex;
   align-items: center;
@@ -220,6 +222,8 @@ body {
 
 .letter-trigger[aria-expanded="true"] .chev { transform: rotate(180deg); }
 
+.letter-sheet[hidden] { display: none; }
+
 .letter-sheet {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
@@ -248,9 +252,10 @@ body {
 .letter-sheet button.on { background: var(--amber); color: var(--ink); }
 
 .letter-sheet button:disabled {
-  background: transparent;
-  color: var(--cream-10);
+  background: var(--cream-10);
+  color: var(--cream-25);
   cursor: default;
+  opacity: 0.45;
 }
 
 .letter-sheet .all {
@@ -754,11 +759,12 @@ body {
   right: 0;
   z-index: 50;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 1.4rem;
+  gap: 0.7rem 1.2rem;
   background: var(--ink-2);
   border-top: 3px solid var(--cream);
-  padding: 0.9rem 2.5rem;
+  padding: 0.75rem 2rem;
 }
 
 .play-btn {
@@ -819,23 +825,25 @@ body {
   width: 2.6rem;
 }
 
-.tempo-ctl { display: flex; align-items: center; gap: 0.8rem; }
+.tempo-ctl { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
 
 .ctl-label {
-  font-size: 0.68rem;
-  letter-spacing: 0.3em;
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--cream-60);
+  white-space: nowrap;
 }
 
-.tempo-readout { font-size: 0.85rem; color: var(--cream-60); width: 4.6rem; }
+.tempo-readout { font-size: 0.82rem; color: var(--cream-60); width: 4.4rem; white-space: nowrap; }
 
 #tempo-val { color: var(--cream); font-weight: 600; }
 
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
-  width: 160px;
+  width: clamp(78px, 11vw, 150px);
+  min-width: 0;
   height: 3px;
   background: var(--cream-25);
   outline: none;

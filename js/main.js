@@ -323,12 +323,6 @@ $("#tempo").addEventListener("input", (e) => {
 
 $("#bg-vol").addEventListener("input", (e) => band.setBgVolume(Number(e.target.value) / 100));
 
-$("#bass-wet").addEventListener("input", (e) => {
-  const wet = Number(e.target.value) / 100;
-  band.setBassWet(wet);
-  localStorage.setItem("woodshed-bass-wet", String(wet));
-});
-
 $$(".mode-btn").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
 
 $("#feel-crowd").addEventListener("change", (e) => band.setSoloFeel("crowd", Number(e.target.value) / 100));
@@ -366,12 +360,6 @@ document.addEventListener("keydown", (e) => {
     $$(".style-chip")[Number(e.key) - 1]?.click();
   }
 });
-
-const savedWet = Number(localStorage.getItem("woodshed-bass-wet"));
-if (Number.isFinite(savedWet) && localStorage.getItem("woodshed-bass-wet") !== null) {
-  band.setBassWet(savedWet);
-  $("#bass-wet").value = String(Math.round(savedWet * 100));
-}
 
 // ---- Real sample pack: on by default, switchable any time, choice persisted.
 // While loading, the status pill shows progress plus a "skip" escape hatch.

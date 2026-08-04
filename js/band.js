@@ -189,7 +189,6 @@ export class Band {
     // piano/guitar/bass/drums once every file is decoded
     this.hqOn = false;
     this._hq = {};
-    this.bassWet = 1; // user scale (0..2) over the tuned bass reverb send
   }
 
   /** Background-band level (0..1.5) — scales piano/guitar/bass/drums, not the solo. */
@@ -465,16 +464,8 @@ export class Band {
   _bassSend() {
     const real = this._bassChoice?.startsWith("hq/");
     // electric (funk) bass wants to sit dry up front — barely any room on it
-    const base = this._bassChoice?.includes("electric") ? (real ? 0.03 : 0.012) : real ? 0.17 : 0.04;
-    return base * this.bassWet;
-  }
-
-  /** Scale the bass room (0..2) — 1 keeps each voice's tuned baseline. */
-  setBassWet(v) {
-    this.bassWet = Math.max(0, Math.min(2, v));
-    if (this.strips?.bass && this.polish.reverb) {
-      this.strips.bass.send.gain.setTargetAtTime(this._bassSend(), this.ctx.currentTime, 0.03);
-    }
+    if (this._bassChoice?.includes("electric")) return real ? 0.03 : 0.012;
+    return real ? 0.425 : 0.04;
   }
 
   _refreshGain(name) {
