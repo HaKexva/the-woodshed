@@ -199,6 +199,48 @@ body {
 
 .song-search::placeholder { color: var(--cream-25); }
 
+/* jump-to-letter strip — earns its place once the songbook outgrows paging */
+.letter-index {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.12rem;
+  margin: 0 1.6rem 0.7rem;
+}
+
+.letter-index button {
+  flex: 1 0 auto;
+  min-width: 1.15rem;
+  padding: 0.12rem 0;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--cream-60);
+  font-family: var(--body);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.letter-index button:hover:not(:disabled) { color: var(--amber); }
+
+.letter-index button.on {
+  color: var(--amber);
+  border-bottom-color: var(--amber);
+}
+
+.letter-index button:disabled {
+  color: var(--cream-10);
+  cursor: default;
+}
+
+@media (max-width: 900px) {
+  .letter-index { gap: 0.2rem; }
+  .letter-index button { min-width: 1.6rem; padding: 0.32rem 0; font-size: 0.8rem; }
+}
+
+
 .tracklist { list-style: none; }
 
 .track {

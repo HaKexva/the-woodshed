@@ -10,6 +10,7 @@ const $$ = (sel) => [...document.querySelectorAll(sel)];
 
 const PAGE_SIZE = 10;
 const SEARCH_LIMIT = 60; // enough to scroll through; keeps a broad query cheap
+const LETTER_INDEX_FROM = 40; // songbook size at which jumping beats paging
 
 const state = {
   mode: "session", // session | inspire
@@ -41,7 +42,40 @@ function renderTracklist() {
     const btn = e.target.closest(".track");
     if (btn) selectSong(Number(btn.dataset.i));
   });
+  buildLetterIndex();
+  $("#letter-index").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-at]");
+    if (!btn || btn.disabled) return;
+    $("#song-search").value = ""; // jumping is a paging move, not a search
+    state.page = Math.floor(Number(btn.dataset.at) / PAGE_SIZE);
+    updateListView();
+  });
   updateListView();
+}
+
+/** First songbook index under each initial letter. Titles are sorted, so this
+ *  is one pass. Anything not starting A-Z buckets under "#". */
+function buildLetterIndex() {
+  // paging alone is fine for a short book; the strip appears when it isn't
+  if (SONGS.length < LETTER_INDEX_FROM) {
+    $("#letter-index").hidden = true;
+    return new Map();
+  }
+  const first = new Map();
+  SONGS.forEach((song, i) => {
+    const ch = song.title.trim().charAt(0).toUpperCase();
+    const key = ch >= "A" && ch <= "Z" ? ch : "#";
+    if (!first.has(key)) first.set(key, i);
+  });
+  const letters = ["#", ...Array.from({ length: 26 }, (_, k) => String.fromCharCode(65 + k))];
+  $("#letter-index").innerHTML = letters
+    .map((L) => {
+      const at = first.get(L);
+      const dis = at === undefined ? " disabled" : "";
+      return `<button type="button" data-at="${at ?? ""}"${dis}>${L}</button>`;
+    })
+    .join("");
+  return first;
 }
 
 /** Songbook indices to show right now: search hits, or the current page. */
@@ -393,6 +427,8 @@ function updateListView() {
     .join("");
   const shown = shownIdx.length;
   $("#search-empty").hidden = shown > 0;
+  const openingTitle = shownIdx.length && !q.trim() ? SONGS[shownIdx[0]].title.trim().charAt(0).toUpperCase() : null;
+  $$("#letter-index button").forEach((b) => b.classList.toggle("on", openingTitle !== null && b.textContent === openingTitle));
   $("#sleeve-label").textContent = t("sideLabel", { letter: String.fromCharCode(65 + state.page) });
   const lastPage = Math.ceil(SONGS.length / PAGE_SIZE) - 1;
   $("#page-prev").disabled = !!q || state.page === 0;
