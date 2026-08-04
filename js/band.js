@@ -723,7 +723,7 @@ export class Band {
       for (const [bar, n] of perBar) if (n >= 3) busyBars.add(bar);
     }
     const duck = (events) =>
-      events.filter((e) => !busyBars.has(Math.floor(e.beat / bpb)) || Math.random() < 0.35)
+      events.filter((e) => !busyBars.has(Math.floor(e.beat / bpb)) || Math.random() < 0.55)
         .map((e) => (busyBars.has(Math.floor(e.beat / bpb)) ? { ...e, vel: Math.max(20, e.vel - 8) } : e));
 
     const ev = {
@@ -737,8 +737,8 @@ export class Band {
     // rhythm-section roles: after the first chorus, guitar-led and piano-led
     // choruses trade off — both comping full-time is a machine's tell
     const role = this._chorus ? choice(["guitar", "piano", "both"]) : "both";
-    if (role === "guitar") ev.piano = ev.piano.filter(() => Math.random() < 0.3);
-    if (role === "piano") ev.guitar = ev.guitar.filter(() => Math.random() < 0.3);
+    if (role === "guitar") ev.piano = ev.piano.filter(() => Math.random() < 0.55);
+    if (role === "piano") ev.guitar = ev.guitar.filter(() => Math.random() < 0.55);
 
     // each chorus leans a little different — comping thickens on the "up"
     // choruses and thins with softer touch on the "down" ones
