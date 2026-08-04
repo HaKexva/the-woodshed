@@ -720,7 +720,7 @@ export class Band {
     let g = { piano: 0.69, guitar: 1.15, bass: 0.7, drums: 0.78, solo: 1.25 }[name];
     // boost pulls the bass back up front for practising walking lines — phone
     // speakers and cheap earbuds lose the fundamental at the mixed level
-    if (name === "bass" && this.bassBoost) g = 1.0;
+    if (name === "bass" && this.bassBoost) g = 1.1;
     if (name === "piano" && this.hqOn) g *= 1.05; // keys sit up a touch in the Real mix
     if (name === "bass" && this._bassChoice?.includes("electric")) g *= 0.78;
     return g;

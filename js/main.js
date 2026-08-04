@@ -463,11 +463,7 @@ if (localStorage.getItem("woodshed-hq") !== "0") {
   band.cb.onHqProgress = hqPill;
 }
 
-$("#bass-boost").addEventListener("click", (e) => {
-  const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
-  e.currentTarget.setAttribute("aria-pressed", String(on));
-  band.setBassBoost(on);
-});
+$("#bass-boost").addEventListener("change", (e) => band.setBassBoost(e.target.checked));
 
 $$(".mute[data-inst]").forEach((b) =>
   b.addEventListener("click", () => {
@@ -779,3 +775,12 @@ renderTracklist();
 selectSong(0);
 updateListView();
 setMode("session");
+
+// a phone speaker or a pair of earbuds loses the bass fundamental, so the
+// boost starts engaged there — off everywhere else, and the switch overrides
+// either way. Coarse pointer catches a tablet held sideways, which is wider
+// than the mobile breakpoint but still played through a built-in speaker.
+if (isMobile() || window.matchMedia("(pointer: coarse)").matches) {
+  $("#bass-boost").checked = true;
+  band.setBassBoost(true);
+}

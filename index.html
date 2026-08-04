@@ -166,7 +166,11 @@
       <button class="mute" data-inst="drums" data-i18n="mute.drums">drums</button>
     </div>
 
-    <button id="bass-boost" class="mute boost" aria-pressed="false" data-i18n="boost">Bass+</button>
+    <label class="real-toggle" title="Bass+: lifts the bass forward for walking-line practice — on by default on phones">
+      <span data-i18n="boost">Bass+</span>
+      <input id="bass-boost" type="checkbox" />
+      <span class="switch" aria-hidden="true"></span>
+    </label>
 
     <label class="real-toggle" title="Real: sampled instruments (~3.5 MB, cached after first load)">
       <span data-i18n="mute.hq">Real</span>
