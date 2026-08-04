@@ -884,8 +884,10 @@ export class Band {
       const hqBuf = this.hqOn && this._hq.drums ? this._hq.drums.pick(e.drum, e.vel) : null;
       const buf = hqBuf ?? this.drumSamples?.[e.drum];
       if (buf) {
+        // Real samples are peak-normalized to -3 dB, so these trims mirror the
+        // standard kit's per-voice balance
         const trim = hqBuf
-          ? { hat: 0.85, snare: 1.25, kick: 1.1, rim: 1.2, ride: 0.6 }[e.drum] ?? 1
+          ? { hat: 0.7, snare: 1.35, kick: 0.9, rim: 1.2, ride: 0.32 }[e.drum] ?? 0.5
           : { hat: 0.6, snare: 1.3, kick: 0.7, rim: 1.1, ride: 0.35 }[e.drum] ?? 1;
         const src = this.ctx.createBufferSource();
         src.buffer = buf;
