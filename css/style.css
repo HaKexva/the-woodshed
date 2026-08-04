@@ -902,6 +902,13 @@ input[type="range"]::-moz-range-thumb {
   text-decoration: line-through;
 }
 
+/* the mutes take things away; this one adds, so it lights up when engaged */
+.boost[aria-pressed="true"] {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: var(--ink);
+}
+
 .status { font-size: 0.8rem; color: var(--blue); flex: 1; text-align: right; }
 
 .linklike {

@@ -238,6 +238,7 @@ function handleSoloNote(pc) {
 
 async function play() {
   if (state.loading) return;
+  focusStage(); // before the load wait, so the tap moves something right away
   if (!state.ready) {
     state.loading = true;
     setStatus(t("status.loading", { n: 0, total: 3 }));
@@ -462,7 +463,13 @@ if (localStorage.getItem("woodshed-hq") !== "0") {
   band.cb.onHqProgress = hqPill;
 }
 
-$$(".mute").forEach((b) =>
+$("#bass-boost").addEventListener("click", (e) => {
+  const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+  e.currentTarget.setAttribute("aria-pressed", String(on));
+  band.setBassBoost(on);
+});
+
+$$(".mute[data-inst]").forEach((b) =>
   b.addEventListener("click", () => {
     const inst = b.dataset.inst;
     const nowMuted = !b.classList.contains("off");
@@ -520,6 +527,20 @@ function collapseSleeve() {
   if (!isMobile()) return;
   $(".sleeve").classList.remove("open");
   $("#sleeve-toggle").setAttribute("aria-expanded", "false");
+}
+
+// hitting play on a phone means you want the chords, not the track list you
+// just picked from — fold the sleeve away and bring the stage up
+function focusStage() {
+  if (!isMobile()) return;
+  const wasOpen = $(".sleeve").classList.contains("open");
+  collapseSleeve();
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const go = () => $(".stage").scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
+  // the sleeve folds over 0.32s and the stage rides up with it; scrolling
+  // mid-collapse aims at where the chords *were*
+  if (wasOpen && !still) setTimeout(go, 340);
+  else go();
 }
 
 // "/" focuses search from anywhere

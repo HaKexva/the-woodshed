@@ -189,6 +189,13 @@ export class Band {
     // piano/guitar/bass/drums once every file is decoded
     this.hqOn = false;
     this._hq = {};
+    this.bassBoost = false; // see _gainFor
+  }
+
+  /** Push the bass forward for walking-line practice — see _gainFor. */
+  setBassBoost(on) {
+    this.bassBoost = !!on;
+    this._refreshGain("bass");
   }
 
   /** Background-band level (0..1.5) — scales piano/guitar/bass/drums, not the solo. */
@@ -711,6 +718,9 @@ export class Band {
     // this used to buy all of it back at 1.29 and the bass sat too far forward.
     // Held 5 dB under that now — soft touch, and it stays behind the trio.
     let g = { piano: 0.69, guitar: 1.15, bass: 0.7, drums: 0.78, solo: 1.25 }[name];
+    // boost pulls the bass back up front for practising walking lines — phone
+    // speakers and cheap earbuds lose the fundamental at the mixed level
+    if (name === "bass" && this.bassBoost) g = 1.0;
     if (name === "piano" && this.hqOn) g *= 1.05; // keys sit up a touch in the Real mix
     if (name === "bass" && this._bassChoice?.includes("electric")) g *= 0.78;
     return g;
