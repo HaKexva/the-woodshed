@@ -7127,6 +7127,26 @@ export const SONGS = [
     ],
   },
   {
+    title: "Spain",
+    composer: "Chick Corea",
+    key: "B minor",
+    bpm: 132,
+    style: "latin",
+    timeSignature: 4,
+    form: "16-bar",
+    source: [
+      "https://en.wikipedia.org/wiki/Spain_(instrumental)",
+      "https://www.latinguitarmastery.com/lgm/spain-guitar-version-chick-corea/",
+    ],
+    note: "Solo changes only — the Concierto de Aranjuez introduction is not included. Both sources give the same sequence but neither fixes the bar allocation; two bars per chord is the common reading. Charts vary: some drop the second GMaj7 (bars 11–12), and some resolve the final F#7 to Bm–B7 rather than looping. Often labelled D major, the relative key.",
+    progression: [
+      [{ chord: "GMaj7", beats: 4 }], [{ chord: "GMaj7", beats: 4 }], [{ chord: "F#7b9", beats: 4 }], [{ chord: "F#7b9", beats: 4 }],
+      [{ chord: "Em7", beats: 4 }], [{ chord: "Em7", beats: 4 }], [{ chord: "A7b9", beats: 4 }], [{ chord: "A7b9", beats: 4 }],
+      [{ chord: "DMaj7", beats: 4 }], [{ chord: "DMaj7", beats: 4 }], [{ chord: "GMaj7", beats: 4 }], [{ chord: "GMaj7", beats: 4 }],
+      [{ chord: "C#7b9", beats: 4 }], [{ chord: "C#7b9", beats: 4 }], [{ chord: "F#7b9", beats: 4 }], [{ chord: "F#7b9", beats: 4 }],
+    ],
+  },
+  {
     title: "St. Louis Blues",
     composer: "W.C. Handy",
     key: "G",
