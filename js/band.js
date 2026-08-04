@@ -177,6 +177,10 @@ export class Band {
     this.soloVoicing = "mono"; // mono: single-note line · multi: doubled holds, stabs, octaves
     this.soloInst = null;
     this.soloPart = null;
+    // sound-quality A/B: mixing polish flags + instrument upgrades
+    this.polish = { pan: true, eq: true, comp: true, reverb: true, sat: true, vel: true, drumTone: true };
+    this.grandOn = true;
+    this.rideOn = false;
   }
 
   /** Background-band level (0..1.5) — scales piano/guitar/bass/drums, not the solo. */
@@ -223,34 +227,82 @@ export class Band {
   async _setup() {
     this.ctx = new AudioContext();
     Tone.setContext(this.ctx);
+    const ctx = this.ctx;
 
-    this.master = this.ctx.createGain();
+    // ---- mix bus: strips (sat → EQ → pan) → dry sum → glue → limiter →
+    // master → out, with a low-cut pre-delayed reverb SEND. Every polish
+    // element has a transparent state so the whole chain can A/B against
+    // the legacy sound live.
+    this.master = ctx.createGain();
     this.master.gain.value = 0.9;
+    this.master.connect(ctx.destination);
 
-    // Small room reverb on the whole band; fall back to a dry signal if
-    // the Tone <-> native interconnect misbehaves.
+    this.limiter = ctx.createDynamicsCompressor();
+    this.limiter.connect(this.master);
+    this.glue = ctx.createDynamicsCompressor();
+    this.glue.connect(this.limiter);
+    this.drySum = ctx.createGain();
+    this.drySum.connect(this.glue);
+
+    // legacy inline-style reverb path (what prod sounds like today)
+    this.legacyWet = ctx.createGain();
+    this.legacyWet.gain.value = 0;
+    this.drySum.connect(this.legacyWet);
+    // polished send path: low-cut + pre-delay into a longer tail
+    this.sendSum = ctx.createGain();
+    this.sendCut = ctx.createBiquadFilter();
+    this.sendCut.type = "highpass";
+    this.sendCut.frequency.value = 300;
+    this.preDelay = ctx.createDelay(0.1);
+    this.preDelay.delayTime.value = 0.022;
+    this.sendSum.connect(this.sendCut);
+    this.sendCut.connect(this.preDelay);
     try {
-      const reverb = new Tone.Reverb({ decay: 1.5, wet: 0.12 });
-      await reverb.ready;
-      Tone.connect(this.master, reverb);
-      reverb.toDestination();
+      this.sendReverb = new Tone.Reverb({ decay: 1.9, wet: 1 });
+      await this.sendReverb.ready;
+      Tone.connect(this.preDelay, this.sendReverb);
+      Tone.connect(this.sendReverb, this.glue);
+      this.legacyReverb = new Tone.Reverb({ decay: 1.5, wet: 1 });
+      await this.legacyReverb.ready;
+      Tone.connect(this.legacyWet, this.legacyReverb);
+      Tone.connect(this.legacyReverb, this.master);
     } catch (e) {
       console.warn("reverb unavailable, going dry", e);
-      this.master.connect(this.ctx.destination);
     }
 
+    // per-instrument strips
     this.gains = {};
+    this.strips = {};
     for (const name of ["piano", "guitar", "bass", "drums", "solo"]) {
-      const g = this.ctx.createGain();
-      g.connect(this.master);
+      const g = ctx.createGain();
+      const sat = ctx.createWaveShaper(); // identity until enabled
+      const cut = ctx.createBiquadFilter();
+      cut.type = "peaking";
+      cut.gain.value = 0;
+      const air = ctx.createBiquadFilter();
+      air.type = "highshelf";
+      air.gain.value = 0;
+      const pan = ctx.createStereoPanner();
+      const send = ctx.createGain();
+      send.gain.value = 0;
+      g.connect(sat);
+      sat.connect(cut);
+      cut.connect(air);
+      air.connect(pan);
+      pan.connect(this.drySum);
+      pan.connect(send);
+      send.connect(this.sendSum);
       this.gains[name] = g;
+      this.strips[name] = { sat, cut, air, pan, send };
     }
     const bg = this.bgVolume ?? 1;
     this.gains.piano.gain.value = 0.75 * bg;
     this.gains.guitar.gain.value = 1.15 * bg;
     this.gains.bass.gain.value = 1.0 * bg;
-    this.gains.drums.gain.value = 0.6 * bg;
+    this.gains.drums.gain.value = 0.75 * bg;
     this.gains.solo.gain.value = 1.25;
+
+    this._applyPolish();
 
     this._buildDrumKit();
     this._loadDrumSamples(); // fire-and-forget — synth kit covers until ready
@@ -272,13 +324,163 @@ export class Band {
       }
     };
 
-    [this.piano, this.bass, this.guitar] = await Promise.all([
+    [this.pianoEP, this.bassGM, this.guitar] = await Promise.all([
       loadSf("electric_piano_1", this.gains.piano, "piano"),
-      loadSf("acoustic_bass", this.gains.bass, "bass"),
+      loadSf("electric_bass_finger", this.gains.bass, "bass"),
       loadSf("electric_guitar_jazz", this.gains.guitar, "guitar"),
     ]);
+    this.piano = this.pianoEP;
+    this.bass = this.bassGM;
+    if (this.grandOn) this._loadGrand();
 
     this.cb.onReady?.();
+  }
+
+  // each style gets its own bass voice: uprights for the acoustic styles,
+  // fingered electric for the groove styles
+  static STYLE_BASS = {
+    funk: ["MusyngKite", "electric_bass_finger"],
+    default: ["FluidR3_GM", "acoustic_bass"],
+  };
+
+  _applyStyleBass(style) {
+    if (this._bassOverride) return;
+    const [kit, name] = Band.STYLE_BASS[style] ?? Band.STYLE_BASS.default;
+    this.setBass(kit, name);
+  }
+
+  /** Audition any GM bass rendering: setBass("MusyngKite","electric_bass_finger") etc. */
+  async setBass(kit, name) {
+    this._bassChoice = `${kit}/${name}`;
+    this._bassCache ??= {};
+    const key = this._bassChoice;
+    if (!this._bassCache[key]) {
+      try {
+        const inst = new Soundfont(this.ctx, { instrument: name, kit, destination: this.gains.bass });
+        await inst.load;
+        this._bassCache[key] = inst;
+      } catch (e) {
+        console.warn(`bass ${key} failed`, e);
+        return;
+      }
+    }
+    if (this._bassChoice === key) this.bass = this._bassCache[key];
+  }
+
+  /** Acoustic grand for the comping piano (Splendid, public domain). */
+  async _loadGrand() {
+    if (this.pianoGrand) {
+      if (this.grandOn) this.piano = this.pianoGrand;
+      return;
+    }
+    try {
+      const inst = new SplendidGrandPiano(this.ctx, { destination: this.gains.piano });
+      await inst.load;
+      this.pianoGrand = inst;
+      if (this.grandOn) this.piano = inst;
+    } catch (e) {
+      console.warn("grand comping piano unavailable, staying on EP", e);
+    }
+  }
+
+  setGrand(on) {
+    this.grandOn = on;
+    if (on) this._loadGrand();
+    else if (this.pianoEP) this.piano = this.pianoEP;
+  }
+
+  _refreshGain(name) {
+    if (!this.gains?.[name] || this.muted[name]) return;
+    const bg = name === "solo" ? 1 : this.bgVolume ?? 1;
+    this.gains[name].gain.setTargetAtTime(this._gainFor(name) * bg, this.ctx.currentTime, 0.03);
+  }
+
+  setRide(on) {
+    this.rideOn = on;
+    if (this.playing && this._songCtx) this._buildParts(this.song, this._lastFeel);
+  }
+
+  /** Toggle one polish element ("pan","eq","comp","reverb","sat","vel",
+   *  "drumTone") or "on" for the whole chain. All live-safe. */
+  setMix(key, val) {
+    if (key === "on") for (const k of Object.keys(this.polish)) this.polish[k] = val;
+    else if (key in this.polish) this.polish[key] = val;
+    this._applyPolish();
+  }
+
+  _applyPolish() {
+    if (!this.ctx) return;
+    const P = this.polish;
+    const t = this.ctx.currentTime;
+    const set = (param, v) => param.setTargetAtTime(v, t, 0.03);
+
+    // stereo stage: a recorded-trio picture
+    const pans = { piano: -0.35, guitar: 0.4, bass: 0, drums: 0.12, solo: -0.08 };
+    // mud cut (peaking) + air (highshelf) per strip
+    const eqs = {
+      piano: { f: 280, cut: -3.5, airF: 8000, air: 1.5 },
+      guitar: { f: 320, cut: -3, airF: 7000, air: 1 },
+      bass: { f: 300, cut: -2, airF: 6000, air: 0 },
+      drums: { f: 400, cut: -2, airF: 9000, air: 2 },
+      solo: { f: 300, cut: -2, airF: 8000, air: 1.5 },
+    };
+    const sends = { piano: 0.18, guitar: 0.16, bass: 0.04, drums: 0.1, solo: 0.22 };
+
+    for (const [name, s] of Object.entries(this.strips)) {
+      set(s.pan.pan, P.pan ? pans[name] : 0);
+      const e = eqs[name];
+      s.cut.frequency.value = e.f;
+      s.cut.Q.value = 1;
+      s.air.frequency.value = e.airF;
+      set(s.cut.gain, P.eq ? e.cut : 0);
+      set(s.air.gain, P.eq ? e.air : 0);
+      set(s.send.gain, P.reverb ? sends[name] : 0);
+    }
+    set(this.legacyWet.gain, P.reverb ? 0 : 0.35); // legacy inline-ish wash
+
+    // bass warmth: gentle tanh drive
+    if (!this._satCurves) {
+      const mk = (drive) => {
+        const c = new Float32Array(1024);
+        for (let i = 0; i < 1024; i++) {
+          const x = (i / 511.5) - 1;
+          c[i] = drive === 0 ? x : Math.tanh(x * (1 + drive)) / Math.tanh(1 + drive);
+        }
+        return c;
+      };
+      this._satCurves = { flat: mk(0), warm: mk(1.6), light: mk(0.6) };
+    }
+    this.strips.bass.sat.curve = P.sat ? this._satCurves.warm : this._satCurves.flat;
+    this.strips.drums.sat.curve = P.sat ? this._satCurves.light : this._satCurves.flat;
+    for (const n of ["piano", "guitar", "solo"]) this.strips[n].sat.curve = this._satCurves.flat;
+
+    // glue + limiter (transparent when off)
+    if (P.comp) {
+      this.glue.threshold.value = -18;
+      this.glue.ratio.value = 3;
+      this.glue.knee.value = 12;
+      this.glue.attack.value = 0.012;
+      this.glue.release.value = 0.24;
+      this.limiter.threshold.value = -2;
+      this.limiter.ratio.value = 20;
+      this.limiter.knee.value = 0;
+      this.limiter.attack.value = 0.002;
+      this.limiter.release.value = 0.1;
+      set(this.master.gain, 1.12);
+    } else {
+      this.glue.threshold.value = 0;
+      this.glue.ratio.value = 1;
+      this.limiter.threshold.value = 0;
+      this.limiter.ratio.value = 1;
+      set(this.master.gain, 0.9);
+    }
+  }
+
+  /** Velocity curve: push our timid velocities into the expressive part of
+   *  the samplers' response. Transparent when the polish flag is off. */
+  _vel(v) {
+    if (!this.polish.vel) return v;
+    return Math.round(Math.min(127, 127 * Math.pow(v / 127, 0.72)));
   }
 
   /** Lazy-load the solo piano. */
@@ -323,7 +525,7 @@ export class Band {
       // a crash; everything else plays real one-shots
       const bufs = {};
       await Promise.all(
-        ["hat", "snare", "kick", "rim"].map(async (n) => {
+        ["hat", "snare", "kick", "rim", "ride"].map(async (n) => {
           const res = await fetch(`${base}/${n}.m4a`);
           if (!res.ok) throw new Error(`${n}.m4a: ${res.status}`);
           bufs[n] = await this.ctx.decodeAudioData(await res.arrayBuffer());
@@ -418,7 +620,7 @@ export class Band {
   }
 
   _gainFor(name) {
-    return { piano: 0.75, guitar: 1.15, bass: 1.0, drums: 0.6, solo: 1.25 }[name];
+    return { piano: 0.75, guitar: 1.15, bass: 1.0, drums: 0.75, solo: 1.25 }[name];
   }
 
   setBpm(bpm) {
@@ -441,9 +643,12 @@ export class Band {
     t.stop();
     t.cancel(0);
     t.position = 0;
-    t.bpm.value = this.bpmOverride ?? song.bpm;
+    const bpmNow = this.bpmOverride ?? song.bpm;
+    t.bpm.value = bpmNow;
     t.timeSignature = song.timeSignature ?? 4;
-    t.swing = feel === "swing" ? (song.style === "ballad" ? 0.45 : 0.56) : 0;
+    // swing ratio follows tempo, iReal-style: rounder when slow, flatter fast
+    const swingAmt = song.style === "ballad" ? 0.45 : bpmNow < 110 ? 0.58 : bpmNow < 170 ? 0.55 : 0.48;
+    t.swing = feel === "swing" ? swingAmt : 0;
     t.swingSubdivision = "8n";
     // bar 0 is a count-in; the form loops over bars 1..n
     t.loop = true;
@@ -451,6 +656,8 @@ export class Band {
     t.loopEnd = `${song.progression.length + 1}m`;
 
     this._chorus = 0;
+    this._lastFeel = feel;
+    this._applyStyleBass(song.style);
     this._buildParts(song, feel);
     // every chorus is a fresh take: just before each loop wrap, re-roll the
     // band's patterns and the solo (which builds as choruses stack up)
@@ -586,20 +793,20 @@ export class Band {
     mk(ev.piano, (time, e) => {
       if (this.muted.piano) return;
       e.midis.forEach((m, i) =>
-        this.piano.start({ note: m, time: time + i * (e.roll ? 0.02 : 0.005), duration: e.dur * beatSec(), velocity: e.vel })
+        this.piano.start({ note: m, time: time + i * (e.roll ? 0.02 : 0.005), duration: e.dur * beatSec(), velocity: this._vel(e.vel) })
       );
     });
 
     mk(ev.guitar, (time, e) => {
       if (this.muted.guitar) return;
       e.midis.forEach((m, i) =>
-        this.guitar.start({ note: m, time: time + i * (e.roll ? 0.025 : 0.008), duration: e.dur * beatSec(), velocity: e.vel })
+        this.guitar.start({ note: m, time: time + i * (e.roll ? 0.025 : 0.008), duration: e.dur * beatSec(), velocity: this._vel(e.vel) })
       );
     });
 
     mk(ev.bass, (time, e) => {
       if (this.muted.bass) return;
-      this.bass.start({ note: e.midi, time, duration: e.dur * beatSec(), velocity: e.vel });
+      this.bass.start({ note: e.midi, time, duration: e.dur * beatSec() * 0.88, velocity: this._vel(e.vel) });
     });
 
     mk(ev.drums, (time, e) => {
@@ -608,14 +815,30 @@ export class Band {
       // sampled kit when loaded: real attacks, per-hit pitch/level jitter;
       // per-drum trim keeps the ride way back in the mix
       if (this.drumSamples?.[e.drum]) {
-        const trim = { hat: 0.6, snare: 1.05, kick: 0.7, rim: 0.85 }[e.drum] ?? 1;
+        const trim = { hat: 0.6, snare: 1.3, kick: 0.7, rim: 1.1, ride: 0.35 }[e.drum] ?? 1;
         const src = this.ctx.createBufferSource();
         src.buffer = this.drumSamples[e.drum];
         src.playbackRate.value = Math.pow(2, rnd(-35, 35) / 1200);
         const g = this.ctx.createGain();
-        g.gain.value = Math.min(1, (e.vel / 127) * 1.3 * trim);
+        // perceptual curve: quiet hits fall away faster than linear
+        const vNorm = Math.pow(e.vel / 127, this.polish.drumTone ? 1.35 : 1);
+        g.gain.value = Math.min(1, vNorm * 1.35 * trim);
         src.connect(g);
-        g.connect(this.gains.drums);
+        if (this.polish.drumTone && e.vel < 60 && e.drum !== "ride") {
+          // soft hits get darker, not just quieter — like sticks do
+          const lp = this.ctx.createBiquadFilter();
+          lp.type = "lowpass";
+          lp.frequency.value = 2500 + (e.vel / 60) * 7000;
+          g.connect(lp);
+          lp.connect(this.gains.drums);
+        } else {
+          g.connect(this.gains.drums);
+        }
+        // hat choke: a new hat hit cuts the previous one's tail
+        if (e.drum === "hat" && this.polish.drumTone) {
+          try { this._lastHat?.stop(time); } catch { /* already ended */ }
+          this._lastHat = src;
+        }
         src.start(time);
         return;
       }
@@ -673,10 +896,10 @@ export class Band {
         note: e.midi,
         time: when,
         duration: durSec,
-        velocity: e.vel,
+        velocity: this._vel(e.vel),
       });
       for (const m of e.extra ?? []) {
-        this.soloInst?.start({ note: m, time: when + 0.006, duration: durSec, velocity: Math.max(30, e.vel - 14) });
+        this.soloInst?.start({ note: m, time: when + 0.006, duration: durSec, velocity: this._vel(Math.max(30, e.vel - 14)) });
       }
       Tone.getDraw().schedule(() => this.cb.onSoloNote?.(e.midi % 12, durSec), when);
     }, events.map((e) => [`${Math.round((e.beat + ctx.bpb) * ppq)}i`, e]));
@@ -1405,13 +1628,12 @@ export class Band {
       endsByBar.get(bar).push(b - bar * bpb);
     }
 
-    // per-bar ride pattern pool (weights sum to 1) — kept sparse; the ride
-    // marks time, it doesn't chatter
+    // per-bar ride pattern pool — kept sparse; the ride marks time
     const ridePool = [
-      { w: 0.3, p: [[0, 44], [1, 50], [2, 44], [3, 50]] },                        // quarters only
-      { w: 0.4, p: [[0, 44], [2, 46], [3, 50]] },                                 // broken up
-      { w: 0.15, p: [[0, 44], [1, 50], [2, 44], [3, 50], [3.5, 28]] },            // one skip note
-      { w: 0.15, p: [[0, 46], [1, 52], [1.5, 30], [2, 46], [3, 52], [3.5, 30]] }, // standard ding-ding-a
+      { w: 0.3, p: [[0, 44], [1, 50], [2, 44], [3, 50]] },
+      { w: 0.4, p: [[0, 44], [2, 46], [3, 50]] },
+      { w: 0.15, p: [[0, 44], [1, 50], [2, 44], [3, 50], [3.5, 28]] },
+      { w: 0.15, p: [[0, 46], [1, 52], [1.5, 30], [2, 46], [3, 52], [3.5, 30]] },
     ];
     const pickRide = () => {
       let r = Math.random();
@@ -1419,64 +1641,115 @@ export class Band {
       return ridePool[0].p;
     };
     const sectionEnd = (bar) => bar % 8 === 7 || bar === totalBars - 1;
-    // at slow tempos every kick thuds — feather less and softer as bpm drops
     const bpm = Tone.getTransport().bpm.value;
-    const slow = Math.max(0, Math.min(1, (110 - bpm) / 50)); // 0 at ≥110bpm → 1 at ≤60
+    const slow = Math.max(0, Math.min(1, (110 - bpm) / 50));
     const kv = (v) => Math.max(8, Math.round(v * (1 - slow * 0.45)));
 
+    // each chorus rolls a kit combination for its style — the drummer plays
+    // the tune a different way every time through
+    const comboCount = { swing: 3, blues: 3, modal: 3, ballad: 2, bossa: 3, latin: 2, funk: 3 }[style] ?? 3;
+    const combo = Math.floor(Math.random() * comboCount);
+
     for (let bar = 0; bar < totalBars; bar++) {
-      // answer the soloist's phrase endings with a soft snare accent —
-      // but never in a fill bar, where pickups would stack
       const fillBar = sectionEnd(bar) && bpb === 4 && slow < 0.3;
       if (endsByBar.has(bar) && slow < 0.3 && !fillBar && Math.random() < 0.5) {
         const off = Math.round(endsByBar.get(bar)[0] * 2) / 2;
         if (off >= 0 && off < bpb) push(bar, off, "snare", 32);
       }
+
       if (style === "ballad") {
         for (let b = 0; b < bpb; b++) push(bar, b, "ride", b % 2 ? 34 : 26);
         push(bar, 1, "hat", 40);
         if (bpb > 3) push(bar, 3, "hat", 40);
-        if (Math.random() > slow * 0.5) push(bar, 0, "kick", kv(22));
-        // offbeat pickups swing onto triplet positions — skip them when slow
-        if (bar % 8 === 7 && slow < 0.3 && Math.random() < 0.6) push(bar, bpb - 0.5, "snare", 24); // brush pickup
+        if (combo === 1) {
+          // brush swirl: whisper-level snare on 1 and 3 stands in for the swirl
+          push(bar, 0, "snare", 16);
+          if (bpb > 3) push(bar, 2, "snare", 14);
+          if (Math.random() > 0.5 + slow * 0.3) push(bar, 0, "kick", kv(20));
+        } else if (Math.random() > slow * 0.5) {
+          push(bar, 0, "kick", kv(22));
+        }
+        if (bar % 8 === 7 && slow < 0.3 && Math.random() < 0.6) push(bar, bpb - 0.5, "snare", 24);
         continue;
       }
+
       if (style === "funk") {
-        // laid-back funk, not a rock band: soft hats, relaxed backbeat,
-        // kick mostly on 1 and the and-of-2
-        for (let e = 0; e < bpb * 2; e++) push(bar, e / 2, "hat", e % 2 ? 22 : 34);
+        const hatAcc = combo === 2 ? [40, 22, 34, 22, 44, 22, 34, 26] : [34, 22, 34, 22, 34, 22, 34, 22];
+        for (let e = 0; e < bpb * 2; e++) push(bar, e / 2, "hat", hatAcc[e % 8] ?? 30);
         push(bar, 1, "snare", 44);
         if (bpb > 3) push(bar, 3, "snare", 44);
-        for (const off of choice([[0, 2.5], [0, 2.5], [0, 1.5, 2.5], [0, 2.75], [0, 1.5, 3.5]])) push(bar, off, "kick", kv(off === 0 ? 46 : 32));
+        const pools = [
+          [[0, 2.5], [0, 2.5], [0, 1.5, 2.5], [0, 2.75], [0, 1.5, 3.5]],
+          [[0, 2.5], [0, 1.75, 2.5], [0, 2.5, 3.75]],
+          [[0, 2.5], [0, 2.75], [0, 1.5, 2.5]],
+        ][combo] ?? [[0, 2.5]];
+        for (const off of choice(pools)) push(bar, off, "kick", kv(off === 0 ? 46 : 32));
+        if (combo === 1) {
+          // ghost 16ths around the backbeat
+          for (const off of [0.75, 1.25, 2.75, 3.25]) if (Math.random() < 0.35) push(bar, off, "snare", Math.round(rnd(10, 16)));
+        }
         if (sectionEnd(bar) && slow < 0.3) for (const off of [3.5, 3.75]) push(bar, off, "snare", 30);
         continue;
       }
-      if (straight) {
-        // bossa: straight 8th hats, 3-2 rim clave, kick on 1 & 3
-        const lift = bar % 4 === 3 ? 6 : 0; // every 4th bar leans a little
-        for (let e = 0; e < bpb * 2; e++) push(bar, e / 2, "hat", (e % 2 ? 28 : 44) + lift);
-        const clave = bar % 2 === 0 ? [0, 1.5, 3] : [1, 2.5];
-        for (const off of clave) if (off < bpb) push(bar, off, "rim", 52);
-        push(bar, 0, "kick", 50);
-        if (bpb > 2) push(bar, 2, "kick", 44);
+
+      if (style === "latin") {
+        // calypso/latin gets its own voice instead of borrowing the bossa clave
+        for (const [off, vel] of [[0, 42], [1, 46], [2, 42], [3, 46]]) if (off < bpb) push(bar, off, "ride", vel);
+        if (Math.random() < 0.3) push(bar, choice([1.5, 3.5]), "ride", 30);
+        for (let e = 0; e < bpb * 2; e++) push(bar, e / 2, "hat", e % 2 ? 30 : 46);
+        if (combo === 0) {
+          for (const off of [0.5, 1.5, 2.5, 3.5]) if (off < bpb) push(bar, off, "rim", Math.round(rnd(36, 46)));
+          push(bar, 0, "kick", 50);
+          if (bpb > 2) push(bar, 2, "kick", 46);
+        } else {
+          const clave = bar % 2 === 0 ? [1, 2.5] : [0, 1.5, 3];
+          for (const off of clave) if (off < bpb) push(bar, off, "rim", 50);
+          push(bar, 0, "kick", 50);
+          if (Math.random() < 0.4) push(bar, 2.5, "kick", kv(38));
+        }
         if (sectionEnd(bar) && Math.random() < 0.5) push(bar, 3.5, "rim", 46);
         continue;
       }
-      // swing
+
+      if (straight) {
+        // bossa: straight 8th hats + rim clave; combos flip the clave and
+        // color the hats
+        const lift = bar % 4 === 3 ? 6 : 0;
+        const accent = combo === 1 ? [48, 26, 40, 26, 48, 26, 40, 30] : null;
+        for (let e = 0; e < bpb * 2; e++) {
+          const base = (accent ? accent[e % 8] : e % 2 ? 28 : 44) + lift;
+          push(bar, e / 2, "hat", Math.max(14, base + Math.round(rnd(-4, 4))));
+        }
+        const flip = combo === 1; // 2-3 clave instead of 3-2
+        const clave = (bar % 2 === 0) !== flip ? [0, 1.5, 3] : [1, 2.5];
+        for (const off of clave) if (off < bpb) push(bar, off, "rim", 52);
+        push(bar, 0, "kick", 50);
+        if (bpb > 2) push(bar, 2, "kick", 44);
+        if (combo === 2) {
+          if (Math.random() < 0.5) push(bar, 1.5, "kick", kv(34)); // surdo-ish & of 2
+          if (Math.random() < 0.3) push(bar, 3.5, "kick", kv(30));
+        }
+        if (sectionEnd(bar) && Math.random() < 0.5) push(bar, 3.5, "rim", 46);
+        continue;
+      }
+
+      // swing family (swing / blues / modal)
+      const compMul = { blues: 1.2, modal: 0.65 }[style] ?? 1;
+      const comboComp = [1, 1.5, 0.7][combo] ?? 1;
+      const kickThresh = 0.65 + slow * 0.25 + (combo === 1 ? 0.15 : 0) + (style === "modal" ? 0.1 : 0);
       if (bpb === 3) {
         for (const [off, vel] of [[0, 48], [1, 38], [2, 42]]) push(bar, off, "ride", vel);
         push(bar, 1, "hat", 46);
       } else {
-        // slow swing: quarters only — no skip notes to swing around
         const pattern = slow > 0.3 ? ridePool[0].p : pickRide();
         for (const [off, vel] of pattern) push(bar, off, "ride", vel);
         push(bar, 1, "hat", 50);
         push(bar, 3, "hat", 50);
+        if (combo === 2 && slow < 0.3 && Math.random() < 0.3) push(bar, choice([0.5, 2.5]), "hat", 26); // hat color tick
       }
-      for (let b = 0; b < bpb; b++) if (Math.random() > 0.65 + slow * 0.25) push(bar, b, "kick", kv(rnd(14, 20)));
-      if (slow < 0.3 && !fillBar && Math.random() < 0.08) push(bar, bpb - 0.5, "kick", kv(28)); // pickup into next bar
+      for (let b = 0; b < bpb; b++) if (Math.random() > kickThresh) push(bar, b, "kick", kv(rnd(14, 20)));
+      if (slow < 0.3 && !fillBar && Math.random() < 0.08) push(bar, bpb - 0.5, "kick", kv(28));
       if (fillBar) {
-        // a fill bar owns its bar — no comping or pickups stacked on top
         const fill = choice([
           [[2.5, 34], [3, 40], [3.5, 50]],
           [[3, 38], [3.25, 42], [3.5, 46], [3.75, 52]],
@@ -1485,23 +1758,20 @@ export class Band {
         for (const [off, vel] of fill) push(bar, off, "snare", vel);
         continue;
       }
-      // snare comping: ghosts and the odd accent — offbeat spots swing onto
-      // triplet positions, so slow tempos comp on the beat only
-      const hits = Math.random() < 0.55 - slow * 0.25 ? 1 : Math.random() < 0.25 ? 2 : 0;
+      const hits = Math.random() < (0.55 - slow * 0.25) * compMul * comboComp ? 1 : Math.random() < 0.25 * comboComp ? 2 : 0;
       const spots = slow > 0.3 ? [2] : [0.5, 1.5, 2, 2.5, 3.5];
       for (let h = 0; h < hits; h++) {
         const off = spots.splice(Math.floor(Math.random() * spots.length), 1)[0];
         push(bar, off, "snare", Math.round(Math.random() < 0.3 ? rnd(34, 42) : rnd(18, 28)));
       }
     }
-    // the drum synths are monophonic — two hits of the same drum on the same
-    // tick throw in Tone; keep the louder one
+    // mono synths throw on same-tick retriggers — keep the louder hit
     const seen = new Map();
     for (const e of events) {
       const k = `${e.drum}:${e.beat}`;
       if (!seen.has(k) || seen.get(k).vel < e.vel) seen.set(k, e);
     }
-    // no ride at all — the hat and bass keep time
-    return [...seen.values()].filter((e) => e.drum !== "ride");
+    // ride only when explicitly enabled (HQ toggle)
+    return [...seen.values()].filter((e) => this.rideOn || e.drum !== "ride");
   }
 }
