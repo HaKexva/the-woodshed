@@ -31,8 +31,13 @@ export function chordAt(chords, beat, totalBeats) {
   return best;
 }
 
+// Where a band has a published human baseline it is cited; see
+// research/evaluation-and-metrics.md. Several are targets to sit *near* rather
+// than maximize — corpus studies find that scoring better than a human on
+// consonance reads as machine, not as skill.
 export const REF = {
   notesPerBar: [4, 9, "4–9 typical for bebop-era solos"],
+  chordTone: [0.5, 0.56, "50–56% — 8 bebop saxophonists; higher reads as machine"],
   chordToneOnDownbeat: [0.55, 1, "≥55% — strong beats carry chord tones"],
   restRatio: [0.12, 0.35, "12–35% — real players breathe"],
   stepwise: [0.55, 0.85, "55–85% of intervals are ≤2 semitones"],

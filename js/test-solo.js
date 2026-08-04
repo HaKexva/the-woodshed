@@ -95,7 +95,8 @@ function renderMetrics(m) {
       `<span style="color:var(--green)">${Math.round(m.roleMix.chordtone * 100)}</span> /
        <span style="color:var(--blue)">${Math.round(m.roleMix.tension * 100)}</span> /
        <span style="color:var(--amber)">${Math.round(m.roleMix.approach * 100)}</span>`,
-      null, 0, `<p class="metric-ref">chord tone / tension / chromatic</p>`),
+      "chordTone", m.roleMix.chordtone,
+      `<p class="metric-ref">chord tone / tension / chromatic · human corpora ≈ 56 / 34 / 10</p>`),
     card("interval spread", `${m.phrases}<small> phrases</small>`, null, 0,
       histoHtml(m.intervalHisto, (i) => (i % 3 === 0 ? i : ""))),
   ].join("");
