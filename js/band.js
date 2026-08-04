@@ -181,6 +181,10 @@ export class Band {
     this.polish = { pan: true, eq: true, comp: true, reverb: true, sat: true, vel: true, drumTone: true };
     this.grandOn = true;
     this.rideOn = true;
+    // HQ sample pack (CC0 — Karoryfer/FreePats/Versilian): opt-in, hot-swaps
+    // piano/guitar/bass/drums once every file is decoded
+    this.hqOn = false;
+    this._hq = {};
   }
 
   /** Background-band level (0..1.5) — scales piano/guitar/bass/drums, not the solo. */
@@ -324,14 +328,16 @@ export class Band {
       }
     };
 
-    [this.pianoEP, this.bassGM, this.guitar] = await Promise.all([
+    [this.pianoEP, this.bassGM, this.guitarGM] = await Promise.all([
       loadSf("electric_piano_1", this.gains.piano, "piano"),
       loadSf("electric_bass_finger", this.gains.bass, "bass"),
       loadSf("electric_guitar_jazz", this.gains.guitar, "guitar"),
     ]);
-    this.piano = this.pianoEP;
+    this._applyPiano();
+    this._applyGuitar();
     this.bass = this.bassGM;
     if (this.grandOn) this._loadGrand();
+    if (this.hqOn) this.loadHqPack();
 
     this.cb.onReady?.();
   }
@@ -344,7 +350,17 @@ export class Band {
   };
 
   _applyStyleBass(style) {
+    this._lastStyle = style;
     if (this._bassOverride) return;
+    // Real pack: upright for the acoustic styles, sampled electric for funk
+    // (falls back to GM electric until the pack carries one)
+    const real = style === "funk" ? this._hq.bassElectric : this._hq.bass;
+    if (this.hqOn && real) {
+      this._bassChoice = style === "funk" ? "hq/electric" : "hq/meatbass";
+      this.bass = real;
+      this._refreshGain("bass");
+      return;
+    }
     const [kit, name] = Band.STYLE_BASS[style] ?? Band.STYLE_BASS.default;
     this.setBass(kit, name);
   }
@@ -373,14 +389,14 @@ export class Band {
   /** Acoustic grand for the comping piano (Splendid, public domain). */
   async _loadGrand() {
     if (this.pianoGrand) {
-      if (this.grandOn) this.piano = this.pianoGrand;
+      this._applyPiano();
       return;
     }
     try {
       const inst = new SplendidGrandPiano(this.ctx, { destination: this.gains.piano });
       await inst.load;
       this.pianoGrand = inst;
-      if (this.grandOn) this.piano = inst;
+      this._applyPiano();
     } catch (e) {
       console.warn("grand comping piano unavailable, staying on EP", e);
     }
@@ -389,7 +405,51 @@ export class Band {
   setGrand(on) {
     this.grandOn = on;
     if (on) this._loadGrand();
-    else if (this.pianoEP) this.piano = this.pianoEP;
+    else this._applyPiano();
+  }
+
+  // comping piano stays on the Splendid grand — the sampled upright lost the
+  // ear test against it, so the HQ pack covers guitar/bass/drums only
+  _applyPiano() {
+    this.piano = (this.grandOn && this.pianoGrand) || this.pianoEP;
+  }
+
+  _applyGuitar() {
+    this.guitar = (this.hqOn && this._hq.guitar) || this.guitarGM;
+  }
+
+  /** Fetch + decode the whole HQ pack (idempotent — one load per session). */
+  loadHqPack(onProgress) {
+    if (!this.gains) return null; // before first play — _setup calls back in
+    this._hqLoading ??= (async () => {
+      const { loadHqPack } = await import("./hqpack.js");
+      this._hq = await loadHqPack(
+        this.ctx,
+        { bass: this.gains.bass, bassElectric: this.gains.bass, guitar: this.gains.guitar, drums: this.gains.drums },
+        (n, total) => (onProgress ?? this.cb.onHqProgress)?.(n, total)
+      );
+      if (this.hqOn) this._applyHq();
+    })().catch((e) => {
+      console.warn("HQ pack failed to load — staying on standard sounds", e);
+      this._hqLoading = null;
+      this.hqOn = false;
+      this.cb.onHqError?.(e);
+    });
+    return this._hqLoading;
+  }
+
+  _applyHq() {
+    this._applyPiano();
+    this._applyGuitar();
+    this._applyStyleBass(this._lastStyle ?? "swing");
+  }
+
+  /** Switch between the HQ sample pack and the standard soundfonts, live. */
+  setHq(on, onProgress) {
+    this.hqOn = on;
+    if (onProgress) this.cb.onHqProgress = onProgress;
+    if (on && !this._hq.bass) return this.loadHqPack(onProgress);
+    this._applyHq();
   }
 
   _refreshGain(name) {
@@ -823,17 +883,25 @@ export class Band {
       const v = e.vel / 127;
       // sampled kit when loaded: real attacks, per-hit pitch/level jitter;
       // per-drum trim keeps the ride way back in the mix
-      if (this.drumSamples?.[e.drum]) {
-        const trim = { hat: 0.6, snare: 1.3, kick: 0.7, rim: 1.1, ride: 0.35 }[e.drum] ?? 1;
+      const hqBuf = this.hqOn && this._hq.drums ? this._hq.drums.pick(e.drum, e.vel) : null;
+      const buf = hqBuf ?? this.drumSamples?.[e.drum];
+      if (buf) {
+        // Real samples are peak-normalized to -3 dB, so these trims mirror the
+        // standard kit's per-voice balance
+        const trim = hqBuf
+          ? { hat: 0.7, snare: 1.35, kick: 0.9, rim: 1.2, ride: 0.32 }[e.drum] ?? 0.5
+          : { hat: 0.6, snare: 1.3, kick: 0.7, rim: 1.1, ride: 0.35 }[e.drum] ?? 1;
         const src = this.ctx.createBufferSource();
-        src.buffer = this.drumSamples[e.drum];
-        src.playbackRate.value = Math.pow(2, rnd(-35, 35) / 1200);
+        src.buffer = buf;
+        // HQ kit has real round-robins, so only a whisper of pitch jitter
+        src.playbackRate.value = Math.pow(2, rnd(hqBuf ? -12 : -35, hqBuf ? 12 : 35) / 1200);
         const g = this.ctx.createGain();
         // perceptual curve: quiet hits fall away faster than linear
         const vNorm = Math.pow(e.vel / 127, this.polish.drumTone ? 1.35 : 1);
         g.gain.value = Math.min(1, vNorm * 1.35 * trim);
         src.connect(g);
-        if (this.polish.drumTone && e.vel < 60 && e.drum !== "ride") {
+        // HQ velocity layers already darken soft hits — skip the filter there
+        if (!hqBuf && this.polish.drumTone && e.vel < 60 && e.drum !== "ride") {
           // soft hits get darker, not just quieter — like sticks do
           const lp = this.ctx.createBiquadFilter();
           lp.type = "lowpass";
