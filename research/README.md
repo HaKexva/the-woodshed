@@ -14,6 +14,7 @@ generator moves.
 | [solo-baseline-measurements.md](solo-baseline-measurements.md) | Measured statistics of the generated line, against published human baselines |
 | [evaluation-and-metrics.md](evaluation-and-metrics.md) | How the literature measures generated jazz, what real players score, which failure modes listeners detect |
 | [practice-tools-and-pedagogy.md](practice-tools-and-pedagogy.md) | What comparable tools do, how improvisers are actually taught, and what a static site can deliver |
+| [solo-fixes-applied.md](solo-fixes-applied.md) | What was changed in the generator as a result, with before/after numbers |
 
 ## The short version
 
@@ -35,3 +36,10 @@ all of it away at the UI boundary, where the callback passes a single pitch clas
 The most valuable near-term work may not be making the solo better but making it
 **explain itself** — which also sidesteps the strongest objection in the pedagogy
 literature, that computer-generated solos are poor models for imitation.
+
+## Status
+
+The generator fixes from this research are applied on the `solo-lab` branch —
+see [solo-fixes-applied.md](solo-fixes-applied.md) for what moved. The findings
+about surfacing per-note harmonic function in the UI, and the drill designs
+(coloration quiz, fixed trading, practice ramp, limitation modes), are not built.
