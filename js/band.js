@@ -304,9 +304,9 @@ export class Band {
       this.strips[name] = { sat, cut, air, pan, send };
     }
     const bg = this.bgVolume ?? 1;
-    this.gains.piano.gain.value = 0.75 * bg;
+    this.gains.piano.gain.value = 0.71 * bg;
     this.gains.guitar.gain.value = 1.15 * bg;
-    this.gains.bass.gain.value = 1.36 * bg; // soft velocity layer — see _gainFor
+    this.gains.bass.gain.value = 1.29 * bg; // soft velocity layer — see _gainFor
     this.gains.drums.gain.value = 0.75 * bg;
     this.gains.solo.gain.value = 1.25;
 
@@ -504,7 +504,7 @@ export class Band {
       guitar: { f: 320, cut: -3, airF: 7000, air: 1 },
       // the shelf runs *down* on bass: the pluck's click lives up here, and
       // rolling it off is what turns an obvious attack into a hazier note
-      bass: { f: 300, cut: -2, airF: 3000, air: -7 },
+      bass: { f: 300, cut: -2, airF: 2700, air: -9 },
       drums: { f: 400, cut: -2, airF: 9000, air: 2 },
       solo: { f: 300, cut: -2, airF: 8000, air: 1.5 },
     };
@@ -534,7 +534,10 @@ export class Band {
       };
       this._satCurves = { flat: mk(0), warm: mk(1.6), light: mk(0.6) };
     }
-    this.strips.bass.sat.curve = P.sat ? this._satCurves.warm : this._satCurves.flat;
+    // light drive, not warm: the harder tanh added upper harmonics, and those
+    // harmonics are the edge on the note — the softest lever left once the
+    // velocity is already sitting entirely on the gentle sample layer
+    this.strips.bass.sat.curve = P.sat ? this._satCurves.light : this._satCurves.flat;
     this.strips.drums.sat.curve = P.sat ? this._satCurves.light : this._satCurves.flat;
     for (const n of ["piano", "guitar", "solo"]) this.strips[n].sat.curve = this._satCurves.flat;
 
@@ -707,7 +710,7 @@ export class Band {
     // bass runs hot to buy back the level lost by playing the soft velocity
     // layer (see _bassEvents). This tracks the velocity scale: soften the
     // touch and this goes up to match, so "softer" costs attack, not level.
-    let g = { piano: 0.75, guitar: 1.3, bass: 1.36, drums: 0.75, solo: 1.25 }[name];
+    let g = { piano: 0.71, guitar: 1.3, bass: 1.29, drums: 0.75, solo: 1.25 }[name];
     if (name === "piano" && this.hqOn) g *= 1.05; // keys sit up a touch in the Real mix
     if (name === "bass" && this._bassChoice?.includes("electric")) g *= 0.78;
     return g;
@@ -1109,16 +1112,40 @@ export class Band {
     const thread = new Map();
     {
       const pk = (arr, wanted) => { for (const w of wanted) if (arr.includes(w)) return w; return null; };
-      let prevT = (lo + hi) / 2;
-      for (const ch of chords) {
+      const candsFor = (ch) => {
         const iv = ch.info.intervals;
-        const cands = [];
+        const out = [];
         for (const s of [pk(iv, [4, 3, 5]) ?? 4, pk(iv, [10, 11, 9]) ?? 7]) {
           const pc = (ch.info.rootPc + s) % 12;
-          for (let m = lo + 2; m <= hi - 3; m++) if (m % 12 === pc) cands.push(m);
+          for (let m = lo + 2; m <= hi - 3; m++) if (m % 12 === pc) out.push(m);
         }
+        return out;
+      };
+      let prevT = (lo + hi) / 2;
+      for (let i = 0; i < chords.length; i++) {
+        const ch = chords[i];
+        const cands = candsFor(ch);
+        // What the next chord can be reached from. Picking purely the nearest
+        // guide tone rates a held common tone above the descending half step
+        // — and that half step (7th falling to the next 3rd) is the whole
+        // reason a guide-tone line sounds like a line rather than a series of
+        // correct notes. One chord of lookahead is enough to prefer it.
+        const nextPcs = i + 1 < chords.length
+          ? new Set(candsFor(chords[i + 1]).map((m) => m % 12))
+          : null;
         let best = cands[0] ?? Math.round(prevT);
-        for (const m of cands) if (Math.abs(m - prevT) < Math.abs(best - prevT)) best = m;
+        let bestCost = Infinity;
+        for (const m of cands) {
+          const d = m - prevT;
+          let cost = Math.abs(d);
+          if (d === 0) cost += 1.5; // a held tone is easy and says nothing
+          if (d === -1) cost -= 2; // arrived by the descending half step
+          if (nextPcs?.has((((m - 1) % 12) + 12) % 12)) cost -= 2.5; // sets one up
+          if (cost < bestCost) {
+            bestCost = cost;
+            best = m;
+          }
+        }
         thread.set(ch, best);
         prevT = best;
       }
