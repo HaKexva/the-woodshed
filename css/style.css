@@ -749,6 +749,11 @@ body {
 .credits a { color: var(--blue); text-decoration: none; }
 .credits a:hover { color: var(--amber); }
 
+/* the one link here that is an action rather than an attribution */
+.report-line { margin-top: 0.9rem; }
+.report-link { border-bottom: 1px solid transparent; }
+.report-link:hover { border-bottom-color: currentColor; }
+
 .song-note { font-style: italic; }
 
 /* ------------------------------------------------------------ transport */
