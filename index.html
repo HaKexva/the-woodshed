@@ -36,14 +36,14 @@
         <div class="sleeve-body-inner">
           <button id="open-editor" class="add-tune" data-i18n="addTune">+ add a tune</button>
           <div class="sleeve-head">
-            <h2 class="sleeve-label" id="sleeve-label">side A — standards</h2>
-            <div class="pager">
-              <button id="page-prev" aria-label="previous side"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
-              <button id="page-next" aria-label="next side"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
-            </div>
+            <h2 class="sleeve-label" id="sleeve-label">standards</h2>
           </div>
           <input id="song-search" class="song-search" type="search" placeholder="search tunes…" data-i18n-ph="searchPh" spellcheck="false" />
-          <nav id="letter-index" class="letter-index" aria-label="jump to letter"></nav>
+          <button id="letter-trigger" class="letter-trigger" aria-expanded="false" aria-controls="letter-sheet" hidden>
+            <span data-i18n="jumpTo">jump to</span> <b id="letter-current">A</b>
+            <svg class="icon chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div id="letter-sheet" class="letter-sheet" role="group" aria-label="jump to letter" hidden></div>
           <ol id="tracklist" class="tracklist"></ol>
           <p id="search-empty" class="sleeve-note" data-i18n="noMatch" hidden>no tunes match</p>
         </div>
@@ -152,6 +152,11 @@
     <label class="tempo-ctl">
       <span class="ctl-label" data-i18n="band">band</span>
       <input id="bg-vol" type="range" min="0" max="150" value="100" />
+    </label>
+
+    <label class="tempo-ctl" title="how much room the bass sits in">
+      <span class="ctl-label" data-i18n="bassWet">bass room</span>
+      <input id="bass-wet" type="range" min="0" max="200" value="100" />
     </label>
 
     <div class="mutes" role="group" aria-label="instruments">

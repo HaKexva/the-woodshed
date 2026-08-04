@@ -8,14 +8,21 @@ import { t, getLang, setLang, applyStatic } from "./i18n.js";
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
 
-const PAGE_SIZE = 10;
 const SEARCH_LIMIT = 60; // enough to scroll through; keeps a broad query cheap
-const LETTER_INDEX_FROM = 20; // below two-and-a-bit sides, paging alone is fine
+const LETTER_FROM = 20; // below this the whole book fits one scroll; no need to slice it
+const ALL_CAP = 120; // rows rendered for "all tunes" before you have to pick a letter
+const ALPHA = Array.from({ length: 26 }, (_, k) => String.fromCharCode(65 + k));
+
+/** Bucket a title: A–Z, or "#" for anything starting with a digit or symbol. */
+function letterOf(title) {
+  const ch = title.trim().charAt(0).toUpperCase();
+  return ch >= "A" && ch <= "Z" ? ch : "#";
+}
 
 const state = {
   mode: "session", // session | inspire
   songIndex: 0,
-  page: 0,
+  letter: "ALL", // "ALL", "#", or A-Z — which slice of the book the list shows
   customSong: null, // song loaded from the editor instead of the songbook
   playing: false,
   loading: false,
@@ -37,60 +44,62 @@ const band = new Band({
 
 function renderTracklist() {
   // one delegated listener for the life of the page — the rows themselves come
-  // and go as you page or search
+  // and go as you switch letters or search
   $("#tracklist").addEventListener("click", (e) => {
     const btn = e.target.closest(".track");
     if (btn) selectSong(Number(btn.dataset.i));
   });
-  buildLetterIndex();
-  $("#letter-index").addEventListener("click", (e) => {
-    const btn = e.target.closest("button[data-at]");
-    if (!btn || btn.disabled) return;
-    $("#song-search").value = ""; // jumping is a paging move, not a search
-    state.page = Math.floor(Number(btn.dataset.at) / PAGE_SIZE);
-    updateListView();
-  });
+  buildLetterSheet();
   updateListView();
 }
 
-/** First songbook index under each initial letter. Titles are sorted, so this
- *  is one pass. Anything not starting A-Z buckets under "#". */
-function buildLetterIndex() {
-  // paging alone is fine for a short book; the strip appears when it isn't
-  if (SONGS.length < LETTER_INDEX_FROM) {
-    $("#letter-index").hidden = true;
-    return new Map();
-  }
-  const first = new Map();
-  SONGS.forEach((song, i) => {
-    const ch = song.title.trim().charAt(0).toUpperCase();
-    const key = ch >= "A" && ch <= "Z" ? ch : "#";
-    if (!first.has(key)) first.set(key, i);
+/** The letter grid. Letters with no tunes are shown but not selectable, so the
+ *  alphabet stays in the same place as the songbook grows. */
+function buildLetterSheet() {
+  if (SONGS.length < LETTER_FROM) return; // trigger stays hidden; list shows everything
+  const have = new Set(SONGS.map((s) => letterOf(s.title)));
+  const letters = have.has("#") ? ["#", ...ALPHA] : ALPHA;
+  $("#letter-sheet").innerHTML =
+    `<button type="button" class="all" data-l="ALL">${t("allTunes")}</button>` +
+    letters
+      .map((L) => `<button type="button" data-l="${L}"${have.has(L) ? "" : " disabled"}>${L}</button>`)
+      .join("");
+  $("#letter-trigger").hidden = false;
+
+  $("#letter-trigger").addEventListener("click", () => {
+    const open = $("#letter-sheet").hidden;
+    $("#letter-sheet").hidden = !open;
+    $("#letter-trigger").setAttribute("aria-expanded", String(open));
   });
-  const letters = ["#", ...Array.from({ length: 26 }, (_, k) => String.fromCharCode(65 + k))];
-  $("#letter-index").innerHTML = letters
-    .map((L) => {
-      const at = first.get(L);
-      const dis = at === undefined ? " disabled" : "";
-      return `<button type="button" data-at="${at ?? ""}"${dis}>${L}</button>`;
-    })
-    .join("");
-  return first;
+
+  $("#letter-sheet").addEventListener("click", (e) => {
+    const btn = e.target.closest("button:not([disabled])");
+    if (!btn) return;
+    state.letter = btn.dataset.l;
+    $("#song-search").value = ""; // picking a letter is a browse move, not a search
+    $("#letter-sheet").hidden = true;
+    $("#letter-trigger").setAttribute("aria-expanded", "false");
+    updateListView();
+  });
 }
 
-/** Songbook indices to show right now: search hits, or the current page. */
+/** Songbook indices to show right now: search hits, or the chosen letter. */
 function visibleIndices(query) {
   const q = query.trim().toLowerCase();
-  if (!q) {
-    const from = state.page * PAGE_SIZE;
-    return SONGS.slice(from, from + PAGE_SIZE).map((_, j) => from + j);
+  if (q) {
+    const hits = [];
+    for (let i = 0; i < SONGS.length && hits.length < SEARCH_LIMIT; i++) {
+      const s = SONGS[i];
+      if (`${s.title} ${s.composer} ${s.key} ${s.style}`.toLowerCase().includes(q)) hits.push(i);
+    }
+    return hits;
   }
-  const hits = [];
-  for (let i = 0; i < SONGS.length && hits.length < SEARCH_LIMIT; i++) {
-    const s = SONGS[i];
-    if (`${s.title} ${s.composer} ${s.key} ${s.style}`.toLowerCase().includes(q)) hits.push(i);
+  if (SONGS.length < LETTER_FROM || state.letter === "ALL") {
+    return SONGS.slice(0, ALL_CAP).map((_, i) => i);
   }
-  return hits;
+  const out = [];
+  for (let i = 0; i < SONGS.length; i++) if (letterOf(SONGS[i].title) === state.letter) out.push(i);
+  return out;
 }
 
 function selectSong(i) {
@@ -98,7 +107,7 @@ function selectSong(i) {
   if (wasPlaying) stop();
   state.songIndex = i;
   state.customSong = null;
-  state.page = Math.floor(i / PAGE_SIZE);
+  if (SONGS.length >= LETTER_FROM && state.letter !== "ALL") state.letter = letterOf(SONGS[i].title);
   updateListView();
   const song = SONGS[i];
   state.currentSong = song;
@@ -314,6 +323,12 @@ $("#tempo").addEventListener("input", (e) => {
 
 $("#bg-vol").addEventListener("input", (e) => band.setBgVolume(Number(e.target.value) / 100));
 
+$("#bass-wet").addEventListener("input", (e) => {
+  const wet = Number(e.target.value) / 100;
+  band.setBassWet(wet);
+  localStorage.setItem("woodshed-bass-wet", String(wet));
+});
+
 $$(".mode-btn").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
 
 $("#feel-crowd").addEventListener("change", (e) => band.setSoloFeel("crowd", Number(e.target.value) / 100));
@@ -351,6 +366,12 @@ document.addEventListener("keydown", (e) => {
     $$(".style-chip")[Number(e.key) - 1]?.click();
   }
 });
+
+const savedWet = Number(localStorage.getItem("woodshed-bass-wet"));
+if (Number.isFinite(savedWet) && localStorage.getItem("woodshed-bass-wet") !== null) {
+  band.setBassWet(savedWet);
+  $("#bass-wet").value = String(Math.round(savedWet * 100));
+}
 
 // ---- Real sample pack: on by default, switchable any time, choice persisted.
 // While loading, the status pill shows progress plus a "skip" escape hatch.
@@ -427,12 +448,11 @@ function updateListView() {
     .join("");
   const shown = shownIdx.length;
   $("#search-empty").hidden = shown > 0;
-  const openingTitle = shownIdx.length && !q.trim() ? SONGS[shownIdx[0]].title.trim().charAt(0).toUpperCase() : null;
-  $$("#letter-index button").forEach((b) => b.classList.toggle("on", openingTitle !== null && b.textContent === openingTitle));
-  $("#sleeve-label").textContent = t("sideLabel", { letter: String.fromCharCode(65 + state.page) });
-  const lastPage = Math.ceil(SONGS.length / PAGE_SIZE) - 1;
-  $("#page-prev").disabled = !!q || state.page === 0;
-  $("#page-next").disabled = !!q || state.page >= lastPage;
+  $("#sleeve-label").textContent = t("sleeveCount", { n: SONGS.length });
+  if (!$("#letter-trigger").hidden) {
+    $("#letter-current").textContent = state.letter === "ALL" ? t("allTunes") : state.letter;
+    $$("#letter-sheet button").forEach((b) => b.classList.toggle("on", b.dataset.l === state.letter));
+  }
 }
 
 $("#song-search").addEventListener("input", updateListView);
@@ -450,16 +470,6 @@ function collapseSleeve() {
   $(".sleeve").classList.remove("open");
   $("#sleeve-toggle").setAttribute("aria-expanded", "false");
 }
-
-$("#page-prev").addEventListener("click", () => {
-  state.page = Math.max(0, state.page - 1);
-  updateListView();
-});
-
-$("#page-next").addEventListener("click", () => {
-  state.page = Math.min(Math.ceil(SONGS.length / PAGE_SIZE) - 1, state.page + 1);
-  updateListView();
-});
 
 // "/" focuses search from anywhere
 document.addEventListener("keydown", (e) => {

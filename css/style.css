@@ -165,24 +165,6 @@ body {
   color: var(--amber);
 }
 
-.pager { display: flex; gap: 0.35rem; }
-
-.pager button {
-  width: 1.6rem;
-  height: 1.6rem;
-  background: transparent;
-  color: var(--cream);
-  border: 2px solid var(--cream-25);
-  font-size: 0.95rem;
-  line-height: 1;
-  cursor: pointer;
-  transition: border-color 0.12s, color 0.12s;
-}
-
-.pager button:hover:not(:disabled) { border-color: var(--amber); color: var(--amber); }
-
-.pager button:disabled { color: var(--cream-25); border-color: var(--cream-10); cursor: default; }
-
 .song-search {
   display: block;
   width: calc(100% - 3.2rem);
@@ -199,47 +181,86 @@ body {
 
 .song-search::placeholder { color: var(--cream-25); }
 
-/* jump-to-letter strip — earns its place once the songbook outgrows paging */
-.letter-index {
+/* jump-to-letter: one big control opens a grid of full-size letters. Sized for
+   thumbs — the horizontal A-Z strip it replaces was ~18px per target. */
+.letter-trigger {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.12rem;
-  margin: 0 1.6rem 0.7rem;
-}
-
-.letter-index button {
-  flex: 1 0 auto;
-  min-width: 1.15rem;
-  padding: 0.12rem 0;
-  background: none;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  color: var(--cream-60);
+  align-items: center;
+  gap: 0.45rem;
+  width: calc(100% - 3.2rem);
+  min-height: 44px;
+  margin: 0 1.6rem 0.9rem;
+  padding: 0.5rem 0.7rem;
   font-family: var(--body);
-  font-size: 0.72rem;
-  line-height: 1.5;
-  letter-spacing: 0.02em;
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
+  background: transparent;
+  color: var(--cream-60);
+  border: 2px solid var(--cream-25);
   cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
 }
 
-.letter-index button:hover:not(:disabled) { color: var(--amber); }
+.letter-trigger:hover { border-color: var(--amber); color: var(--cream); }
 
-.letter-index button.on {
+.letter-trigger b {
   color: var(--amber);
-  border-bottom-color: var(--amber);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
-.letter-index button:disabled {
+.letter-trigger .chev {
+  margin-left: auto;
+  width: 1rem;
+  height: 1rem;
+  transition: transform 0.22s ease;
+}
+
+.letter-trigger[aria-expanded="true"] .chev { transform: rotate(180deg); }
+
+.letter-sheet {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 3px;
+  margin: 0 1.6rem 1rem;
+}
+
+.letter-sheet button {
+  aspect-ratio: 1;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--body);
+  font-size: 0.95rem;
+  font-weight: 700;
+  background: var(--ink-3);
+  color: var(--cream);
+  border: 0;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.letter-sheet button:hover:not(:disabled) { background: var(--cream-10); color: var(--amber); }
+
+.letter-sheet button.on { background: var(--amber); color: var(--ink); }
+
+.letter-sheet button:disabled {
+  background: transparent;
   color: var(--cream-10);
   cursor: default;
 }
 
-@media (max-width: 900px) {
-  .letter-index { gap: 0.2rem; }
-  .letter-index button { min-width: 1.6rem; padding: 0.32rem 0; font-size: 0.8rem; }
+.letter-sheet .all {
+  grid-column: span 6;
+  aspect-ratio: auto;
+  padding: 0.55rem 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
 }
-
 
 .tracklist { list-style: none; }
 

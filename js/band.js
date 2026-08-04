@@ -189,6 +189,7 @@ export class Band {
     // piano/guitar/bass/drums once every file is decoded
     this.hqOn = false;
     this._hq = {};
+    this.bassWet = 1; // user scale (0..2) over the tuned bass reverb send
   }
 
   /** Background-band level (0..1.5) — scales piano/guitar/bass/drums, not the solo. */
@@ -457,11 +458,28 @@ export class Band {
     this._applyHq();
   }
 
+  /** Reverb send for the bass strip. The Real pack's basses are close-miked and
+   *  bone dry next to the GM soundfonts, so they need a lot more room to sit in
+   *  the same space as the rest of the trio. The send bus low-cuts at 300 Hz,
+   *  so this wets the harmonics and leaves the fundamental tight. */
+  _bassSend() {
+    const real = this._bassChoice?.startsWith("hq/");
+    // electric (funk) bass wants to sit dry up front — barely any room on it
+    const base = this._bassChoice?.includes("electric") ? (real ? 0.03 : 0.012) : real ? 0.17 : 0.04;
+    return base * this.bassWet;
+  }
+
+  /** Scale the bass room (0..2) — 1 keeps each voice's tuned baseline. */
+  setBassWet(v) {
+    this.bassWet = Math.max(0, Math.min(2, v));
+    if (this.strips?.bass && this.polish.reverb) {
+      this.strips.bass.send.gain.setTargetAtTime(this._bassSend(), this.ctx.currentTime, 0.03);
+    }
+  }
+
   _refreshGain(name) {
     if (name === "bass" && this.strips?.bass && this.polish.reverb) {
-      // electric (funk) bass wants to sit dry up front — barely any room on it
-      const send = this._bassChoice?.includes("electric") ? 0.012 : 0.04;
-      this.strips.bass.send.gain.setTargetAtTime(send, this.ctx.currentTime, 0.03);
+      this.strips.bass.send.gain.setTargetAtTime(this._bassSend(), this.ctx.currentTime, 0.03);
     }
     if (!this.gains?.[name] || this.muted[name]) return;
     const bg = name === "solo" ? 1 : this.bgVolume ?? 1;
@@ -497,7 +515,7 @@ export class Band {
       drums: { f: 400, cut: -2, airF: 9000, air: 2 },
       solo: { f: 300, cut: -2, airF: 8000, air: 1.5 },
     };
-    const sends = { piano: 0.18, guitar: 0.16, bass: 0.04, drums: 0.1, solo: 0.22 };
+    const sends = { piano: 0.18, guitar: 0.16, bass: this._bassSend(), drums: 0.1, solo: 0.22 };
 
     for (const [name, s] of Object.entries(this.strips)) {
       set(s.pan.pan, P.pan ? pans[name] : 0);
