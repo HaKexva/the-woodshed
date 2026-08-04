@@ -644,9 +644,12 @@ export class Band {
     t.stop();
     t.cancel(0);
     t.position = 0;
-    t.bpm.value = this.bpmOverride ?? song.bpm;
+    const bpmNow = this.bpmOverride ?? song.bpm;
+    t.bpm.value = bpmNow;
     t.timeSignature = song.timeSignature ?? 4;
-    t.swing = feel === "swing" ? (song.style === "ballad" ? 0.45 : 0.56) : 0;
+    // swing ratio follows tempo, iReal-style: rounder when slow, flatter fast
+    const swingAmt = song.style === "ballad" ? 0.45 : bpmNow < 110 ? 0.58 : bpmNow < 170 ? 0.55 : 0.48;
+    t.swing = feel === "swing" ? swingAmt : 0;
     t.swingSubdivision = "8n";
     // bar 0 is a count-in; the form loops over bars 1..n
     t.loop = true;
