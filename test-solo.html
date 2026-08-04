@@ -77,9 +77,14 @@
   <div class="row">
     <select id="song"></select>
     <select id="style"></select>
-    <button id="play" class="primary">▶ play</button>
-    <button id="regen">↻ new line</button>
+    <button id="generate" class="primary">↻ generate solo</button>
+    <button id="play">▶ play</button>
     <span id="status" class="status"></span>
+  </div>
+
+  <div class="row">
+    <label class="dial"><input type="checkbox" id="pin" checked /> play exactly the line shown below</label>
+    <label class="dial"><input type="checkbox" id="hq" checked /> Real sample pack for the band</label>
   </div>
 
   <fieldset>
@@ -108,9 +113,10 @@
     </div>
   </fieldset>
 
-  <p class="hintline">Press <kbd>space</kbd> to play/stop, <kbd>r</kbd> for a new line.
-  The annotated line is regenerated independently of playback, so the notes you read are a fresh sample from the same
-  generator — not a transcript of what you just heard. Metrics are computed over that sample.</p>
+  <p class="hintline">Press <kbd>space</kbd> to play/stop, <kbd>g</kbd> to generate a new solo.
+  With <em>play exactly the line shown</em> ticked, the notes below are the notes you hear, repeated every chorus — so you
+  can read along and find out what a metric actually sounds like. Untick it to let the generator improvise a fresh line
+  each chorus the way the app does; the annotated view is then a sample, not a transcript.</p>
 
   <script type="module" src="js/test-solo.js"></script>
 </body>

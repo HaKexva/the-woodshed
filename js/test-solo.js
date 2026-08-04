@@ -15,7 +15,9 @@ const $ = (s) => document.querySelector(s);
 const band = new Band({
   onProgress: (n, total) => ($("#status").textContent = `loading instruments… ${n}/${total}`),
   onReady: () => ($("#status").textContent = ""),
+  onHqProgress: (n, total) => ($("#status").textContent = n === total ? "" : `loading Real pack… ${n}/${total}`),
 });
+band.hqOn = true; // Real pack for the backing band; setup() kicks off the load
 
 const PICKS = ["Autumn Leaves", "Take the A Train", "Blue Bossa", "So What", "Blue Monk", "Misty", "St. Thomas", "All The Things You Are"];
 const songs = PICKS.map((t) => SONGS.find((s) => s.title === t)).filter(Boolean);
@@ -31,15 +33,36 @@ const song = () => songs[Number($("#song").value)];
 
 // ---------------------------------------------------------------- generation
 
-/** Generate one chorus of solo events without scheduling them. */
+// The band regenerates its solo every chorus. To make the annotated view an
+// honest transcript rather than a lookalike sample, the lab intercepts that call
+// and hands back the pinned line instead — same notes, every chorus.
+const improvise = Band.prototype._soloEvents;
+let pinned = null;
+
+band._soloEvents = function (...args) {
+  if (pinned && $("#pin").checked) return pinned.map((e) => ({ ...e }));
+  return improvise.apply(this, args);
+};
+
+/** Improvise one chorus without scheduling it. Always a fresh line. */
 function generate() {
   const s = song();
   const bpb = s.beatsPerBar ?? 4;
   const chords = band._flatten(s, bpb);
   const totalBeats = s.progression.length * bpb;
-  const events = band._soloEvents(chords, totalBeats, s.style, SOLO_LO, SOLO_HI, bpb);
+  const events = improvise.call(band, chords, totalBeats, s.style, SOLO_LO, SOLO_HI, bpb);
   events.sort((a, b) => a.beat - b.beat);
   return { events, chords, totalBeats, bpb, style: s.style };
+}
+
+/** Generate, show it, and play it. */
+async function generateAndShow({ autoplay = false } = {}) {
+  const gen = generate();
+  pinned = gen.events;
+  renderScore(gen);
+  renderMetrics(analyze(gen));
+  if (playing) band.newTake();
+  else if (autoplay) await play();
 }
 
 // ---------------------------------------------------------------- rendering
@@ -105,15 +128,16 @@ function renderScore({ events, chords, totalBeats, bpb }) {
   $("#score").innerHTML = html.join("");
 }
 
-function refresh() {
-  const gen = generate();
-  renderScore(gen);
-  renderMetrics(analyze(gen));
-}
-
 // ---------------------------------------------------------------- controls
 
 async function play() {
+  // the soloist is lazy-loaded and silently no-ops until it exists, so the lab
+  // has to ask for it the way the app's inspire mode does
+  if (!band.soloInst) {
+    $("#status").textContent = band.ctx ? "loading solo piano…" : "loading instruments…";
+    await band.loadSoloist();
+    $("#status").textContent = "";
+  }
   await band.play();
   playing = true;
   $("#play").textContent = "■ stop";
@@ -126,42 +150,49 @@ function stop() {
 }
 
 $("#play").addEventListener("click", () => (playing ? stop() : play()));
-$("#regen").addEventListener("click", () => {
-  refresh();
+$("#generate").addEventListener("click", () => generateAndShow({ autoplay: true }));
+
+$("#pin").addEventListener("change", () => {
   if (playing) band.newTake();
+});
+
+$("#hq").addEventListener("change", async (e) => {
+  if (!band.ctx) { band.hqOn = e.target.checked; return; } // applied when setup runs
+  await band.setHq(e.target.checked);
+  e.target.checked = band.hqOn;
 });
 
 $("#song").addEventListener("change", () => {
   const wasPlaying = playing;
   if (wasPlaying) stop();
   band.loadSong(song());
-  refresh();
+  generateAndShow();
   if (wasPlaying) play();
 });
 
 $("#style").addEventListener("change", (e) => {
   band.setSoloStyle(e.target.value);
-  refresh();
+  generateAndShow();
 });
 
 for (const [id, key] of [["crowd", "crowd"], ["heat", "heat"]]) {
   $(`#${id}`).addEventListener("input", (e) => {
     $(`#${id}-val`).textContent = e.target.value;
     band.setSoloFeel(key, Number(e.target.value) / 100);
-    refresh();
+    generateAndShow();
   });
 }
 
 $("#voicing").addEventListener("change", (e) => {
   band.setSoloVoicing(e.target.value);
-  refresh();
+  generateAndShow();
 });
 
 document.addEventListener("keydown", (e) => {
   if (["INPUT", "SELECT"].includes(e.target.tagName)) return;
   if (e.code === "Space") { e.preventDefault(); playing ? stop() : play(); }
-  if (e.key === "r") { refresh(); if (playing) band.newTake(); }
+  if (e.key === "g") generateAndShow({ autoplay: true });
 });
 
 window.band = band;
-refresh();
+generateAndShow();
