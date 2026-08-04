@@ -174,7 +174,7 @@
       "base": "samples/hq/guitar/",
       "type": "keyed",
       "release": 0.25,
-      "gainTrim": 1.75,
+      "gainTrim": 1.93,
       "samples": [
         {
           "file": "twang_e3_p_rr1.m4a",
@@ -525,6 +525,174 @@
           }
         ]
       }
+    },
+    "bassElectric": {
+      "base": "samples/hq/bassElectric/",
+      "type": "keyed",
+      "release": 0.25,
+      "gainTrim": 0.5,
+      "samples": [
+        {
+          "file": "e2_vl2_rr1.m4a",
+          "rootMidi": 28,
+          "loKey": 0,
+          "hiKey": 29,
+          "loVel": 0,
+          "hiVel": 63
+        },
+        {
+          "file": "g2_vl2_rr1.m4a",
+          "rootMidi": 31,
+          "loKey": 30,
+          "hiKey": 32,
+          "loVel": 0,
+          "hiVel": 63
+        },
+        {
+          "file": "bb2_vl2_rr1.m4a",
+          "rootMidi": 34,
+          "loKey": 33,
+          "hiKey": 35,
+          "loVel": 0,
+          "hiVel": 63
+        },
+        {
+          "file": "db3_vl2_rr1.m4a",
+          "rootMidi": 37,
+          "loKey": 36,
+          "hiKey": 38,
+          "loVel": 0,
+          "hiVel": 63
+        },
+        {
+          "file": "e3_vl2_rr1.m4a",
+          "rootMidi": 40,
+          "loKey": 39,
+          "hiKey": 41,
+          "loVel": 0,
+          "hiVel": 63
+        },
+        {
+          "file": "g3_vl2_rr1.m4a",
+          "rootMidi": 43,
+          "loKey": 42,
+          "hiKey": 44,
+          "loVel": 0,
+          "hiVel": 63
+        },
+        {
+          "file": "bb3_vl2_rr1.m4a",
+          "rootMidi": 46,
+          "loKey": 45,
+          "hiKey": 47,
+          "loVel": 0,
+          "hiVel": 63
+        },
+        {
+          "file": "db4_vl2_rr1.m4a",
+          "rootMidi": 49,
+          "loKey": 48,
+          "hiKey": 50,
+          "loVel": 0,
+          "hiVel": 63
+        },
+        {
+          "file": "e4_vl2_rr1.m4a",
+          "rootMidi": 52,
+          "loKey": 51,
+          "hiKey": 53,
+          "loVel": 0,
+          "hiVel": 63
+        },
+        {
+          "file": "g4_vl2_rr1.m4a",
+          "rootMidi": 55,
+          "loKey": 54,
+          "hiKey": 127,
+          "loVel": 0,
+          "hiVel": 63
+        },
+        {
+          "file": "e2_vl3_rr1.m4a",
+          "rootMidi": 28,
+          "loKey": 0,
+          "hiKey": 29,
+          "loVel": 64,
+          "hiVel": 127
+        },
+        {
+          "file": "g2_vl3_rr1.m4a",
+          "rootMidi": 31,
+          "loKey": 30,
+          "hiKey": 32,
+          "loVel": 64,
+          "hiVel": 127
+        },
+        {
+          "file": "bb2_vl3_rr1.m4a",
+          "rootMidi": 34,
+          "loKey": 33,
+          "hiKey": 35,
+          "loVel": 64,
+          "hiVel": 127
+        },
+        {
+          "file": "db3_vl3_rr1.m4a",
+          "rootMidi": 37,
+          "loKey": 36,
+          "hiKey": 38,
+          "loVel": 64,
+          "hiVel": 127
+        },
+        {
+          "file": "e3_vl3_rr1.m4a",
+          "rootMidi": 40,
+          "loKey": 39,
+          "hiKey": 41,
+          "loVel": 64,
+          "hiVel": 127
+        },
+        {
+          "file": "g3_vl3_rr1.m4a",
+          "rootMidi": 43,
+          "loKey": 42,
+          "hiKey": 44,
+          "loVel": 64,
+          "hiVel": 127
+        },
+        {
+          "file": "bb3_vl3_rr1.m4a",
+          "rootMidi": 46,
+          "loKey": 45,
+          "hiKey": 47,
+          "loVel": 64,
+          "hiVel": 127
+        },
+        {
+          "file": "db4_vl3_rr1.m4a",
+          "rootMidi": 49,
+          "loKey": 48,
+          "hiKey": 50,
+          "loVel": 64,
+          "hiVel": 127
+        },
+        {
+          "file": "e4_vl3_rr1.m4a",
+          "rootMidi": 52,
+          "loKey": 51,
+          "hiKey": 53,
+          "loVel": 64,
+          "hiVel": 127
+        },
+        {
+          "file": "g4_vl3_rr1.m4a",
+          "rootMidi": 55,
+          "loKey": 54,
+          "hiKey": 127,
+          "loVel": 64,
+          "hiVel": 127
+        }
+      ]
     }
   }
 }
