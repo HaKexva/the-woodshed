@@ -710,7 +710,7 @@ export class Band {
     // bass plays the soft velocity layer (see _bassEvents), which costs level;
     // this used to buy all of it back at 1.29 and the bass sat too far forward.
     // Held 5 dB under that now — soft touch, and it stays behind the trio.
-    let g = { piano: 0.69, guitar: 1.15, bass: 0.725, drums: 0.78, solo: 1.25 }[name];
+    let g = { piano: 0.69, guitar: 1.15, bass: 0.7, drums: 0.78, solo: 1.25 }[name];
     if (name === "piano" && this.hqOn) g *= 1.05; // keys sit up a touch in the Real mix
     if (name === "bass" && this._bassChoice?.includes("electric")) g *= 0.78;
     return g;
