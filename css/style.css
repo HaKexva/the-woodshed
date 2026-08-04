@@ -1089,6 +1089,30 @@ input[type="range"]::-moz-range-thumb {
   @media (prefers-reduced-motion: reduce) {
     .sleeve-body, .sleeve-body-inner { transition: none; }
   }
+  /* the helper sits between the chords and the feed, and the scale under it
+     changes on every chord — so its shape must not depend on how many notes
+     that scale has. Label on its own line, notes on exactly one line below,
+     scrolling sideways if a wide scale outruns the phone. Wrapping here made
+     the strip grow a row mid-tune and shunted everything below it. */
+  .solo-strip { display: block; }
+  .solo-label { display: block; margin-bottom: 0.45rem; }
+
+  .solo-notes {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 0.3rem;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .solo-notes::-webkit-scrollbar { display: none; }
+
+  .solo-note {
+    flex: 0 0 auto;
+    min-width: 1.9rem;
+    font-size: 0.95rem;
+    padding: 0.24rem 0.4rem;
+  }
+
   .now { grid-template-columns: 1fr; justify-items: center; text-align: center; }
   .now-side { justify-self: center; text-align: center; }
   .beat-lights { justify-content: center; }

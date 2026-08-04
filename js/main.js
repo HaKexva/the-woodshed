@@ -530,13 +530,15 @@ function collapseSleeve() {
 }
 
 // hitting play on a phone means you want the chords, not the track list you
-// just picked from — fold the sleeve away and bring the stage up
+// just picked from — fold the sleeve away and bring them up. The system view
+// is the target, not the stage: the song title is what you were just reading
+// in the list, so spending phone rows on it pushes the solo notes off.
 function focusStage() {
   if (!isMobile()) return;
   const wasOpen = $(".sleeve").classList.contains("open");
   collapseSleeve();
   const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const go = () => $(".stage").scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
+  const go = () => $("#system-view").scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" });
   // the sleeve folds over 0.32s and the stage rides up with it; scrolling
   // mid-collapse aims at where the chords *were*
   if (wasOpen && !still) setTimeout(go, 340);

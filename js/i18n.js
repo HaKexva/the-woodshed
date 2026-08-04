@@ -45,7 +45,7 @@ export const STRINGS = {
     "mute.bass": "bass",
     "mute.drums": "drums",
     "mute.hq": "Real",
-    boost: "bass+",
+    boost: "Bass+",
     hint: "play / stop",
     "status.loading": "loading instruments… {n}/{total}",
     "status.loadingSolo": "loading solo piano…",
