@@ -352,10 +352,12 @@ export class Band {
   _applyStyleBass(style) {
     this._lastStyle = style;
     if (this._bassOverride) return;
-    // HQ upright covers the acoustic styles; funk keeps the GM electric
-    if (this.hqOn && this._hq.bass && style !== "funk") {
-      this._bassChoice = "hq/meatbass";
-      this.bass = this._hq.bass;
+    // Real pack: upright for the acoustic styles, sampled electric for funk
+    // (falls back to GM electric until the pack carries one)
+    const real = style === "funk" ? this._hq.bassElectric : this._hq.bass;
+    if (this.hqOn && real) {
+      this._bassChoice = style === "funk" ? "hq/electric" : "hq/meatbass";
+      this.bass = real;
       this._refreshGain("bass");
       return;
     }
@@ -423,7 +425,7 @@ export class Band {
       const { loadHqPack } = await import("./hqpack.js");
       this._hq = await loadHqPack(
         this.ctx,
-        { bass: this.gains.bass, guitar: this.gains.guitar, drums: this.gains.drums },
+        { bass: this.gains.bass, bassElectric: this.gains.bass, guitar: this.gains.guitar, drums: this.gains.drums },
         (n, total) => (onProgress ?? this.cb.onHqProgress)?.(n, total)
       );
       if (this.hqOn) this._applyHq();

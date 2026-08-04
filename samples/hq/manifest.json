@@ -6,7 +6,7 @@
       "base": "samples/hq/bass/",
       "type": "keyed",
       "release": 0.35,
-      "gainTrim": 0.55,
+      "gainTrim": 0.52,
       "samples": [
         {
           "file": "eb1_vl2_rr1.m4a",
