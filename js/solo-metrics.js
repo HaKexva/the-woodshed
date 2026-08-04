@@ -37,11 +37,18 @@ export function chordAt(chords, beat, totalBeats) {
 // consonance reads as machine, not as skill.
 export const REF = {
   notesPerBar: [4, 9, "4–9 typical for bebop-era solos"],
-  chordTone: [0.5, 0.56, "50–56% — 8 bebop saxophonists; higher reads as machine"],
+  chordMatch: [0.48, 0.58, "48–58% of sounding time — 8 bebop saxophonists"],
+  chordTone: [0.5, 0.58, "50–58% of notes; higher reads as machine, not skill"],
   chordToneOnDownbeat: [0.55, 1, "≥55% — strong beats carry chord tones"],
   restRatio: [0.12, 0.35, "12–35% — real players breathe"],
   stepwise: [0.55, 0.85, "55–85% of intervals are ≤2 semitones"],
-  phraseBars: [1.5, 4.5, "1.5–4.5 bars per phrase"],
+  halfStepRate: [0.25, 0.35, "25–35% of moving intervals — the bebop marker"],
+  meanInterval: [2.3, 2.8, "2.3–2.8 semitones"],
+  bigLeaps: [0, 0.005, "≤0.5% — real lines almost never leap past an octave"],
+  repeatedNotes: [0, 0.06, "≤6% repeated pitches"],
+  phraseBars: [1, 3, "most phrases run 1–3 bars"],
+  phraseNotes: [8, 18, "8–18 notes — bebop phrases are eighth-note runs"],
+  endChordTone: [0.6, 1, "≥60% of phrases come to rest on a chord tone"],
   rangeSemitones: [12, 26, "an octave to just over two"],
   motifRecurrence: [0.1, 1, "≥10% of phrases echo earlier material"],
 };
@@ -94,6 +101,24 @@ export function analyze({ events, chords, totalBeats, bpb }) {
   m.leapRate = ivs.length ? ivs.filter((x) => x >= 5).length / ivs.length : 0;
   m.intervalHisto = histo(ivs, 13);
 
+  // Bebop's signature is not that it is stepwise — folk song is more stepwise —
+  // but that its steps are half steps roughly a third of the time.
+  const moving = ivs.filter((x) => x > 0);
+  m.halfStepRate = moving.length ? moving.filter((x) => x === 1).length / moving.length : 0;
+  m.meanInterval = moving.length ? moving.reduce((a, b) => a + b, 0) / moving.length : 0;
+  m.bigLeaps = ivs.length ? ivs.filter((x) => x > 12).length / ivs.length : 0;
+  m.repeatedNotes = ivs.length ? ivs.filter((x) => x === 0).length / ivs.length : 0;
+
+  // duration-weighted share of sounding time spent on chord tones — the measure
+  // the bebop-saxophonist baselines were computed with
+  let chordTime = 0, totalTime = 0;
+  for (const e of events) {
+    const d = Math.min(e.dur, 4);
+    totalTime += d;
+    if (classify(e.midi, chordAt(chords, e.beat, totalBeats)).role === "chordtone") chordTime += d;
+  }
+  m.chordMatch = totalTime ? chordTime / totalTime : 0;
+
   const phrases = phrasesOf(events);
   const span = (p) => p[p.length - 1].beat + p[p.length - 1].dur - p[0].beat;
   m.phrases = phrases.length;
@@ -112,6 +137,36 @@ export function analyze({ events, chords, totalBeats, bpb }) {
       }).length / phrases.length
     : 0;
 
+  m.phraseNotes = phrases.length ? events.length / phrases.length : 0;
+
+  // where a phrase comes to rest: real solos land on chord tones, and on the
+  // root or 5th about 40% of the time
+  const ends = phrases.map((p) => p[p.length - 1]);
+  m.endChordTone = ends.length
+    ? ends.filter((e) => classify(e.midi, chordAt(chords, e.beat, totalBeats)).role === "chordtone").length / ends.length
+    : 0;
+
+  // jazz phrases descend far more often than they arch — the opposite of the
+  // folksong "melodic arch", so an arch-shaped contour is the wrong target
+  // Classify by comparing the mean pitch of the phrase's three thirds. Judging
+  // by the single highest note instead calls almost any wandering line an arch.
+  const shape = (p) => {
+    if (p.length < 4) return null;
+    const third = Math.max(1, Math.floor(p.length / 3));
+    const mean = (a) => a.reduce((n, e) => n + e.midi, 0) / a.length;
+    const head = mean(p.slice(0, third));
+    const mid = mean(p.slice(third, p.length - third));
+    const tail = mean(p.slice(p.length - third));
+    if (mid > head + 0.75 && mid > tail + 0.75) return "convex";
+    if (mid < head - 0.75 && mid < tail - 0.75) return "concave";
+    if (tail < head - 1) return "descending";
+    if (tail > head + 1) return "ascending";
+    return "flat";
+  };
+  const shapes = phrases.map(shape).filter(Boolean);
+  const share = (k) => (shapes.length ? shapes.filter((s) => s === k).length / shapes.length : 0);
+  m.contour = { descending: share("descending"), ascending: share("ascending"), convex: share("convex"), concave: share("concave") };
+
   const midis = events.map((e) => e.midi);
   m.rangeSemitones = midis.length ? Math.max(...midis) - Math.min(...midis) : 0;
   m.motifRecurrence = motifRate(phrases);
@@ -125,17 +180,28 @@ function histo(values, buckets) {
   return h;
 }
 
-// A phrase echoes an earlier one when its opening intervals match, transposition
-// allowed — that is the shape a listener hears as development rather than novelty.
+// A phrase echoes an earlier one when its opening contour matches, transposition
+// allowed. Matching is deliberately fuzzy: re-rooting a motif on a new chord
+// snaps notes into a different scale, so intervals shift by a semitone or two
+// while a listener still plainly hears the same idea. Requiring exact equality
+// measures the arithmetic, not the music.
 function motifRate(phrases) {
-  const shapes = phrases.map((p) =>
-    p.slice(0, 5).map((e, i, a) => (i ? e.midi - a[i - 1].midi : 0)).slice(1).join(",")
-  );
-  let echoes = 0;
+  const shapes = phrases.map((p) => p.slice(0, 5).map((e, i, a) => (i ? e.midi - a[i - 1].midi : 0)).slice(1));
+  const echoes = (a, b) => {
+    const n = Math.min(a.length, b.length);
+    if (n < 3) return false;
+    let drift = 0, sameDir = 0;
+    for (let i = 0; i < n; i++) {
+      drift += Math.abs(a[i] - b[i]);
+      if (Math.sign(a[i]) === Math.sign(b[i])) sameDir++;
+    }
+    return drift <= n && sameDir >= n - 1;
+  };
+  let hits = 0;
   for (let i = 1; i < shapes.length; i++) {
-    if (shapes[i].split(",").length >= 3 && shapes.slice(0, i).includes(shapes[i])) echoes++;
+    if (shapes[i].length >= 3 && shapes.slice(0, i).some((prev) => echoes(shapes[i], prev))) hits++;
   }
-  return shapes.length ? echoes / shapes.length : 0;
+  return shapes.length ? hits / shapes.length : 0;
 }
 
 function roleMix(events, chords, totalBeats) {
