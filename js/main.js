@@ -10,7 +10,7 @@ const $$ = (sel) => [...document.querySelectorAll(sel)];
 
 const PAGE_SIZE = 10;
 const SEARCH_LIMIT = 60; // enough to scroll through; keeps a broad query cheap
-const LETTER_INDEX_FROM = 40; // songbook size at which jumping beats paging
+const LETTER_INDEX_FROM = 20; // below two-and-a-bit sides, paging alone is fine
 
 const state = {
   mode: "session", // session | inspire
