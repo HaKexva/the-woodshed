@@ -9,6 +9,7 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
 
 const PAGE_SIZE = 10;
+const SEARCH_LIMIT = 60; // enough to scroll through; keeps a broad query cheap
 
 const state = {
   mode: "session", // session | inspire
@@ -34,22 +35,28 @@ const band = new Band({
 // ------------------------------------------------------------------ tracklist
 
 function renderTracklist() {
-  const ol = $("#tracklist");
-  ol.innerHTML = "";
-  SONGS.forEach((song, i) => {
-    const li = document.createElement("li");
-    li.innerHTML = `
-      <button class="track" data-i="${i}">
-        <span class="track-num">${String(i + 1).padStart(2, "0")}</span>
-        <span class="track-title">${song.title}</span>
-        <span class="track-meta">${song.key} · ${song.bpm} bpm · ${song.style}</span>
-      </button>`;
-    ol.appendChild(li);
-  });
-  ol.addEventListener("click", (e) => {
+  // one delegated listener for the life of the page — the rows themselves come
+  // and go as you page or search
+  $("#tracklist").addEventListener("click", (e) => {
     const btn = e.target.closest(".track");
     if (btn) selectSong(Number(btn.dataset.i));
   });
+  updateListView();
+}
+
+/** Songbook indices to show right now: search hits, or the current page. */
+function visibleIndices(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) {
+    const from = state.page * PAGE_SIZE;
+    return SONGS.slice(from, from + PAGE_SIZE).map((_, j) => from + j);
+  }
+  const hits = [];
+  for (let i = 0; i < SONGS.length && hits.length < SEARCH_LIMIT; i++) {
+    const s = SONGS[i];
+    if (`${s.title} ${s.composer} ${s.key} ${s.style}`.toLowerCase().includes(q)) hits.push(i);
+  }
+  return hits;
 }
 
 function selectSong(i) {
@@ -59,7 +66,6 @@ function selectSong(i) {
   state.customSong = null;
   state.page = Math.floor(i / PAGE_SIZE);
   updateListView();
-  $$(".track").forEach((el, j) => el.classList.toggle("active", j === i));
   const song = SONGS[i];
   state.currentSong = song;
   $("#edit-preview").hidden = true;
@@ -372,16 +378,20 @@ document.addEventListener("keydown", (e) => {
 // search looks across the whole book; otherwise the list shows one
 // 10-track "side" at a time
 function updateListView() {
-  const q = $("#song-search").value.trim().toLowerCase();
-  let shown = 0;
-  $$("#tracklist li").forEach((li, i) => {
-    const s = SONGS[i];
-    const hit = q
-      ? `${s.title} ${s.composer} ${s.key} ${s.style}`.toLowerCase().includes(q)
-      : Math.floor(i / PAGE_SIZE) === state.page;
-    li.hidden = !hit;
-    if (hit) shown++;
-  });
+  const q = $("#song-search").value;
+  const shownIdx = visibleIndices(q);
+  const active = state.customSong ? -1 : state.songIndex;
+  $("#tracklist").innerHTML = shownIdx
+    .map((i) => {
+      const song = SONGS[i];
+      return `<li><button class="track${i === active ? " active" : ""}" data-i="${i}">
+        <span class="track-num">${String(i + 1).padStart(2, "0")}</span>
+        <span class="track-title">${song.title}</span>
+        <span class="track-meta">${song.key} · ${song.bpm} bpm · ${song.style}</span>
+      </button></li>`;
+    })
+    .join("");
+  const shown = shownIdx.length;
   $("#search-empty").hidden = shown > 0;
   $("#sleeve-label").textContent = t("sideLabel", { letter: String.fromCharCode(65 + state.page) });
   const lastPage = Math.ceil(SONGS.length / PAGE_SIZE) - 1;
@@ -501,7 +511,7 @@ $("#ed-preview").addEventListener("click", () => {
   if (wasPlaying) stop();
   state.customSong = song;
   state.currentSong = song;
-  $$(".track").forEach((el) => el.classList.remove("active"));
+  updateListView(); // nothing in the songbook is the current tune any more
   $("#song-title").textContent = `${song.title} (preview)`;
   $("#edit-preview").hidden = false;
   $("#song-detail").textContent = `${song.composer} — ${song.key} · ${song.form} · ${song.style}`;
