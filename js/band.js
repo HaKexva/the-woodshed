@@ -180,7 +180,7 @@ export class Band {
     // sound-quality A/B: mixing polish flags + instrument upgrades
     this.polish = { pan: true, eq: true, comp: true, reverb: true, sat: true, vel: true, drumTone: true };
     this.grandOn = true;
-    this.rideOn = false;
+    this.rideOn = true;
   }
 
   /** Background-band level (0..1.5) — scales piano/guitar/bass/drums, not the solo. */
