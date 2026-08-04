@@ -117,16 +117,17 @@ export async function loadHqInstrument(ctx, name, { destination, onProgress } = 
       const g = ctx.createGain();
       // one continuous velocity→gain curve across both layers — avoids the
       // loudness seam where the sample layers meet
-      g.gain.value = (0.22 + 0.78 * Math.pow(velocity / 127, 1.35)) * trim;
+      const level = (0.22 + 0.78 * Math.pow(velocity / 127, 1.35)) * trim;
+      const t0 = time ?? ctx.currentTime;
+      // 4 ms attack declick, exponential release — a linear gate sounds choppy
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(level, t0 + 0.004);
       src.connect(g);
       g.connect(destination ?? ctx.destination);
-      const t0 = time ?? ctx.currentTime;
       src.start(t0);
       if (duration) {
-        // release ramp instead of a hard cut — the samples ring naturally
-        g.gain.setValueAtTime(g.gain.value, t0 + duration);
-        g.gain.linearRampToValueAtTime(0.0001, t0 + duration + release);
-        src.stop(t0 + duration + release + 0.05);
+        g.gain.setTargetAtTime(0, t0 + duration, release / 3);
+        src.stop(t0 + duration + release * 2);
       }
       active.add(src);
       src.onended = () => active.delete(src);

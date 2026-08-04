@@ -823,6 +823,16 @@ input[type="range"]::-moz-range-thumb {
 
 .status { font-size: 0.8rem; color: var(--blue); flex: 1; text-align: right; }
 
+.linklike {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--amber);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .hint { font-size: 0.78rem; color: var(--cream-60); letter-spacing: 0.06em; }
 
 .hint kbd {

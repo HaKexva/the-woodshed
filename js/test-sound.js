@@ -85,6 +85,20 @@ $("#bass-pick").addEventListener("change", async (e) => {
 
 $("#ride").addEventListener("change", (e) => band.setRide(e.target.checked));
 
+$("#hq").addEventListener("change", async (e) => {
+  if (e.target.checked) {
+    await band.setHq(true, (n, total) =>
+      ($("#status").textContent = n === total ? "" : `loading HQ pack… ${n}/${total}`)
+    );
+    if (!band.hqOn) $("#status").textContent = "HQ pack failed — see console";
+    e.target.checked = band.hqOn;
+  } else {
+    band.setHq(false);
+  }
+});
+
+window.band = band; // console access for the bench
+
 document.addEventListener("keydown", (e) => {
   if (["INPUT", "SELECT"].includes(e.target.tagName) && e.code === "Space") return;
   if (e.code === "Space") {

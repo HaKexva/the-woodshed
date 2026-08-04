@@ -406,11 +406,10 @@ export class Band {
     else this._applyPiano();
   }
 
+  // comping piano stays on the Splendid grand — the sampled upright lost the
+  // ear test against it, so the HQ pack covers guitar/bass/drums only
   _applyPiano() {
-    this.piano =
-      (this.hqOn && this._hq.piano) ||
-      (this.grandOn && this.pianoGrand) ||
-      this.pianoEP;
+    this.piano = (this.grandOn && this.pianoGrand) || this.pianoEP;
   }
 
   _applyGuitar() {
@@ -419,11 +418,12 @@ export class Band {
 
   /** Fetch + decode the whole HQ pack (idempotent — one load per session). */
   loadHqPack(onProgress) {
+    if (!this.gains) return null; // before first play — _setup calls back in
     this._hqLoading ??= (async () => {
       const { loadHqPack } = await import("./hqpack.js");
       this._hq = await loadHqPack(
         this.ctx,
-        { bass: this.gains.bass, guitar: this.gains.guitar, piano: this.gains.piano, drums: this.gains.drums },
+        { bass: this.gains.bass, guitar: this.gains.guitar, drums: this.gains.drums },
         (n, total) => (onProgress ?? this.cb.onHqProgress)?.(n, total)
       );
       if (this.hqOn) this._applyHq();
@@ -445,7 +445,8 @@ export class Band {
   /** Switch between the HQ sample pack and the standard soundfonts, live. */
   setHq(on, onProgress) {
     this.hqOn = on;
-    if (on && !this._hq.piano) return this.loadHqPack(onProgress);
+    if (onProgress) this.cb.onHqProgress = onProgress;
+    if (on && !this._hq.bass) return this.loadHqPack(onProgress);
     this._applyHq();
   }
 
@@ -884,7 +885,7 @@ export class Band {
       const buf = hqBuf ?? this.drumSamples?.[e.drum];
       if (buf) {
         const trim = hqBuf
-          ? { hat: 0.7, snare: 1.0, kick: 0.9, rim: 1.0, ride: 0.5 }[e.drum] ?? 1
+          ? { hat: 0.85, snare: 1.25, kick: 1.1, rim: 1.2, ride: 0.6 }[e.drum] ?? 1
           : { hat: 0.6, snare: 1.3, kick: 0.7, rim: 1.1, ride: 0.35 }[e.drum] ?? 1;
         const src = this.ctx.createBufferSource();
         src.buffer = buf;

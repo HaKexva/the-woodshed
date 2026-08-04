@@ -318,7 +318,46 @@ $("#ride-toggle").addEventListener("click", () => {
   band.setRide(on);
 });
 
-$$(".mute:not(#ride-toggle)").forEach((b) =>
+// ---- HQ sample pack: on by default, switchable any time, choice persisted.
+// While loading, the status pill shows progress plus a "skip" escape hatch.
+function setHqUi(on) {
+  $("#hq-toggle").classList.toggle("off", !on);
+  localStorage.setItem("woodshed-hq", on ? "1" : "0");
+}
+
+function hqPill(n, total) {
+  if (!band.hqOn) return; // skipped mid-load — leave the pill alone
+  if (n === total) {
+    setStatus("");
+    return;
+  }
+  $("#status").innerHTML =
+    `${t("status.loadingHq", { n, total })} <button id="hq-skip" class="linklike">${t("hqSkip")}</button>`;
+  $("#hq-skip").onclick = () => {
+    band.setHq(false);
+    setHqUi(false);
+    setStatus("");
+  };
+}
+
+$("#hq-toggle").addEventListener("click", () => {
+  const enable = $("#hq-toggle").classList.contains("off");
+  setHqUi(enable);
+  if (enable) band.setHq(true, hqPill);
+  else {
+    band.setHq(false);
+    setStatus("");
+  }
+});
+
+if (localStorage.getItem("woodshed-hq") !== "0") {
+  band.hqOn = true; // _setup kicks off the pack load at first play
+  setHqUi(true);
+  band.cb.onHqProgress = hqPill;
+}
+
+$$(".mute:not(#ride-toggle):not(#hq-toggle)").forEach((b) =>
+
   b.addEventListener("click", () => {
     const inst = b.dataset.inst;
     const nowMuted = !b.classList.contains("off");
