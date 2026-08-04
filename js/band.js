@@ -306,7 +306,7 @@ export class Band {
     const bg = this.bgVolume ?? 1;
     this.gains.piano.gain.value = 0.75 * bg;
     this.gains.guitar.gain.value = 1.15 * bg;
-    this.gains.bass.gain.value = 1.0 * bg;
+    this.gains.bass.gain.value = 1.38 * bg; // soft velocity layer — see _gainFor
     this.gains.drums.gain.value = 0.75 * bg;
     this.gains.solo.gain.value = 1.25;
 
@@ -502,7 +502,9 @@ export class Band {
     const eqs = {
       piano: { f: 280, cut: -3.5, airF: 8000, air: 1.5 },
       guitar: { f: 320, cut: -3, airF: 7000, air: 1 },
-      bass: { f: 300, cut: -2, airF: 6000, air: 0 },
+      // the shelf runs *down* on bass: the pluck's click lives up here, and
+      // rolling it off is what turns an obvious attack into a hazier note
+      bass: { f: 300, cut: -2, airF: 3500, air: -5 },
       drums: { f: 400, cut: -2, airF: 9000, air: 2 },
       solo: { f: 300, cut: -2, airF: 8000, air: 1.5 },
     };
@@ -702,7 +704,9 @@ export class Band {
   }
 
   _gainFor(name) {
-    let g = { piano: 0.75, guitar: 1.3, bass: 1.0, drums: 0.75, solo: 1.25 }[name];
+    // bass runs at 1.38 to buy back the level lost by playing the soft
+    // velocity layer — see the velocity scaling in _bassEvents
+    let g = { piano: 0.75, guitar: 1.3, bass: 1.38, drums: 0.75, solo: 1.25 }[name];
     if (name === "piano" && this.hqOn) g *= 1.05; // keys sit up a touch in the Real mix
     if (name === "bass" && this._bassChoice?.includes("electric")) g *= 0.78;
     return g;
@@ -1592,34 +1596,83 @@ export class Band {
 
   _pianoEvents(chords, style, straight, bpb) {
     const events = [];
+    // Swing comping lives on the upbeats. A pool where most patterns start on
+    // beat 1 is the machine tell a player hears first, so the offbeat-first
+    // shapes outnumber the downbeat ones here (charleston, & of 1, & of 4).
     const patterns4 = straight
       ? [ [[0, 1], [1.5, 1.5], [3, 1]], [[0.5, 1], [2, 1], [3.5, 0.5]], [[0, 1.5], [2.5, 1.5]] ]
-      : [ [[0, 1.5], [1.5, 1]], [[0, 1], [2.5, 1.5]], [[1.5, 2.5]], [[0, 2]], [[0, 1], [3, 1]], [[2.5, 1.5]] ];
+      : [
+          [[0, 1.5], [1.5, 1]], [[0, 1], [2.5, 1.5]], [[0, 2]], [[0, 1], [3, 1]],
+          [[1.5, 2.5]], [[2.5, 1.5]], [[1.5, 1], [3.5, 0.5]], [[1.5, 1.5], [3, 0.5]],
+          [[0.5, 1.5], [2.5, 1]], [[0.5, 1], [2, 0.5], [3.5, 0.5]], [[0.5, 2.5]],
+          [[0.5, 1], [2.5, 1]],
+        ];
     const patterns2 = straight
       ? [ [[0, 0.75], [1.5, 0.5]], [[0, 1.5]] ]
-      : [ [[0, 1.5]], [[0.5, 1.5]], [[0, 1], [1.5, 0.5]] ];
+      : [ [[0, 1.5]], [[0.5, 1.5]], [[0, 1], [1.5, 0.5]], [[0.5, 1]], [[1.5, 0.5]] ];
 
     const funkPatterns = [ [[1.5, 0.5], [3, 0.5]], [[0, 0.5], [2.5, 0.5]], [[1.5, 0.5], [2.5, 0.5], [3.5, 0.5]] ];
 
-    for (const c of chords) {
+    // did the previous chord get anticipated? then this one is already
+    // sounding and must not restate its own downbeat. and if it ended on a
+    // chromatic approach, this one *must* state the downbeat — an approach
+    // that never lands is just a wrong note.
+    let anticipated = false;
+    let resolving = false;
+
+    for (let i = 0; i < chords.length; i++) {
+      const c = chords[i];
+      const next = chords[i + 1];
       const midis = pianoVoicing(c.info);
+      const swung = !straight && style !== "ballad" && style !== "funk";
+
+      // The push: the next chord lands half a beat early, over the barline.
+      // Without it the pattern restarts at every chord change and the comp
+      // sounds quantised — this is the gesture that unglues it from the grid.
+      // Sometimes it arrives as a chromatic approach instead: the target
+      // voicing a semitone above, sliding down into the change. An approach
+      // resolves *onto* the beat, so it leaves the next downbeat intact;
+      // a true anticipation replaces it.
+      const pushes = swung && next && c.beats >= 2 && Math.random() < 0.35;
+      const approach = pushes && Math.random() < 0.3;
+      const pushBeat = pushes ? next.startBeat - 0.5 : null;
+
       let hits;
       if (style === "ballad") hits = [[0, c.beats]];
       else if (style === "funk") hits = c.beats >= 4 ? choice(funkPatterns) : [[0, 0.5]];
       else if (c.beats >= 4) hits = choice(patterns4);
       else if (c.beats >= 2) hits = choice(patterns2);
       else hits = [[0, c.beats]];
+      if (anticipated) hits = hits.filter(([off]) => off > 0.25); // already ringing
+      else if (resolving && !hits.some(([off]) => off < 0.25)) {
+        const first = hits.length ? hits[0][0] : c.beats;
+        hits = [[0, Math.min(1, first)], ...hits]; // land the approach
+      }
 
       for (const [off, dur] of hits) {
         if (off >= c.beats) continue;
+        const beat = c.startBeat + off;
+        if (pushBeat !== null && beat >= pushBeat) continue; // the push owns the turn
         events.push({
-          beat: c.startBeat + off,
+          beat,
           dur: Math.min(dur, c.beats - off),
           midis,
           vel: Math.round(rnd(50, 68)),
           roll: style === "ballad",
         });
       }
+
+      if (pushBeat !== null) {
+        const target = pianoVoicing(next.info);
+        events.push({
+          beat: pushBeat,
+          dur: approach ? 0.45 : 0.9,
+          midis: approach ? target.map((m) => m + 1) : target,
+          vel: Math.round(rnd(56, 72)), // a push is played, not whispered
+        });
+      }
+      anticipated = pushes && !approach;
+      resolving = approach;
     }
     return events;
   }
@@ -1692,7 +1745,31 @@ export class Band {
     return events;
   }
 
+  /** Walking/riff line, then one sustain pass over the top of it. */
   _bassEvents(chords, totalBeats, style, straight, bpb) {
+    const events = this._bassLine(chords, totalBeats, style, straight, bpb);
+
+    // Note length, every style alike. Short plucked notes leave audible holes
+    // between the beats, which is what makes a sampled bass read as *plucked*
+    // rather than bowed-into-place — it's the tail that fills the space. Each
+    // note now rings almost into the next one. Never shortens a note that was
+    // already long, so the ballad's held roots are untouched.
+    events.sort((a, b) => a.beat - b.beat);
+    for (let i = 0; i < events.length - 1; i++) {
+      const gap = events[i + 1].beat - events[i].beat;
+      if (gap > 0) events[i].dur = Math.min(2.6, Math.max(events[i].dur, gap * 0.92));
+    }
+
+    // Softer pluck. The Real pack splits its bass samples at velocity 63, and
+    // the line used to sit at 84-102 — every single note fired the hard-plucked
+    // layer, which is the attack that reads as too obvious. Scaled down, most
+    // notes take the gentler layer and only accents cross over; _gainFor pushes
+    // the level back up so this costs no loudness, just edge.
+    for (const e of events) e.vel = Math.max(28, Math.round(e.vel * 0.68));
+    return events;
+  }
+
+  _bassLine(chords, totalBeats, style, straight, bpb) {
     const events = [];
     const chordAt = (beat) => {
       let cur = chords[0];
@@ -1759,28 +1836,67 @@ export class Band {
       return events;
     }
 
-    // swing: walking quarters with chromatic approach into each new chord
+    // Swing: walking quarters. The quarters themselves stay relentless — that's
+    // the job — so the variation lives in how the line *approaches* each change,
+    // where it starts, and the occasional 8th-note skip between beats.
+    const clamp = (m) => Math.max(BASS_LO, Math.min(BASS_HI, m));
+    const leadIns = new Set(); // beats that walk into a new chord
     let prev = 38;
+
     for (let b = 0; b < totalBeats; b++) {
       const c = chordAt(b);
       const pcs = bassPcs(c.info);
       const chordEnd = c.startBeat + c.beats;
+      const beatInBar = b % bpb;
       let midi;
+
       if (b === c.startBeat) {
-        midi = placeNear(pcs.root, prev, BASS_LO, BASS_HI);
+        // usually the root — but landing on it at every single change
+        // telegraphs the harmony, so sometimes take the 3rd or 5th
+        const r = Math.random();
+        const pc = r < 0.14 ? pcs.third : r < 0.22 ? pcs.fifth : pcs.root;
+        midi = placeNear(pc, prev, BASS_LO, BASS_HI);
       } else if (b === chordEnd - 1) {
-        const nextRoot = placeNear(c.next.info.bassPc, prev, BASS_LO, BASS_HI);
-        midi = nextRoot + (Math.random() < 0.5 ? 1 : -1);
-        midi = Math.max(BASS_LO, Math.min(BASS_HI, midi));
+        // the approach into the next chord — four ways in, not one. Always
+        // going chromatic is the tell that gave the old line its sameness.
+        leadIns.add(b);
+        const nextPc = c.next.info.bassPc;
+        const nextRoot = placeNear(nextPc, prev, BASS_LO, BASS_HI);
+        const r = Math.random();
+        if (r < 0.45) midi = nextRoot + (Math.random() < 0.5 ? 1 : -1); // chromatic, either side
+        else if (r < 0.7) midi = placeNear((nextPc + 10) % 12, prev, BASS_LO, BASS_HI); // scalar from below
+        else if (r < 0.85) midi = placeNear((nextPc + 7) % 12, prev, BASS_LO, BASS_HI); // dominant, a 5th up
+        else midi = placeNear(pcs.fifth, prev, BASS_LO, BASS_HI); // stay home, land flat
       } else {
         const cands = [pcs.third, pcs.fifth, pcs.seventh]
           .map((pc) => placeNear(pc, prev + (Math.random() < 0.5 ? 2 : -2), BASS_LO, BASS_HI))
           .filter((m) => m !== prev);
         midi = cands.length ? choice(cands) : prev + 2;
       }
-      events.push({ beat: b, midi, dur: 0.62, vel: Math.round(rnd(86, 100)) });
+
+      midi = clamp(midi);
+      const accent = beatInBar === 0 ? 6 : beatInBar === 2 ? 2 : 0;
+      events.push({ beat: b, midi, dur: rnd(0.55, 0.7), vel: Math.round(rnd(84, 96) + accent) });
       prev = midi;
     }
+
+    // Second pass: 8th-note skips between quarters. Done after the line exists
+    // so each skip can genuinely pass between its neighbours rather than guess
+    // at a note that hasn't been chosen yet. Densest on the way into a change.
+    const quarters = [...events];
+    for (let i = 0; i < quarters.length - 1; i++) {
+      const cur = quarters[i];
+      const nxt = quarters[i + 1];
+      const chance = leadIns.has(cur.beat) ? 0.16 : cur.beat % bpb === 1 ? 0.06 : 0.03;
+      if (Math.random() >= chance) continue;
+      const gap = nxt.midi - cur.midi;
+      const dir = Math.sign(gap) || 1;
+      // fill a leap from the middle; step through a close interval chromatically
+      const mid = Math.abs(gap) >= 3 ? cur.midi + dir * Math.round(Math.abs(gap) / 2) : nxt.midi - dir;
+      if (mid === cur.midi || mid === nxt.midi) continue;
+      events.push({ beat: cur.beat + 0.5, midi: clamp(mid), dur: 0.28, vel: Math.max(60, cur.vel - 18) });
+    }
+    events.sort((a, b) => a.beat - b.beat);
     return events;
   }
 

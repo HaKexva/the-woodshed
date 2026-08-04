@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "credits": "All CC0 1.0. Meatbass, Black & Green Guitars, Swirly Drums \u2014 Karoryfer Samples / D. Smolken (github.com/sfzinstruments). Virtuosity Drums ride/cross-stick \u2014 Versilian Studios + Karoryfer (github.com/sfzinstruments/virtuosity_drums).",
+  "credits": "All CC0 1.0. Meatbass, Black & Green Guitars, Swirly Drums — Karoryfer Samples / D. Smolken (github.com/sfzinstruments). Virtuosity Drums ride/cross-stick — Versilian Studios + Karoryfer (github.com/sfzinstruments/virtuosity_drums).",
   "instruments": {
     "bass": {
       "base": "samples/hq/bass/",
       "type": "keyed",
-      "release": 0.35,
+      "release": 0.6,
       "gainTrim": 0.42,
       "samples": [
         {
@@ -529,7 +529,7 @@
     "bassElectric": {
       "base": "samples/hq/bassElectric/",
       "type": "keyed",
-      "release": 0.25,
+      "release": 0.45,
       "gainTrim": 0.41,
       "samples": [
         {
