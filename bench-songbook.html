@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>woodshed · songbook scale bench</title>
+  <style>
+    :root {
+      --ink: #0f1216; --ink-2: #151a20; --ink-3: #1c232b;
+      --cream: #f2e7d3; --cream-60: rgba(242,231,211,0.6); --cream-25: rgba(242,231,211,0.25);
+      --amber: #f08a24; --blue: #4f86a8; --green: #63a361; --red: #d14b52;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--ink); color: var(--cream); font-family: "Helvetica Neue", sans-serif; padding: 2rem; }
+    h1 { font-size: 1.4rem; }
+    .sub { color: var(--cream-60); font-size: 0.85rem; margin: 0.3rem 0 1.5rem; max-width: 74ch; line-height: 1.55; }
+    .row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1.2rem; }
+    button { font-size: 0.95rem; padding: 0.55rem 1rem; background: var(--ink-3); color: var(--cream); border: 2px solid var(--cream-25); cursor: pointer; }
+    button.primary { background: var(--amber); color: var(--ink); border-color: var(--amber); font-weight: 700; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    fieldset { border: 2px solid var(--cream-25); padding: 1rem 1.2rem; margin-bottom: 1.2rem; }
+    legend { padding: 0 0.5rem; color: var(--blue); font-size: 0.78rem; letter-spacing: 0.15em; text-transform: uppercase; }
+
+    table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+    th, td { text-align: right; padding: 0.4rem 0.7rem; border-bottom: 1px solid rgba(242,231,211,0.12); font-size: 0.9rem; }
+    th:first-child, td:first-child { text-align: left; }
+    th { color: var(--cream-60); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 400; }
+    tr.render-all td { color: var(--red); }
+    tr.windowed td { color: var(--green); }
+    td.label { color: var(--cream) !important; }
+    .verdict { font-size: 0.85rem; color: var(--cream-60); margin-top: 0.8rem; line-height: 1.6; }
+    .status { color: var(--blue); min-height: 1.4em; }
+
+    /* the list under test — same shape as the real sleeve */
+    #stage { max-height: 16rem; overflow-y: auto; border: 1px solid var(--cream-25); margin-top: 1rem; }
+    #stage ol { list-style: none; }
+    #stage li[hidden] { display: none; }
+    .track { display: grid; grid-template-columns: 2.2rem 1fr auto; gap: 0.6rem; width: 100%;
+      background: none; border: 0; border-bottom: 1px solid rgba(242,231,211,0.07); padding: 0.4rem 0.6rem;
+      color: var(--cream); text-align: left; font-size: 0.82rem; }
+    .track-num { color: var(--cream-25); }
+    .track-meta { color: var(--cream-60); font-size: 0.75rem; }
+    kbd { border: 1px solid rgba(242,231,211,0.4); border-radius: 3px; padding: 0 0.35em; font-size: 0.85em; }
+  </style>
+</head>
+<body>
+  <h1>songbook scale bench</h1>
+  <p class="sub">Measures what happens to the tunes list as the songbook grows toward iReal Pro's ~1460.
+  <strong>render&nbsp;all</strong> is what the app does today — one DOM node per song, and every keystroke walks all of them.
+  <strong>windowed</strong> renders only the rows actually on screen. Both run against identical data, in this page, on your machine.</p>
+
+  <div class="row">
+    <button id="run" class="primary">run benchmark</button>
+    <button id="clear">clear</button>
+    <span id="status" class="status"></span>
+  </div>
+
+  <fieldset>
+    <legend>results</legend>
+    <table id="results">
+      <thead>
+        <tr>
+          <th>approach</th><th>songs</th><th>build list</th><th>one keystroke</th>
+          <th>20 keystrokes</th><th>page turn</th><th>DOM nodes</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <p class="verdict" id="verdict"></p>
+  </fieldset>
+
+  <fieldset>
+    <legend>list under test</legend>
+    <div id="stage"><ol id="tracklist"></ol></div>
+  </fieldset>
+
+  <p class="sub">A keystroke is one character typed into the search box: filter the whole songbook, then update what is shown.
+  Times are medians of repeated runs with layout forced, so they include the browser actually doing the work rather than
+  batching it away.</p>
+
+  <script type="module" src="js/bench-songbook.js"></script>
+</body>
+</html>
