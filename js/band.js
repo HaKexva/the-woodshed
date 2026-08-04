@@ -326,7 +326,7 @@ export class Band {
 
     [this.pianoEP, this.bassGM, this.guitar] = await Promise.all([
       loadSf("electric_piano_1", this.gains.piano, "piano"),
-      loadSf("acoustic_bass", this.gains.bass, "bass"),
+      loadSf("electric_bass_finger", this.gains.bass, "bass"),
       loadSf("electric_guitar_jazz", this.gains.guitar, "guitar"),
     ]);
     this.piano = this.pianoEP;
@@ -334,6 +334,38 @@ export class Band {
     if (this.grandOn) this._loadGrand();
 
     this.cb.onReady?.();
+  }
+
+  // each style gets its own bass voice: uprights for the acoustic styles,
+  // fingered electric for the groove styles
+  static STYLE_BASS = {
+    funk: ["MusyngKite", "electric_bass_finger"],
+    latin: ["MusyngKite", "electric_bass_finger"],
+    default: ["FluidR3_GM", "acoustic_bass"],
+  };
+
+  _applyStyleBass(style) {
+    if (this._bassOverride) return;
+    const [kit, name] = Band.STYLE_BASS[style] ?? Band.STYLE_BASS.default;
+    this.setBass(kit, name);
+  }
+
+  /** Audition any GM bass rendering: setBass("MusyngKite","electric_bass_finger") etc. */
+  async setBass(kit, name) {
+    this._bassChoice = `${kit}/${name}`;
+    this._bassCache ??= {};
+    const key = this._bassChoice;
+    if (!this._bassCache[key]) {
+      try {
+        const inst = new Soundfont(this.ctx, { instrument: name, kit, destination: this.gains.bass });
+        await inst.load;
+        this._bassCache[key] = inst;
+      } catch (e) {
+        console.warn(`bass ${key} failed`, e);
+        return;
+      }
+    }
+    if (this._bassChoice === key) this.bass = this._bassCache[key];
   }
 
   /** Acoustic grand for the comping piano (Splendid, public domain). */
@@ -623,6 +655,7 @@ export class Band {
 
     this._chorus = 0;
     this._lastFeel = feel;
+    this._applyStyleBass(song.style);
     this._buildParts(song, feel);
     // every chorus is a fresh take: just before each loop wrap, re-roll the
     // band's patterns and the solo (which builds as choruses stack up)
@@ -771,7 +804,7 @@ export class Band {
 
     mk(ev.bass, (time, e) => {
       if (this.muted.bass) return;
-      this.bass.start({ note: e.midi, time, duration: e.dur * beatSec(), velocity: this._vel(e.vel) });
+      this.bass.start({ note: e.midi, time, duration: e.dur * beatSec() * 0.88, velocity: this._vel(e.vel) });
     });
 
     mk(ev.drums, (time, e) => {
@@ -780,7 +813,7 @@ export class Band {
       // sampled kit when loaded: real attacks, per-hit pitch/level jitter;
       // per-drum trim keeps the ride way back in the mix
       if (this.drumSamples?.[e.drum]) {
-        const trim = { hat: 0.6, snare: 1.05, kick: 0.7, rim: 0.85, ride: 0.5 }[e.drum] ?? 1;
+        const trim = { hat: 0.6, snare: 1.3, kick: 0.7, rim: 1.1, ride: 0.35 }[e.drum] ?? 1;
         const src = this.ctx.createBufferSource();
         src.buffer = this.drumSamples[e.drum];
         src.playbackRate.value = Math.pow(2, rnd(-35, 35) / 1200);

@@ -13,7 +13,7 @@ const band = new Band({
 });
 
 // representative tunes per style
-const PICKS = ["Autumn Leaves", "Take the A Train", "Blue Bossa", "Watermelon Man", "Misty", "So What", "Blue Monk"];
+const PICKS = ["Autumn Leaves", "Take the A Train", "Blue Bossa", "St. Thomas", "Watermelon Man", "Misty", "So What", "Blue Monk"];
 const songs = PICKS.map((t) => SONGS.find((s) => s.title === t)).filter(Boolean);
 $("#song").innerHTML = songs.map((s, i) => `<option value="${i}">${s.title} (${s.style} · ${s.bpm})</option>`).join("");
 band.loadSong(songs[0]);
@@ -69,6 +69,19 @@ $$("input[data-mix]").forEach((c) =>
 );
 
 $("#grand").addEventListener("change", () => setSide("b"));
+
+$("#bass-pick").addEventListener("change", async (e) => {
+  if (e.target.value === "auto") {
+    band._bassOverride = false;
+    band._applyStyleBass(songs[Number($("#song").value)].style);
+    return;
+  }
+  band._bassOverride = true;
+  const [kit, name] = e.target.value.split("/");
+  $("#status").textContent = `loading ${name} (${kit})…`;
+  await band.setBass(kit, name);
+  $("#status").textContent = "";
+});
 
 $("#ride").addEventListener("change", (e) => band.setRide(e.target.checked));
 
