@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>woodshed · sound A/B bench</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f1216; color: #f2e7d3; font-family: "Helvetica Neue", sans-serif; padding: 2rem; }
+    h1 { font-size: 1.4rem; margin-bottom: 0.3rem; }
+    .sub { color: rgba(242,231,211,0.6); font-size: 0.85rem; margin-bottom: 1.5rem; }
+    .row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1.2rem; }
+    select, button { font-size: 1rem; padding: 0.5rem 1rem; background: #1c232b; color: #f2e7d3; border: 2px solid rgba(242,231,211,0.25); cursor: pointer; }
+    button.primary { background: #f08a24; color: #0f1216; border-color: #f08a24; font-weight: 700; }
+    .ab { display: flex; gap: 0; margin-bottom: 1.4rem; }
+    .ab button { font-size: 1.2rem; padding: 0.9rem 2.2rem; font-weight: 700; }
+    .ab button.active { background: #f08a24; color: #0f1216; border-color: #f08a24; }
+    fieldset { border: 2px solid rgba(242,231,211,0.25); padding: 1rem 1.2rem; margin-bottom: 1.2rem; max-width: 720px; }
+    legend { padding: 0 0.5rem; color: #4f86a8; font-size: 0.8rem; letter-spacing: 0.15em; text-transform: uppercase; }
+    label.chk { display: inline-flex; gap: 0.45rem; align-items: center; margin: 0.35rem 1.2rem 0.35rem 0; font-size: 0.95rem; cursor: pointer; }
+    input[type="checkbox"] { width: 1.05rem; height: 1.05rem; accent-color: #f08a24; }
+    .status { color: #4f86a8; min-height: 1.3em; margin-top: 0.6rem; }
+    .hintline { color: rgba(242,231,211,0.4); font-size: 0.8rem; margin-top: 1.5rem; max-width: 62ch; line-height: 1.5; }
+    kbd { border: 1px solid rgba(242,231,211,0.4); border-radius: 3px; padding: 0 0.35em; font-size: 0.85em; }
+  </style>
+</head>
+<body>
+  <h1>sound A/B bench</h1>
+  <p class="sub">branch: sound-quality-ab · A = today's prod sound · B = polished chain + upright bass</p>
+
+  <div class="row">
+    <select id="song"></select>
+    <button id="play" class="primary">▶ play</button>
+    <span id="status" class="status"></span>
+  </div>
+
+  <div class="ab">
+    <button id="ab-a">A — legacy</button>
+    <button id="ab-b" class="active">B — polished</button>
+  </div>
+
+  <fieldset>
+    <legend>isolate polish elements (B side)</legend>
+    <label class="chk"><input type="checkbox" data-mix="pan" checked />stereo stage</label>
+    <label class="chk"><input type="checkbox" data-mix="eq" checked />EQ carve</label>
+    <label class="chk"><input type="checkbox" data-mix="comp" checked />glue + limiter</label>
+    <label class="chk"><input type="checkbox" data-mix="reverb" checked />send reverb</label>
+    <label class="chk"><input type="checkbox" data-mix="sat" checked />bass warmth</label>
+    <label class="chk"><input type="checkbox" data-mix="vel" checked />velocity curve</label>
+    <label class="chk"><input type="checkbox" data-mix="drumTone" checked />drum tone</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>instruments</legend>
+    <label class="chk"><input type="checkbox" id="upright" checked />upright bass (Smolken, CC0)</label>
+    <label class="chk"><input type="checkbox" id="grand" checked />grand comping piano (Splendid, PD)</label>
+    <label class="chk"><input type="checkbox" id="ride" />sampled ride (dry, quiet)</label>
+  </fieldset>
+
+  <p class="hintline">Press <kbd>space</kbd> to play/stop, <kbd>a</kbd>/<kbd>b</kbd> to switch chains while playing.
+  Everything toggles live except the ride (regenerates the drum part at the next toggle).
+  Good test order: pick a swing tune → flip A/B a few times → then un-tick one element at a time on B to hear what each contributes.</p>
+
+  <script type="module" src="js/test-sound.js"></script>
+</body>
+</html>
