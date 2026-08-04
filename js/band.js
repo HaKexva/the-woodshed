@@ -1062,6 +1062,21 @@ export class Band {
     const events = [];
     const ballad = style === "ballad";
     const lerp = (a, b, x) => a + (b - a) * x;
+
+    // Where a phrase is allowed to start. Quantising the gap between phrases
+    // to 16ths let a line re-enter on beat 2.75, which reads as losing the
+    // place rather than as phrasing. Players come in where the bar is audible
+    // — the middle of the bar, the & of 4 as a pickup, or the next downbeat —
+    // so land on the 8th grid and pull onto one of those when it is close.
+    // Only ever moves forward, so the phrase loop always makes progress.
+    const snapEntry = (x) => {
+      const eighth = Math.ceil(x * 2) / 2;
+      const bar = Math.floor(eighth / bpb) * bpb;
+      for (const s of [bar + Math.floor(bpb / 2), bar + bpb - 0.5, bar + bpb]) {
+        if (s >= eighth && s - eighth <= 0.5 && Math.random() < 0.65) return s;
+      }
+      return eighth;
+    };
     const pools = new Map();
     const poolFor = (c) => {
       if (!pools.has(c)) {
@@ -1375,6 +1390,14 @@ export class Band {
       let prevStep = 0;
       let phrasePeakVel = 0;
       let phraseNotes = 0;
+      // Bebop grammar, ghosting and articulation were gated on the phrase
+      // being a plain "run", which switched all three off for motifs, cells,
+      // answers and sequences — around 40% of phrases in the very styles those
+      // devices define. What makes the grammar audible is the notes running,
+      // not which branch chose them, so gate on the note lengths instead.
+      const running =
+        flavor !== "longtones" &&
+        durs.filter((d) => d <= 0.6).length >= Math.max(3, durs.length * 0.5);
       for (let n = 0; n < durs.length && t < totalBeats - 0.5; n++) {
         const c = chordAt(t);
         const pool = subActive && isDom(c) ? subPoolFor(c) : poolFor(c);
@@ -1447,7 +1470,7 @@ export class Band {
           cur = pool[idx];
           // bebop metric grammar: notes landing on the beat want to be chord
           // tones — tensions belong on the upbeats
-          if (flavor === "run" && !subActive && Math.abs(t - Math.round(t)) < 0.05 && Math.random() < M.grammar) {
+          if (running && !subActive && Math.abs(t - Math.round(t)) < 0.05 && Math.random() < M.grammar) {
             const tonePcs = new Set(c.info.intervals.map((iv2) => (c.info.rootPc + iv2) % 12));
             const gi = nearestIdx(pool, cur, (m) => tonePcs.has(m % 12));
             if (gi >= 0 && Math.abs(pool[gi] - cur) <= 4) cur = pool[gi];
@@ -1518,7 +1541,7 @@ export class Band {
         const turned = n > 1 && Math.sign(thisStep) !== 0 && Math.sign(thisStep) !== Math.sign(prevStep); // direction change
         prevStep = thisStep || prevStep;
         // ghosts: quiet in-between notes inside longer runs, horn-style
-        const ghost = flavor === "run" && durs.length >= 5 && n > 0 && !last && n !== peak && Math.random() < 0.18;
+        const ghost = running && durs.length >= 5 && n > 0 && !last && n !== peak && Math.random() < 0.18;
         let vel = Math.round(Math.min(122, Math.max(40, velBase + contour + rnd(-6, 7) + (offbeat ? lerp(2, 10, h) + M.offAcc : 0) + (last ? 4 : 0) + (turned ? 4 : 0))));
         if (ghost) vel = Math.max(25, Math.round(vel * 0.45));
         // grace-note scoop/crush into phrase starts and held notes
@@ -1534,7 +1557,7 @@ export class Band {
           events.push({ beat: lastMain.beat + 0.25, midi: between, dur: 0.23, vel: Math.max(28, vel - 12) });
         }
         // bebop articulation: clip every fourth note of a run
-        const clip = flavor === "run" && !last && n % 4 === 3 ? 0.75 : 1;
+        const clip = running && !last && n % 4 === 3 ? 0.75 : 1;
         phrasePeakVel = Math.max(phrasePeakVel, vel);
         phraseNotes++;
         const ev = { beat: t, midi: cur, dur: dur * legato * clip, vel, rawDur: dur };
@@ -1628,7 +1651,7 @@ export class Band {
       } else {
         t += Math.max(0.5, (lerp(0.75, 0.3, c) + lerp(0.18, -0.2, intensity)) * M.rest * (0.7 + 0.38 * spent) * restWave + choice([-0.5, 0, 0.5]) + (ballad ? 1 : 0));
       }
-      t = Math.round(t * 4) / 4;
+      t = snapEntry(t);
     }
     // Wes: the chorus builds — single notes, then octaves, then chords
     if (S.wesArc) {
