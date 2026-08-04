@@ -120,6 +120,42 @@ settings × both voicings × four choruses — checked for non-finite values,
 out-of-range pitches, bad durations and velocities, events outside the form, and
 empty output. No problems.
 
+## Latin: its own treatment
+
+The `latin` feel was seven multipliers away from `swing`, and measured
+identically to it — same note density, same half-step rate, same phrase length,
+same syncopation. It was a bebop solo with congas behind it.
+
+What an Afro-Cuban line actually does differently, and what it now does:
+
+- **It is organised by the clave, not the eighth-note grid.** Phrase entries are
+  pulled onto the nearest stroke of the 3-2 son clave over its two-bar cycle
+  (beats 1, 2.5, 4 | 2, 3), leaving a quarter of entries free so the line can
+  cross the clave as well as land on it. Entries on a stroke went from 13% to
+  **34%**, against 12% for swing.
+- **Straight eighths.** Triplets fell from 14% of notes to **1%**.
+- **On top of the beat, not behind it.** The behind-the-beat lag is now
+  effectively zero, where swing keeps its drag.
+- **More anticipation.** Stating the next chord early is idiomatic here rather
+  than occasional.
+- **Less bebop chromaticism**, more figure repetition — enclosures, blue notes
+  and chromatic passing tones all pulled back, motif restatement raised.
+
+Two supporting changes were needed. The chromatic passing tone ignored the song
+feel entirely, so latin stayed as chromatic as bebop however far the enclosure
+dial was turned down. And the pickup and enclosure devices front-run a phrase by
+half a beat to a beat, which walked the entry straight off the clave stroke it
+had just been snapped to — both are now suppressed for clave styles, which is
+what took alignment from 21% to 34%.
+
+The parameter merge also gained `motif` and `antic`, so a song's feel can reach
+figure repetition and anticipation at all. Both were previously read straight off
+the player style, one of about fifteen parameters the audit flagged as
+unreachable from the song.
+
+Bossa is left alone. It has its own clave and a much gentler surface, and its
+existing feel parameters already separate it from swing.
+
 ## Not done
 
 Carried forward, in rough priority order:

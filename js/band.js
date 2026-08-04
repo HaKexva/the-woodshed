@@ -20,7 +20,11 @@ export const STYLE_FEEL = {
   swing: {},
   ballad: {},
   bossa: { trip: 0.25, p16: 0.5, encl: 0.6, blue: 0.6, rest: 1.15, hold: 1.2, lag: 0.5, offStart: 0.35, wLong: 1.3, grammar: 0.9, velOff: -4, phrase: 0.9 },
-  latin: { trip: 0.35, p16: 0.9, encl: 0.8, blue: 0.9, lag: 0.3, offStart: 0.45, offAcc: 4, grammar: 0.9 },
+  latin: {
+    clave: true,
+    trip: 0.06, p16: 0.9, encl: 0.4, blue: 0.5, lag: 0.05, offStart: 0.6, offAcc: 6,
+    grammar: 0.9, motif: 1.5, antic: 2.2, wRiff: 1.6, sit: 1.4, rest: 0.85, phrase: 1.1,
+  },
   funk: { trip: 0.15, p16: 1.6, encl: 0.5, blue: 1.7, rest: 1.05, hold: 0.8, lag: 0.25, offStart: 0.55, offAcc: 6, wRiff: 1.9, phrase: 0.75, sit: 1.5, crush: 1.3, grammar: 0.7 },
   blues: { blue: 1.8, trip: 1.1, encl: 0.9, wRiff: 1.5, sit: 1.3, crush: 1.5, grammar: 0.85 },
   modal: { encl: 0.4, blue: 0.8, phrase: 1.3, rest: 1.1, hold: 1.25, wRun: 1.15, grammar: 0.7, lag: 0.9 },
@@ -1093,6 +1097,8 @@ export class Band {
       wRun: (S.wRun ?? 1) * (F.wRun ?? 1),
       wLong: (S.wLong ?? 1) * (F.wLong ?? 1),
       wRiff: (S.wRiff ?? 1) * (F.wRiff ?? 1),
+      motif: (S.motif ?? 0.5) * (F.motif ?? 1),
+      antic: (S.antic ?? 1) * (F.antic ?? 1),
     };
     // multi-chorus energy wave: statement → build → PEAK → layout, repeat.
     // High tide gets burn devices; the layout chorus genuinely rests.
@@ -1195,7 +1201,7 @@ export class Band {
       }
       const useAnswer = answer !== null;
       const useSeq = !useAnswer && seq !== null;
-      const useMotif = !useAnswer && !useSeq && motif && Math.random() < (S.motif ?? 0.5);
+      const useMotif = !useAnswer && !useSeq && motif && Math.random() < Math.min(0.85, M.motif);
       const useCell = !useAnswer && !useSeq && !useMotif && S.cells && Math.random() < (S.cellProb ?? 0);
       const flavor = useAnswer || useSeq || useMotif ? "motif" : useCell ? "cell" : ballad && Math.random() < 0.5 ? "longtones" : pickFlavor(intensity);
       let velBase = lerp(52, 84, intensity) + lerp(-4, 24, h) + M.velOff + (useAnswer ? -6 : 0);
@@ -1265,6 +1271,17 @@ export class Band {
       // pushed off it (Parker)
       if (S.onBeat && Math.random() < S.onBeat) t = Math.round(t);
       else if (M.offStart && Math.abs(t - Math.round(t)) < 0.05 && Math.random() < M.offStart) t += 0.5;
+      if (F.clave && bpb === 4 && Math.random() < 0.75) {
+        // 3-2 son clave over a two-bar cycle — every stroke is within a beat of
+        // anywhere, so this pulls rather than merely nudges
+        const cycle = ((t % (bpb * 2)) + bpb * 2) % (bpb * 2);
+        let best = null;
+        for (const stroke of [0, 1.5, 3, 5, 6]) {
+          if (best === null || Math.abs(stroke - cycle) < Math.abs(best - cycle)) best = stroke;
+        }
+        const shift = best - cycle;
+        if (Math.abs(shift) <= 1.05 && t + shift > lastEnd) t += shift;
+      }
 
       // contour shape, drawn from the distribution measured in jazz solo
       // corpora: descending dominates and the arch is the minority case
@@ -1306,11 +1323,11 @@ export class Band {
             lastMain.midi = target + (target > lastMain.midi ? -1 : 1);
           }
           // bebop enclosure: scale step above, semitone below, then the target
-          if (n === 0 && !useMotif && t - 1 >= lastEnd && Math.random() < lerp(0.15, 0.4, intensity) * M.encl) {
+          if (n === 0 && !useMotif && !F.clave && t - 1 >= lastEnd && Math.random() < lerp(0.15, 0.4, intensity) * M.encl) {
             const above = pool[Math.min(pool.length - 1, idx + 1)];
             events.push({ beat: t - 1, midi: above, dur: 0.42, vel: Math.round(velBase - 14) });
             events.push({ beat: t - 0.5, midi: target - 1, dur: 0.42, vel: Math.round(velBase - 10) });
-          } else if (n === 0 && !ballad && t - 0.5 >= lastEnd && Math.abs(t - Math.round(t)) < 0.05 && Math.random() < 0.4) {
+          } else if (n === 0 && !ballad && !F.clave && t - 0.5 >= lastEnd && Math.abs(t - Math.round(t)) < 0.05 && Math.random() < 0.4) {
             // pickup entry: two stepwise notes on the & of the previous beat,
             // walking up into the landing
             events.push({ beat: t - 0.5, midi: pool[Math.max(0, idx - 2)], dur: 0.22, vel: Math.round(velBase - 14) });
@@ -1430,7 +1447,7 @@ export class Band {
         // bebop passing tone: a chromatic 16th slipped between a whole-step
         // descent over a dominant chord
         if (lastMain && Math.abs(lastMain.midi - cur) === 2 && lastMain.rawDur === 0.5 && !ghost
-            && Math.random() < (isDom(c) ? 0.4 : 0.2)) {
+            && Math.random() < (isDom(c) ? 0.4 : 0.2) * Math.min(1.4, M.encl)) {
           lastMain.dur = 0.25 * legato;
           const between = cur + (lastMain.midi > cur ? 1 : -1);
           events.push({ beat: lastMain.beat + 0.25, midi: between, dur: 0.23, vel: Math.max(28, vel - 12) });
@@ -1510,7 +1527,7 @@ export class Band {
       // cross-bar anticipation: state the next chord's guide tone half a
       // beat early and hold it over the barline
       const nc = chords.find((x) => x.startBeat >= t + 0.5 && x.startBeat <= t + 4);
-      if (nc && !ballad && Math.random() < 0.3 * (S.antic ?? 1)) {
+      if (nc && !ballad && Math.random() < Math.min(0.8, 0.3 * M.antic)) {
         const antBeat = nc.startBeat - 0.5;
         if (antBeat >= lastEnd + 0.25 && antBeat < totalBeats - 1) {
           cur = thread.get(nc);
