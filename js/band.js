@@ -303,12 +303,12 @@ export class Band {
       this.gains[name] = g;
       this.strips[name] = { sat, cut, air, pan, send };
     }
+    // _gainFor owns the levels — setting them literally here only held until the
+    // first mute / band-volume / style change refreshed the strip from it
     const bg = this.bgVolume ?? 1;
-    this.gains.piano.gain.value = 0.71 * bg;
-    this.gains.guitar.gain.value = 1.15 * bg;
-    this.gains.bass.gain.value = 1.29 * bg; // soft velocity layer — see _gainFor
-    this.gains.drums.gain.value = 0.75 * bg;
-    this.gains.solo.gain.value = 1.25;
+    for (const name of ["piano", "guitar", "bass", "drums", "solo"]) {
+      this.gains[name].gain.value = this._gainFor(name) * (name === "solo" ? 1 : bg);
+    }
 
     this._applyPolish();
 
@@ -465,7 +465,7 @@ export class Band {
     const real = this._bassChoice?.startsWith("hq/");
     // electric (funk) bass wants to sit dry up front — barely any room on it
     if (this._bassChoice?.includes("electric")) return real ? 0.03 : 0.012;
-    return real ? 0.425 : 0.04;
+    return real ? 0.425 : 0.13;
   }
 
   _refreshGain(name) {
@@ -504,7 +504,7 @@ export class Band {
       guitar: { f: 320, cut: -3, airF: 7000, air: 1 },
       // the shelf runs *down* on bass: the pluck's click lives up here, and
       // rolling it off is what turns an obvious attack into a hazier note
-      bass: { f: 300, cut: -2, airF: 2700, air: -9 },
+      bass: { f: 300, cut: -2, airF: 2400, air: -12 },
       drums: { f: 400, cut: -2, airF: 9000, air: 2 },
       solo: { f: 300, cut: -2, airF: 8000, air: 1.5 },
     };
@@ -707,10 +707,10 @@ export class Band {
   }
 
   _gainFor(name) {
-    // bass runs hot to buy back the level lost by playing the soft velocity
-    // layer (see _bassEvents). This tracks the velocity scale: soften the
-    // touch and this goes up to match, so "softer" costs attack, not level.
-    let g = { piano: 0.71, guitar: 1.3, bass: 1.29, drums: 0.75, solo: 1.25 }[name];
+    // bass plays the soft velocity layer (see _bassEvents), which costs level;
+    // this used to buy all of it back at 1.29 and the bass sat too far forward.
+    // Held 5 dB under that now — soft touch, and it stays behind the trio.
+    let g = { piano: 0.69, guitar: 1.3, bass: 0.71, drums: 0.75, solo: 1.25 }[name];
     if (name === "piano" && this.hqOn) g *= 1.05; // keys sit up a touch in the Real mix
     if (name === "bass" && this._bassChoice?.includes("electric")) g *= 0.78;
     return g;
