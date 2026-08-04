@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>woodshed · solo lab</title>
+  <style>
+    :root {
+      --ink: #0f1216; --ink-2: #151a20; --ink-3: #1c232b;
+      --cream: #f2e7d3; --cream-60: rgba(242,231,211,0.6); --cream-25: rgba(242,231,211,0.25);
+      --amber: #f08a24; --blue: #4f86a8; --green: #63a361; --red: #d14b52; --violet: #9b7bc4;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--ink); color: var(--cream); font-family: "Helvetica Neue", sans-serif; padding: 2rem; }
+    h1 { font-size: 1.4rem; margin-bottom: 0.3rem; }
+    .sub { color: var(--cream-60); font-size: 0.85rem; margin-bottom: 1.5rem; max-width: 70ch; line-height: 1.5; }
+    .row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+    select, button { font-size: 0.95rem; padding: 0.5rem 0.9rem; background: var(--ink-3); color: var(--cream); border: 2px solid var(--cream-25); cursor: pointer; }
+    button.primary { background: var(--amber); color: var(--ink); border-color: var(--amber); font-weight: 700; }
+    fieldset { border: 2px solid var(--cream-25); padding: 1rem 1.2rem; margin-bottom: 1.2rem; }
+    legend { padding: 0 0.5rem; color: var(--blue); font-size: 0.78rem; letter-spacing: 0.15em; text-transform: uppercase; }
+    label.dial { display: inline-flex; gap: 0.5rem; align-items: center; margin-right: 1.5rem; font-size: 0.9rem; }
+    .status { color: var(--blue); min-height: 1.3em; }
+
+    /* annotated line */
+    .score { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .bar {
+      border: 1px solid var(--cream-25); border-left: 3px solid var(--cream-25);
+      padding: 0.4rem 0.55rem; min-width: 8.5rem; flex: 1 1 8.5rem;
+    }
+    .bar.playing { border-left-color: var(--amber); background: rgba(240,138,36,0.07); }
+    .bar-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.35rem; }
+    .bar-chord { font-weight: 700; font-size: 0.9rem; }
+    .bar-num { color: var(--cream-25); font-size: 0.7rem; font-variant-numeric: tabular-nums; }
+    .bar-notes { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+    .n {
+      font-size: 0.8rem; padding: 0.1rem 0.3rem; border-radius: 2px;
+      font-variant-numeric: tabular-nums; border-bottom: 2px solid transparent;
+    }
+    .n.chordtone { color: var(--ink); background: var(--green); }
+    .n.tension   { color: var(--ink); background: var(--blue); }
+    .n.approach  { color: var(--ink); background: var(--amber); }
+    .n.outside   { color: var(--cream); background: var(--red); }
+    .n.downbeat  { border-bottom-color: var(--cream); }
+    .n .deg { font-size: 0.66em; opacity: 0.75; margin-left: 0.15em; }
+    .rest { color: var(--cream-25); font-size: 0.8rem; }
+
+    .legend-key { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.78rem; color: var(--cream-60); margin-top: 0.8rem; }
+    .legend-key span::before { content: ""; display: inline-block; width: 0.7rem; height: 0.7rem; margin-right: 0.35rem; vertical-align: -1px; }
+    .k-chordtone::before { background: var(--green); }
+    .k-tension::before { background: var(--blue); }
+    .k-approach::before { background: var(--amber); }
+    .k-outside::before { background: var(--red); }
+
+    /* metrics */
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.9rem 1.4rem; }
+    .metric-name { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cream-60); }
+    .metric-val { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .metric-val small { font-size: 0.6em; font-weight: 400; color: var(--cream-60); }
+    .metric-ref { font-size: 0.72rem; color: var(--cream-25); }
+    .metric.warn .metric-val { color: var(--amber); }
+
+    .histo { display: flex; align-items: flex-end; gap: 2px; height: 3rem; margin-top: 0.3rem; }
+    .histo i { flex: 1; background: var(--blue); min-height: 1px; }
+    .histo-labels { display: flex; gap: 2px; font-size: 0.6rem; color: var(--cream-25); }
+    .histo-labels span { flex: 1; text-align: center; }
+
+    .hintline { color: var(--cream-25); font-size: 0.8rem; margin-top: 1.5rem; max-width: 68ch; line-height: 1.6; }
+    kbd { border: 1px solid rgba(242,231,211,0.4); border-radius: 3px; padding: 0 0.35em; font-size: 0.85em; }
+  </style>
+</head>
+<body>
+  <h1>solo lab</h1>
+  <p class="sub">Generates an Inspire-mode solo, shows every note colored by its harmonic function, and measures the line
+  against reference values from jazz-corpus research. Use it to hear a change and see whether it actually moved the numbers.</p>
+
+  <div class="row">
+    <select id="song"></select>
+    <select id="style"></select>
+    <button id="play" class="primary">▶ play</button>
+    <button id="regen">↻ new line</button>
+    <span id="status" class="status"></span>
+  </div>
+
+  <fieldset>
+    <legend>feel</legend>
+    <label class="dial">crowding <input id="crowd" type="range" min="0" max="100" value="50" /> <span id="crowd-val">50</span></label>
+    <label class="dial">loudness <input id="heat" type="range" min="0" max="100" value="50" /> <span id="heat-val">50</span></label>
+    <label class="dial">voicing
+      <select id="voicing"><option value="mono">mono</option><option value="multi">multi</option></select>
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>measured line</legend>
+    <div id="metrics" class="metrics"></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>annotated line — one chorus</legend>
+    <div id="score" class="score"></div>
+    <div class="legend-key">
+      <span class="k-chordtone">chord tone (1 3 5 7)</span>
+      <span class="k-tension">tension (9 11 13 alt)</span>
+      <span class="k-approach">chromatic approach</span>
+      <span class="k-outside">outside / avoid</span>
+      <span>underline = lands on a downbeat</span>
+    </div>
+  </fieldset>
+
+  <p class="hintline">Press <kbd>space</kbd> to play/stop, <kbd>r</kbd> for a new line.
+  The annotated line is regenerated independently of playback, so the notes you read are a fresh sample from the same
+  generator — not a transcript of what you just heard. Metrics are computed over that sample.</p>
+
+  <script type="module" src="js/test-solo.js"></script>
+</body>
+</html>
