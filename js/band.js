@@ -175,6 +175,7 @@ export class Band {
     this.muted = { piano: false, guitar: false, bass: false, drums: false };
     this.setupPromise = null;
     this.playing = false;
+    this.paused = false; // playing && paused = held mid-tune, position kept
     this.soloOn = false;
     this.soloFeel = { crowd: 0.5, heat: 0.5 }; // crowd: note packing · heat: loudness/sharpness
     this.soloStyleName = "dexter";
@@ -192,10 +193,12 @@ export class Band {
     this.bassBoost = false; // see _gainFor
   }
 
-  /** Push the bass forward for walking-line practice — see _gainFor. */
+  /** Push the bass forward for walking-line practice — level in _gainFor,
+   *  shelf corner in _applyPolish. Both have to move, hence the full pass. */
   setBassBoost(on) {
     this.bassBoost = !!on;
     this._refreshGain("bass");
+    this._applyPolish();
   }
 
   /** Background-band level (0..1.5) — scales piano/guitar/bass/drums, not the solo. */
@@ -510,8 +513,10 @@ export class Band {
       piano: { f: 280, cut: -3.5, airF: 8000, air: 1.5 },
       guitar: { f: 320, cut: -3, airF: 7000, air: 1 },
       // the shelf runs *down* on bass: the pluck's click lives up here, and
-      // rolling it off is what turns an obvious attack into a hazier note
-      bass: { f: 300, cut: -2, airF: 2400, air: -12 },
+      // rolling it off is what turns an obvious attack into a hazier note.
+      // Boost moves the corner up so the pluck comes back — a phone speaker
+      // reads the bass by its attack, having no fundamental to work with
+      bass: { f: 300, cut: -2, airF: this.bassBoost ? 3200 : 2400, air: -12 },
       drums: { f: 400, cut: -2, airF: 9000, air: 2 },
       solo: { f: 300, cut: -2, airF: 8000, air: 1.5 },
     };
@@ -720,7 +725,7 @@ export class Band {
     let g = { piano: 0.69, guitar: 1.15, bass: 0.7, drums: 0.78, solo: 1.25 }[name];
     // boost pulls the bass back up front for practising walking lines — phone
     // speakers and cheap earbuds lose the fundamental at the mixed level
-    if (name === "bass" && this.bassBoost) g = 1.1;
+    if (name === "bass" && this.bassBoost) g = 1.2;
     if (name === "piano" && this.hqOn) g *= 1.05; // keys sit up a touch in the Real mix
     if (name === "bass" && this._bassChoice?.includes("electric")) g *= 0.78;
     return g;
@@ -774,13 +779,36 @@ export class Band {
       `${song.progression.length + 0.9}m`
     );
     this.playing = true;
+    this.paused = false;
     t.start("+0.1");
+  }
+
+  /** Freeze where the tune stands. The parts and the transport position
+   *  survive, so resume() picks the bar up mid-phrase rather than from the
+   *  top — the reason to pause at all when you are working one passage. */
+  pause() {
+    if (!this.playing || this.paused) return;
+    Tone.getTransport().pause();
+    this.paused = true;
+    // a sampled note holds its tail past the pause otherwise, so the bar
+    // rings on over a stopped band
+    this.piano?.stop?.();
+    this.bass?.stop?.();
+    this.guitar?.stop?.();
+    this.soloInst?.stop?.();
+  }
+
+  resume() {
+    if (!this.playing || !this.paused) return;
+    this.paused = false;
+    Tone.getTransport().start("+0.05");
   }
 
   stop() {
     const t = Tone.getTransport();
     t.stop();
     t.cancel(0);
+    this.paused = false;
     this.parts.forEach((p) => p.dispose());
     this.parts = [];
     this.soloPart?.dispose();
