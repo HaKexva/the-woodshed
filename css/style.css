@@ -265,6 +265,8 @@ body {
   opacity: 0.45;
 }
 
+.letter-sheet .mine[disabled] { opacity: 0.45; box-shadow: inset 0 0 0 2px var(--cream-25); color: var(--cream-25); }
+
 .letter-sheet .mine {
   grid-column: 1 / 4;
   aspect-ratio: auto;
@@ -696,6 +698,8 @@ body {
 
 .editor-overlay[hidden] { display: none; }
 
+body.modal-open { overflow: hidden; }
+
 .editor-overlay {
   position: fixed;
   inset: 0;
@@ -773,6 +777,7 @@ body {
 
 .editor textarea { width: 100%; resize: vertical; letter-spacing: 0.03em; }
 
+.ed-errors.ok { color: var(--green); }
 .ed-errors { color: var(--red); font-size: 0.82rem; min-height: 1.2em; margin: 0.5rem 0; white-space: pre-line; }
 
 .ed-actions { display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap; margin-top: 0.6rem; }
@@ -805,6 +810,31 @@ body {
 .ed-actions .ed-danger { background: transparent; color: var(--red); border-color: var(--red); }
 .ed-actions .ed-danger:hover { background: var(--red); color: var(--ink); filter: none; }
 .ed-actions .ed-danger[hidden] { display: none; }
+
+.ed-collection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 1.4rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--cream-10);
+}
+
+.ed-collection button,
+.ed-collection .ed-file span {
+  font-family: var(--body);
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--cream-60);
+  border: 2px solid var(--cream-25);
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+}
+.ed-collection button:hover,
+.ed-collection .ed-file:hover span { border-color: var(--amber); color: var(--amber); }
 
 /* a file picker that looks like the buttons beside it */
 .ed-file { position: relative; display: inline-flex; }
@@ -1313,6 +1343,18 @@ input[type="range"]::-moz-range-thumb {
 .system-view { display: none; }
 
 @media (max-width: 900px) {
+  /* iOS zooms the page in when a field's text is under 16px, and does not zoom
+     back out when the keyboard goes away — so every control you can type into
+     is 16px on a phone, whatever it looks like on a desktop. Written with the
+     same specificity as the rules it has to beat: a bare `input` selector
+     loses to `.editor input` no matter where it sits in the file. */
+  .editor input,
+  .editor select,
+  .editor textarea,
+  .song-search,
+  .take-seed input,
+  .wood-opt select { font-size: 16px; }
+
   .layout { grid-template-columns: 1fr; }
 
   /* masthead must wrap — brand + mode switch don't share a phone row */

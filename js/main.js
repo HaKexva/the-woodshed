@@ -105,9 +105,7 @@ function buildLetterSheet() {
  *  you would go looking for them — and starting one sits beside it, because
  *  finding and making are the same errand. */
 function renderLetterSheet(letters, have) {
-  const mineCell = mine.length
-    ? `<button type="button" class="mine" data-l="MINE">★ ${t("mineTunes")} · ${mine.length}</button>`
-    : "";
+  const mineCell = `<button type="button" class="mine" data-l="MINE"${mine.length ? "" : " disabled"}>★ ${t("mineTunes")} · ${mine.length}</button>`;
   $("#letter-sheet").innerHTML =
     `<button type="button" class="all" data-l="ALL">${t("allTunes")}</button>` +
     mineCell +
@@ -153,10 +151,10 @@ function selectSong(i) {
   state.songIndex = i;
   state.customSong = null;
   state.mineId = isMineIdx(i) ? song.id : null;
+  $("#edit-preview").hidden = !state.mineId; // yours can be edited; the songbook cannot
   if (!isMineIdx(i) && SONGS.length >= LETTER_FROM && state.letter !== "ALL") state.letter = letterOf(song.title);
   updateListView();
   state.currentSong = song;
-  $("#edit-preview").hidden = true;
   $("#song-title").textContent = song.title;
   $("#song-detail").textContent = `${song.composer} — ${song.key} · ${song.form} · ${song.style}`;
   $("#tempo").value = song.bpm;
@@ -653,7 +651,7 @@ function updateListView() {
     .join("");
   const shown = shownIdx.length;
   $("#search-empty").hidden = shown > 0;
-  $("#sleeve-label").textContent = t("sleeveCount", { n: SONGS.length + mine.length });
+  $("#sleeve-label").textContent = t("sleeveCount", { n: SONGS.length });
   if (!$("#letter-trigger").hidden) {
     $("#letter-current").textContent = state.letter === "ALL" ? t("allTunes") : state.letter;
     $$("#letter-sheet button").forEach((b) => b.classList.toggle("on", b.dataset.l === state.letter));
@@ -756,6 +754,7 @@ const ALERT_ICON = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="cu
 const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 function showEditorIssues(errors, warnings) {
+  $("#ed-errors").classList.remove("ok");
   $("#ed-errors").innerHTML = [
     ...errors.map(esc),
     ...warnings.map((w) => `${ALERT_ICON} ${esc(w)}`),
@@ -765,18 +764,40 @@ function showEditorIssues(errors, warnings) {
   return errors.length > 0 || warnings.length > 0;
 }
 
+/** Same line, different meaning: green when something worked. It shares the
+ *  slot with the error line, so it has to stop looking like one. */
+function editorSays(msg) {
+  $("#ed-errors").classList.add("ok");
+  $("#ed-errors").innerHTML = `${CHECK_ICON} ${esc(msg)}`;
+}
+
 function openEditor(song) {
+  editing = null;
+  $("#ed-errors").textContent = "";
+  $("#ed-errors").classList.remove("ok");
   if (song) fillEditor(song);
+  else syncEditorButtons();
   $("#editor-overlay").hidden = false;
+  // the page behind a modal should not scroll away under it
+  document.body.classList.add("modal-open");
   $("#ed-title").focus();
+}
+
+function closeEditor() {
+  $("#editor-overlay").hidden = true;
+  document.body.classList.remove("modal-open");
 }
 
 $("#open-editor").addEventListener("click", () => openEditor());
 $("#add-tune-quick").addEventListener("click", () => openEditor());
-$("#edit-preview").addEventListener("click", () => openEditor());
-$("#ed-close").addEventListener("click", () => ($("#editor-overlay").hidden = true));
+$("#edit-preview").addEventListener("click", () => {
+  // it edits the tune on screen: one you saved, or the unsaved preview
+  const mineNow = state.mineId ? mine.find((t) => t.id === state.mineId) : null;
+  openEditor(mineNow ?? state.customSong ?? undefined);
+});
+$("#ed-close").addEventListener("click", closeEditor);
 $("#editor-overlay").addEventListener("click", (e) => {
-  if (e.target === $("#editor-overlay")) $("#editor-overlay").hidden = true;
+  if (e.target === $("#editor-overlay")) closeEditor();
 });
 
 $("#ed-preview").addEventListener("click", () => {
@@ -797,16 +818,10 @@ $("#ed-preview").addEventListener("click", () => {
   renderLeadsheet(song);
   renderSources(song);
   resetChordDisplay();
-  $("#editor-overlay").hidden = true;
+  closeEditor();
   play();
 });
 
-$("#ed-export").addEventListener("click", () => {
-  const { song, errors, warnings } = buildEditorSong();
-  if (showEditorIssues(errors, warnings)) return;
-  $("#ed-json").value = JSON.stringify(song, null, 2);
-  $("#ed-output").hidden = false;
-});
 
 // dice: an idiomatic progression in a random key — blues, minor blues, or
 // 32-bar AABA — built from real cells (ii-V-I, turnarounds, rhythm bridge)
@@ -904,34 +919,6 @@ function syncEditorButtons() {
   $("#ed-save").textContent = editing ? t("ed.update") : t("ed.save");
 }
 
-$("#ed-load").addEventListener("click", () => {
-  const text = $("#ed-import-json").value.trim();
-  if (!text) return;
-  // one box, two jobs: a single tune fills the form, a collection is imported
-  let parsed = null;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    $("#ed-errors").textContent = t("err.loadJson", { msg: t("err.notJson") });
-    return;
-  }
-  if (Array.isArray(parsed) || Array.isArray(parsed?.tunes)) {
-    const { added, skipped, error } = importMine(text);
-    if (error || !added) {
-      $("#ed-errors").textContent = t("err.loadJson", { msg: t("err.noTunes") });
-      return;
-    }
-    refreshMine();
-    $("#ed-errors").textContent = t("ed.imported", { n: added, skipped });
-    return;
-  }
-  if (!Array.isArray(parsed?.progression)) {
-    $("#ed-errors").textContent = t("err.loadJson", { msg: t("err.needTitleProg") });
-    return;
-  }
-  fillEditor({ ...parsed, id: null });
-});
-
 /** Re-read the store and put every view that shows tunes back in step. */
 function refreshMine() {
   mine = loadMine();
@@ -947,7 +934,7 @@ $("#ed-save").addEventListener("click", () => {
   syncEditorButtons();
   $("#ed-title").value = stored.title; // a generated name becomes visible
   refreshMine();
-  $("#ed-errors").innerHTML = `${CHECK_ICON} ${esc(t("ed.saved", { title: stored.title }))}`;
+  editorSays(t("ed.saved", { title: stored.title }));
 });
 
 $("#ed-delete").addEventListener("click", () => {
@@ -956,7 +943,7 @@ $("#ed-delete").addEventListener("click", () => {
   editing = null;
   syncEditorButtons();
   refreshMine();
-  $("#ed-errors").textContent = t("ed.deleted");
+  editorSays(t("ed.deleted"));
 });
 
 $("#ed-export-all").addEventListener("click", () => {
@@ -974,20 +961,16 @@ $("#ed-import-file").addEventListener("change", async (e) => {
   const { added, skipped, error } = importMine(await file.text());
   e.target.value = "";
   if (error || !added) {
-    $("#ed-errors").textContent = t("err.loadJson", { msg: t("err.noTunes") });
+    $("#ed-errors").classList.remove("ok");
+    $("#ed-errors").textContent = t("err.noTunes");
     return;
   }
   refreshMine();
-  $("#ed-errors").innerHTML = `${CHECK_ICON} ${esc(t("ed.imported", { n: added, skipped }))}`;
+  editorSays(t("ed.imported", { n: added, skipped }));
 });
 
 const CHECK_ICON = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>`;
 
-$("#ed-copy").addEventListener("click", async () => {
-  await navigator.clipboard.writeText($("#ed-json").value);
-  $("#ed-copy").innerHTML = `${t("ed.copied")} ${CHECK_ICON}`;
-  setTimeout(() => ($("#ed-copy").textContent = t("ed.copy")), 1500);
-});
 
 // ------------------------------------------------------------------ language
 
