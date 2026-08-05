@@ -232,17 +232,17 @@
       <button class="mute" data-inst="drums" data-i18n="mute.drums">drums</button>
     </div>
 
-    <label class="real-toggle" title="Bass+: lifts the bass forward for walking-line practice — on by default on phones">
-      <span data-i18n="boost">Bass+</span>
-      <input id="bass-boost" type="checkbox" />
-      <span class="switch" aria-hidden="true"></span>
-    </label>
-
-    <label class="real-toggle" title="Real: sampled instruments (~3.5 MB, cached after first load)">
-      <span data-i18n="mute.hq">Real</span>
-      <input id="hq-toggle" type="checkbox" />
-      <span class="switch" aria-hidden="true"></span>
-    </label>
+    <span class="boost-group">
+      <label class="real-toggle">
+        <span data-i18n="boost">Bass+</span>
+        <input id="bass-boost" type="checkbox" />
+        <span class="switch" aria-hidden="true"></span>
+      </label>
+      <button id="boost-help" class="take-help" aria-expanded="false" aria-controls="boost-tip" aria-label="what is Bass+?">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 17v-5"/><path d="M12 8h.01"/></svg>
+      </button>
+      <p id="boost-tip" class="take-tip boost-tip" role="tooltip" data-i18n="boostTip">For phone and laptop speakers only. Leave it off on headphones.</p>
+    </span>
 
     <span id="status" class="status" role="status"></span>
     <span class="hint"><kbd>space</kbd> <span data-i18n="hint">play / stop</span></span>

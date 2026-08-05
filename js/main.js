@@ -573,15 +573,13 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-// ---- Real sample pack: on by default, switchable any time, choice persisted.
-// While loading, the status pill shows progress plus a "skip" escape hatch.
-function setHqUi(on) {
-  $("#hq-toggle").checked = on;
-  localStorage.setItem("woodshed-hq", on ? "1" : "0");
-}
-
+// ---- Real sample pack. There is no longer a switch: the sampled instruments
+// are simply what the band sounds like, and a toggle offering a worse version
+// of the same thing was only ever a question nobody wanted asked. The pill
+// still reports progress on a first visit, and still offers a way out if the
+// download is going badly.
 function hqPill(n, total) {
-  if (!band.hqOn) return; // skipped mid-load — leave the pill alone
+  if (!band.hqOn) return; // bailed mid-load — leave the pill alone
   if (n === total) {
     setStatus("");
     return;
@@ -590,26 +588,26 @@ function hqPill(n, total) {
     `${t("status.loadingHq", { n, total })} <button id="hq-skip" class="linklike">${t("hqSkip")}</button>`;
   $("#hq-skip").onclick = () => {
     band.setHq(false);
-    setHqUi(false);
     setStatus("");
   };
 }
 
-$("#hq-toggle").addEventListener("change", (e) => {
-  const enable = e.target.checked;
-  setHqUi(enable);
-  if (enable) band.setHq(true, hqPill);
-  else {
-    band.setHq(false);
-    setStatus("");
-  }
-});
+band.hqOn = true; // _setup kicks off the pack load at first play
+band.cb.onHqProgress = hqPill;
 
-if (localStorage.getItem("woodshed-hq") !== "0") {
-  band.hqOn = true; // _setup kicks off the pack load at first play
-  setHqUi(true);
-  band.cb.onHqProgress = hqPill;
-}
+// Bass+ needs a sentence: it is not a "more bass" control, it is a fix for a
+// speaker that cannot produce the note at all, and it makes headphones worse.
+$("#boost-help").addEventListener("click", () => {
+  const btn = $("#boost-help");
+  const open = btn.getAttribute("aria-expanded") !== "true";
+  btn.setAttribute("aria-expanded", String(open));
+  $("#boost-tip").classList.toggle("open", open);
+});
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#boost-help") || e.target.closest("#boost-tip")) return;
+  $("#boost-help")?.setAttribute("aria-expanded", "false");
+  $("#boost-tip")?.classList.remove("open");
+});
 
 $("#bass-boost").addEventListener("change", (e) => band.setBassBoost(e.target.checked));
 
