@@ -204,10 +204,11 @@ export class Band {
     this.rampCap = 320;
     this.breakBars = 0;
     // Chromatic notes are the bebop marker and also the hardest thing to hear
-    // against the changes. Switching them off snaps every deliberately-outside
-    // note back into the chord scale, which is the "stay inside" limitation
-    // drill and, for a beginner, a far more readable line.
-    this.chromaticOn = true;
+    // against the changes, so the line starts inside the scale: enclosures,
+    // approach figures, arrival leans, passing tones, tritone subs and blue
+    // notes all held back until you ask for them. Off by default because the
+    // point of the line is to be followed against the chord under it.
+    this.chromaticOn = false;
     // sound-quality A/B: mixing polish flags + instrument upgrades
     this.polish = { pan: true, eq: true, comp: true, reverb: true, sat: true, vel: true, drumTone: true };
     this.grandOn = true;
