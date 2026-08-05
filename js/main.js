@@ -728,6 +728,45 @@ function parseProgressionText(text, ts) {
   return { progression, errors, warnings };
 }
 
+/** Draw the chart from what is in the box right now. This is the job error
+ *  messages used to do: a miscounted bar or an unreadable chord shows up as you
+ *  make it, in the same grid the player uses, rather than after a button. */
+function renderEditorSheet() {
+  const ts = Number($("#ed-ts").value) || 4;
+  const { progression, errors, warnings } = parseProgressionText($("#ed-prog").value, ts);
+  // Flag by bar number, which every message carries, rather than by digging a
+  // chord symbol out of the prose — "unknown quality \"zzz7\" in Bbzzz7" quotes
+  // the quality, not the chord.
+  const bad = new Set(
+    [...errors, ...warnings].map((m) => Number((m.match(/bar (\d+)/) ?? [])[1])).filter(Boolean)
+  );
+
+  $("#ed-sheet").innerHTML = progression.length
+    ? progression
+        .map((bar, i) => `<span class="${bad.has(i + 1) ? "bad" : ""}">${bar.map((c) => esc(c.chord)).join(" ")}</span>`)
+        .join("")
+    : `<span class="ed-sheet-empty">${esc(t("ed.sheetEmpty"))}</span>`;
+
+  $("#ed-shape").textContent = progression.length
+    ? t("ed.shape", { bars: progression.length, ts: `${ts}/4` })
+    : "";
+
+  // the status line only reports on the changes; save and delete write to it too
+  if (!editorHeld) {
+    const issues = [...errors, ...warnings];
+    $("#ed-errors").classList.toggle("ok", !issues.length && progression.length > 0);
+    $("#ed-errors").innerHTML = issues.length
+      ? issues.map(esc).join("<br>")
+      : progression.length
+      ? `${CHECK_ICON} ${esc(t("ed.reads"))}`
+      : "";
+  }
+  return { progression, errors, warnings };
+}
+
+// a save or delete message outranks the live parse line until the next keystroke
+let editorHeld = false;
+
 function buildEditorSong() {
   const ts = Number($("#ed-ts").value);
   const { progression, errors, warnings } = parseProgressionText($("#ed-prog").value, ts);
@@ -754,6 +793,7 @@ const ALERT_ICON = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="cu
 const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 function showEditorIssues(errors, warnings) {
+  editorHeld = true;
   $("#ed-errors").classList.remove("ok");
   $("#ed-errors").innerHTML = [
     ...errors.map(esc),
@@ -767,16 +807,26 @@ function showEditorIssues(errors, warnings) {
 /** Same line, different meaning: green when something worked. It shares the
  *  slot with the error line, so it has to stop looking like one. */
 function editorSays(msg) {
+  editorHeld = true;
   $("#ed-errors").classList.add("ok");
   $("#ed-errors").innerHTML = `${CHECK_ICON} ${esc(msg)}`;
 }
 
+for (const id of ["#ed-prog", "#ed-ts"]) {
+  $(id).addEventListener("input", () => {
+    editorHeld = false;
+    renderEditorSheet();
+  });
+}
+
 function openEditor(song) {
   editing = null;
+  editorHeld = false;
   $("#ed-errors").textContent = "";
   $("#ed-errors").classList.remove("ok");
   if (song) fillEditor(song);
   else syncEditorButtons();
+  renderEditorSheet();
   $("#editor-overlay").hidden = false;
   // the page behind a modal should not scroll away under it
   document.body.classList.add("modal-open");
@@ -796,31 +846,36 @@ $("#edit-preview").addEventListener("click", () => {
   openEditor(mineNow ?? state.customSong ?? undefined);
 });
 $("#ed-close").addEventListener("click", closeEditor);
+$("#ed-grab").addEventListener("click", closeEditor);
+$("#ed-grab").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    closeEditor();
+  }
+});
+// drag the handle down to dismiss, the way a sheet is expected to behave
+$("#ed-grab").addEventListener("pointerdown", (e) => {
+  const sheet = $(".editor");
+  const from = e.clientY;
+  let dy = 0;
+  const move = (ev) => {
+    dy = Math.max(0, ev.clientY - from);
+    sheet.style.transform = `translateY(${dy}px)`;
+  };
+  const up = () => {
+    sheet.style.transform = "";
+    document.removeEventListener("pointermove", move);
+    document.removeEventListener("pointerup", up);
+    if (dy > 90) closeEditor();
+  };
+  document.addEventListener("pointermove", move);
+  document.addEventListener("pointerup", up);
+});
 $("#editor-overlay").addEventListener("click", (e) => {
   if (e.target === $("#editor-overlay")) closeEditor();
 });
 
-$("#ed-preview").addEventListener("click", () => {
-  const { song, errors, warnings } = buildEditorSong();
-  if (showEditorIssues(errors, warnings)) return;
-  const wasPlaying = state.playing;
-  if (wasPlaying) stop();
-  state.customSong = song;
-  state.currentSong = song;
-  updateListView(); // nothing in the songbook is the current tune any more
-  $("#song-title").textContent = `${song.title} (preview)`;
-  $("#edit-preview").hidden = false;
-  $("#song-detail").textContent = `${song.composer} — ${song.key} · ${song.form} · ${song.style}`;
-  $("#tempo").value = song.bpm;
-  $("#tempo-val").textContent = song.bpm;
-  band.bpmOverride = null;
-  band.loadSong(song);
-  renderLeadsheet(song);
-  renderSources(song);
-  resetChordDisplay();
-  closeEditor();
-  play();
-});
+
 
 
 // dice: an idiomatic progression in a random key — blues, minor blues, or
@@ -906,9 +961,10 @@ function fillEditor(song) {
   $("#ed-form").value = song.form ?? "";
   $("#ed-source").value = song.source?.[0] ?? "";
   $("#ed-prog").value = progressionToText(song.progression, ts);
-  $("#ed-errors").textContent = "";
   editing = song.id ?? null;
   syncEditorButtons();
+  editorHeld = false;
+  renderEditorSheet();
 }
 
 // which saved tune the editor is currently standing in for, if any
@@ -916,7 +972,7 @@ let editing = null;
 
 function syncEditorButtons() {
   $("#ed-delete").hidden = !editing;
-  $("#ed-save").textContent = editing ? t("ed.update") : t("ed.save");
+  $("#ed-save-label").textContent = editing ? t("ed.update") : t("ed.save");
 }
 
 /** Re-read the store and put every view that shows tunes back in step. */
@@ -927,6 +983,8 @@ function refreshMine() {
 }
 
 $("#ed-save").addEventListener("click", () => {
+  // One button, because saving and hearing it are the same intention. Previewing
+  // without saving only ever produced a tune you then lost.
   const { song, errors, warnings } = buildEditorSong();
   if (showEditorIssues(errors, warnings)) return;
   const stored = saveMine(song, editing);
@@ -934,7 +992,15 @@ $("#ed-save").addEventListener("click", () => {
   syncEditorButtons();
   $("#ed-title").value = stored.title; // a generated name becomes visible
   refreshMine();
-  editorSays(t("ed.saved", { title: stored.title }));
+  closeEditor();
+
+  // it is a real tune now, so select it the way the list would rather than
+  // holding it as an unsaved preview
+  const at = mine.findIndex((t) => t.id === stored.id);
+  if (at < 0) return;
+  const wasPlaying = state.playing;
+  selectSong(MINE_BASE + at);
+  if (!wasPlaying) play();
 });
 
 $("#ed-delete").addEventListener("click", () => {

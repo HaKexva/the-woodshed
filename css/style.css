@@ -700,6 +700,8 @@ body {
 
 body.modal-open { overflow: hidden; }
 
+.ed-grab { display: none; }
+
 .editor-overlay {
   position: fixed;
   inset: 0;
@@ -727,11 +729,93 @@ body.modal-open { overflow: hidden; }
   margin-bottom: 1.2rem;
 }
 
+/* The changes are the content; everything else is metadata about them. The
+   field you came to fill is the top of the dialog, the chart draws itself
+   beside it as you type, and the five labelled fields become a row of chips
+   already showing the value they will use. */
+.ed-main { display: grid; grid-template-columns: 1fr; gap: 1.3rem; margin-bottom: 1.2rem; }
+@media (min-width: 60rem) { .ed-main { grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr); } }
+
+.ed-write { display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; }
+.ed-preview { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
+
+.ed-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+.chip-in {
+  font-family: var(--body);
+  font-size: 0.82rem;
+  background: var(--ink);
+  color: var(--cream);
+  border: 2px solid var(--cream-25);
+  padding: 0.35rem 0.55rem;
+  width: auto;
+  min-width: 0;
+}
+.chip-in:focus { outline: none; border-color: var(--amber); }
+.chip-in::placeholder { color: var(--cream-25); }
+/* out-specify `.editor input/select/textarea { width: 100% }` above, or the
+   chips stack into a column instead of reading as one row */
+.ed-chips .chip-in { width: auto; }
+.ed-chips .chip-in.grow { flex: 1 1 8rem; width: auto; }
+.ed-chips .chip-in.narrow { width: 5rem; flex: 0 0 auto; }
+.ed-chips select.chip-in { cursor: pointer; flex: 0 0 auto; padding-right: 0.4rem; }
+
+/* bpm keeps its unit, since a bare number in a row of chips says nothing */
+.chip-num { display: inline-flex; align-items: center; border: 2px solid var(--cream-25); background: var(--ink); }
+.chip-num input { border: 0; width: 4rem; }
+.chip-num input:focus { outline: none; }
+.chip-num i {
+  font-style: normal;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--cream-25);
+  padding-right: 0.5rem;
+}
+.chip-num:focus-within { border-color: var(--amber); }
+
+/* the chart, drawn from what is in the box right now */
+.ed-shape {
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--cream-60);
+  min-height: 1em;
+}
+
+.ed-sheet {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--cream-10);
+  border: 1px solid var(--cream-10);
+  min-height: 3.5rem;
+}
+
+.ed-sheet span {
+  background: var(--ink);
+  color: var(--cream);
+  font-weight: 700;
+  font-size: 0.7rem;
+  padding: 0.5rem 0.25rem;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ed-sheet span.bad { color: var(--red); box-shadow: inset 0 -2px 0 var(--red); }
+.ed-sheet .ed-sheet-empty {
+  grid-column: 1 / -1;
+  color: var(--cream-25);
+  font-weight: 400;
+  font-size: 0.78rem;
+  padding: 1rem 0.5rem;
+}
+
 .ed-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 0.9rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.4rem;
 }
 
 .editor label {
@@ -893,6 +977,72 @@ body.modal-open { overflow: hidden; }
 
 @media (max-width: 700px) {
   .ed-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* On a phone the dialog becomes a sheet: it rises from the bottom edge, the
+     actions stay in the thumb zone, and the keyboard pushes it up instead of
+     burying it — which is where a centred dialog struggles most. */
+  .editor-overlay {
+    align-items: flex-end;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .editor {
+    width: 100%;
+    max-height: 92dvh;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-width: 3px 0 0;
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -14px 34px rgba(0, 0, 0, 0.5);
+    padding: 0.6rem 1.1rem 0;
+    animation: sheet-up 0.26s ease;
+  }
+
+  .ed-grab {
+    display: block;
+    width: 44px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--cream-25);
+    margin: 0.2rem auto 0.7rem;
+    flex: none;
+    padding: 0;
+    border: 0;
+    cursor: grab;
+  }
+  .ed-grab:active { cursor: grabbing; }
+
+  .editor h2 { font-size: 1.5rem; margin-bottom: 0.9rem; }
+
+  /* the buttons ride along the bottom of the sheet rather than scrolling off */
+  .ed-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin: 0 -1.1rem;
+    padding: 0.8rem 1.1rem calc(0.8rem + env(safe-area-inset-bottom));
+    background: var(--ink-2);
+    border-top: 1px solid var(--cream-10);
+  }
+  .ed-actions .ed-primary { flex: 1 1 8rem; }
+
+  .ed-collection {
+    margin: 0 -1.1rem;
+    padding: 1rem 1.1rem calc(1.2rem + env(safe-area-inset-bottom));
+    border-top: 0;
+  }
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(12%); }
+  to { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor { animation: none; }
 }
 
 /* inline lucide icons */
