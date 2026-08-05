@@ -151,7 +151,10 @@ function selectSong(i) {
   state.songIndex = i;
   state.customSong = null;
   state.mineId = isMineIdx(i) ? song.id : null;
-  $("#edit-preview").hidden = !state.mineId; // yours can be edited; the songbook cannot
+  // yours can be edited and deleted; the songbook can be neither
+  $("#edit-preview").hidden = !state.mineId;
+  $("#delete-tune").hidden = !state.mineId;
+  disarmDelete();
   if (!isMineIdx(i) && SONGS.length >= LETTER_FROM && state.letter !== "ALL") state.letter = letterOf(song.title);
   updateListView();
   state.currentSong = song;
@@ -779,16 +782,14 @@ function buildEditorSong() {
   const title = $("#ed-title").value.trim() || randomTitle($("#ed-key").value.trim());
   const song = {
     title,
-    composer: $("#ed-composer").value.trim() || "unknown",
+    composer: "unknown",
     key: $("#ed-key").value.trim() || "—",
     bpm: Number($("#ed-bpm").value) || 120,
     style: $("#ed-style").value,
     timeSignature: ts,
-    form: $("#ed-form").value.trim() || `${progression.length}-bar`,
+    form: `${progression.length}-bar`,
     progression,
   };
-  const src = $("#ed-source").value.trim();
-  if (src) song.source = [src];
   return { song, errors, warnings };
 }
 
@@ -864,6 +865,35 @@ function closeEditor() {
 
 $("#open-editor").addEventListener("click", () => openEditor());
 $("#add-tune-quick").addEventListener("click", () => openEditor());
+let armedDelete = null;
+
+function disarmDelete() {
+  clearTimeout(armedDelete);
+  armedDelete = null;
+  $("#delete-tune").classList.remove("armed");
+  $("#delete-tune-label").textContent = t("deleteTune");
+}
+
+$("#delete-tune").addEventListener("click", () => {
+  if (!state.mineId) return;
+  if (!armedDelete) {
+    // arm rather than confirm: a dialog for one row is heavier than the act
+    $("#delete-tune").classList.add("armed");
+    $("#delete-tune-label").textContent = t("deleteSure");
+    armedDelete = setTimeout(disarmDelete, 3500);
+    return;
+  }
+  disarmDelete();
+  const gone = state.mineId;
+  if (state.playing) stop();
+  removeMine(gone);
+  refreshMine();
+  state.mineId = null;
+  $("#delete-tune").hidden = true;
+  $("#edit-preview").hidden = true;
+  selectSong(0); // land somewhere real rather than on a tune that is gone
+});
+
 $("#edit-preview").addEventListener("click", () => {
   // it edits the tune on screen: one you saved, or the unsaved preview
   const mineNow = state.mineId ? mine.find((t) => t.id === state.mineId) : null;
@@ -963,11 +993,9 @@ $("#ed-random").addEventListener("click", () => {
   const gen = randomChanges();
   $("#ed-prog").value = gen.bars.join(" | ");
   $("#ed-key").value = gen.key;
-  $("#ed-form").value = gen.form;
   $("#ed-style").value = gen.style;
   $("#ed-bpm").value = gen.bpm;
   if (!$("#ed-title").value.trim()) $("#ed-title").value = `Dice in ${gen.key}`;
-  if (!$("#ed-composer").value.trim()) $("#ed-composer").value = "the woodshed dice";
   $("#ed-errors").textContent = "";
 });
 
@@ -983,13 +1011,10 @@ function progressionToText(progression, ts) {
 function fillEditor(song) {
   const ts = song.timeSignature === 3 ? 3 : 4;
   $("#ed-title").value = song.title ?? "";
-  $("#ed-composer").value = song.composer && song.composer !== "unknown" ? song.composer : "";
   $("#ed-key").value = song.key && song.key !== "—" ? song.key : "";
   $("#ed-bpm").value = song.bpm ?? 120;
   $("#ed-style").value = [...$("#ed-style").options].some((o) => o.value === song.style) ? song.style : "swing";
   $("#ed-ts").value = String(ts);
-  $("#ed-form").value = song.form ?? "";
-  $("#ed-source").value = song.source?.[0] ?? "";
   $("#ed-prog").value = progressionToText(song.progression, ts);
   editing = song.id ?? null;
   syncEditorButtons();

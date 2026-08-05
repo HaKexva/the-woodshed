@@ -63,6 +63,10 @@
             <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg>
             <span data-i18n="editPreview">edit</span>
           </button>
+          <button id="delete-tune" class="edit-preview delete-tune" hidden>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            <span id="delete-tune-label" data-i18n="deleteTune">delete</span>
+          </button>
           <p id="song-detail"></p>
         </div>
         <div class="chord-card">
@@ -267,14 +271,6 @@
             </select>
           </div>
 
-          <details class="ed-more">
-            <summary data-i18n="ed.more">composer, form, source</summary>
-            <div class="ed-grid">
-              <label><span data-i18n="ed.composer">composer</span><input id="ed-composer" placeholder="Somebody" /></label>
-              <label><span data-i18n="ed.form">form</span><input id="ed-form" placeholder="32-bar AABA" /></label>
-              <label><span data-i18n="ed.sourceUrl">source URL</span><input id="ed-source" placeholder="https://…" /></label>
-            </div>
-          </details>
         </div>
 
         <div class="ed-preview">
