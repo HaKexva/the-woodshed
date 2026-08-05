@@ -29,9 +29,14 @@
 
   <main class="layout">
     <aside class="sleeve">
-      <button id="sleeve-toggle" class="sleeve-toggle" aria-expanded="false"><span data-i18n="tunes">tunes</span>
-        <svg class="icon chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-      </button>
+      <div class="sleeve-bar">
+        <button id="sleeve-toggle" class="sleeve-toggle" aria-expanded="false"><span data-i18n="tunes">tunes</span>
+          <svg class="icon chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button id="add-tune-quick" class="add-quick" aria-label="add a tune">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+        </button>
+      </div>
       <div class="sleeve-body">
         <div class="sleeve-body-inner">
           <button id="open-editor" class="add-tune" data-i18n="addTune">+ add a tune</button>
@@ -242,10 +247,9 @@
   <div id="editor-overlay" class="editor-overlay" hidden>
     <div class="editor" role="dialog" aria-label="add a tune">
       <h2><span data-i18n="ed.heading">add a tune</span><span class="brand-dot">.</span></h2>
-      <p class="ed-warning" data-i18n-html="ed.warning">nothing is saved here — a refresh or closed tab clears your tune. <strong>export the JSON</strong> to keep it: paste it back below later, or PR it into the songbook.</p>
+      <p class="ed-note" data-i18n-html="ed.note">Saved in this browser and listed under <strong>★ mine</strong>. Only a title-less tune gets named for you — everything else has a sensible default, so changes alone are enough to hear it.</p>
       <div class="ed-grid">
-        <label><span data-i18n="ed.title">title</span><input id="ed-title" placeholder="My Tune" /></label>
-        <label><span data-i18n="ed.composer">composer</span><input id="ed-composer" placeholder="Somebody" /></label>
+        <label><span data-i18n="ed.title">title</span><input id="ed-title" placeholder="named for you if left blank" /></label>
         <label><span data-i18n="ed.key">key</span><input id="ed-key" placeholder="F major" /></label>
         <label><span data-i18n="ed.bpm">bpm</span><input id="ed-bpm" type="number" min="40" max="300" value="120" /></label>
         <label><span data-i18n="ed.style">style</span>
@@ -257,22 +261,34 @@
         <label><span data-i18n="ed.beatsPerBar">beats / bar</span>
           <select id="ed-ts"><option>4</option><option>3</option></select>
         </label>
-        <label><span data-i18n="ed.form">form</span><input id="ed-form" placeholder="32-bar AABA" /></label>
-        <label><span data-i18n="ed.sourceUrl">source URL</span><input id="ed-source" placeholder="https://…" /></label>
       </div>
+      <details class="ed-more">
+        <summary data-i18n="ed.more">composer, form, source</summary>
+        <div class="ed-grid">
+          <label><span data-i18n="ed.composer">composer</span><input id="ed-composer" placeholder="Somebody" /></label>
+          <label><span data-i18n="ed.form">form</span><input id="ed-form" placeholder="32-bar AABA" /></label>
+          <label><span data-i18n="ed.sourceUrl">source URL</span><input id="ed-source" placeholder="https://…" /></label>
+        </div>
+      </details>
       <label class="ed-prog-label" data-i18n-html="ed.changesHint">changes — bars split by <code>|</code>, chords in a bar by spaces, optional beats with <code>:</code> (e.g. <code>Dm7b5:3 G7:1</code>)</label>
       <textarea id="ed-prog" rows="4" spellcheck="false" placeholder="Cm7 | F7 | BbMaj7 | EbMaj7 | Am7b5 | D7 | Gm7 | Gm7"></textarea>
       <p id="ed-errors" class="ed-errors"></p>
       <div class="ed-actions">
+        <button id="ed-save" class="ed-primary" data-i18n="ed.save">save tune</button>
         <button id="ed-preview"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg> <span data-i18n="ed.preview">preview in player</span></button>
         <button id="ed-export" data-i18n="ed.export">export json</button>
         <button id="ed-random" class="ed-secondary"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M16 8h.01"/><path d="M8 8h.01"/><path d="M8 16h.01"/><path d="M16 16h.01"/><path d="M12 12h.01"/></svg> <span data-i18n="ed.random">random changes</span></button>
+        <button id="ed-delete" class="ed-danger" data-i18n="ed.delete" hidden>delete</button>
         <button id="ed-close" data-i18n="ed.close">close</button>
       </div>
       <div class="ed-import">
-        <label class="ed-prog-label" for="ed-import-json" data-i18n="ed.importLabel">or paste a previously exported tune JSON</label>
+        <label class="ed-prog-label" for="ed-import-json" data-i18n="ed.importLabel">paste a tune to edit it, or a whole collection to add it</label>
         <textarea id="ed-import-json" rows="3" spellcheck="false" placeholder='{ "title": "My Tune", … }'></textarea>
-        <div class="ed-actions"><button id="ed-load" data-i18n="ed.load">load json</button></div>
+        <div class="ed-actions">
+          <button id="ed-load" data-i18n="ed.load">load json</button>
+          <button id="ed-export-all" data-i18n="ed.exportAll">download my tunes</button>
+          <label class="ed-file"><input type="file" id="ed-import-file" accept="application/json,.json" /><span data-i18n="ed.importFile">import a file…</span></label>
+        </div>
       </div>
 
       <div id="ed-output" hidden>

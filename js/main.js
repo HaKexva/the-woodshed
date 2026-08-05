@@ -1,6 +1,7 @@
 // main.js — UI wiring: song list, transport, session mode, inspire mode.
 
 import { SONGS } from "./songs.js";
+import { loadMine, saveMine, removeMine, exportMine, importMine, randomTitle } from "./mytunes.js";
 import { Band, SOLO_STYLES } from "./band.js";
 import { parseChord, parseWarnings, soloScale, flatName } from "./theory.js";
 import { classify, chordAt } from "./solo-metrics.js";
@@ -13,6 +14,15 @@ const SEARCH_LIMIT = 60; // enough to scroll through; keeps a broad query cheap
 const LETTER_FROM = 20; // below this the whole book fits one scroll; no need to slice it
 const ALL_CAP = 120; // rows rendered for "all tunes" before you have to pick a letter
 const ALPHA = Array.from({ length: 26 }, (_, k) => String.fromCharCode(65 + k));
+
+// Your own tunes share the list with the songbook. Rather than renumber 428
+// entries, they sit above a base — songAt() is the only place that has to know,
+// and every existing index into SONGS still means what it meant.
+const MINE_BASE = 100000;
+let mine = loadMine();
+
+const songAt = (i) => (i >= MINE_BASE ? mine[i - MINE_BASE] : SONGS[i]);
+const isMineIdx = (i) => i >= MINE_BASE;
 
 /** Bucket a title: A–Z, or "#" for anything starting with a digit or symbol. */
 function letterOf(title) {
@@ -66,11 +76,8 @@ function buildLetterSheet() {
   if (SONGS.length < LETTER_FROM) return; // trigger stays hidden; list shows everything
   const have = new Set(SONGS.map((s) => letterOf(s.title)));
   const letters = have.has("#") ? ["#", ...ALPHA] : ALPHA;
-  $("#letter-sheet").innerHTML =
-    `<button type="button" class="all" data-l="ALL">${t("allTunes")}</button>` +
-    letters
-      .map((L) => `<button type="button" data-l="${L}"${have.has(L) ? "" : " disabled"}>${L}</button>`)
-      .join("");
+  sheetLetters = { letters, have };
+  renderLetterSheet(letters, have);
   $("#letter-trigger").hidden = false;
 
   $("#letter-trigger").addEventListener("click", () => {
@@ -82,27 +89,56 @@ function buildLetterSheet() {
   $("#letter-sheet").addEventListener("click", (e) => {
     const btn = e.target.closest("button:not([disabled])");
     if (!btn) return;
-    state.letter = btn.dataset.l;
-    $("#song-search").value = ""; // picking a letter is a browse move, not a search
     $("#letter-sheet").hidden = true;
     $("#letter-trigger").setAttribute("aria-expanded", "false");
+    if (btn.dataset.l === "NEW") {
+      openEditor();
+      return;
+    }
+    state.letter = btn.dataset.l;
+    $("#song-search").value = ""; // picking a letter is a browse move, not a search
     updateListView();
   });
+}
+
+/** The jump-to grid. Your own tunes get a heading of their own — it is where
+ *  you would go looking for them — and starting one sits beside it, because
+ *  finding and making are the same errand. */
+function renderLetterSheet(letters, have) {
+  const mineCell = mine.length
+    ? `<button type="button" class="mine" data-l="MINE">★ ${t("mineTunes")} · ${mine.length}</button>`
+    : "";
+  $("#letter-sheet").innerHTML =
+    `<button type="button" class="all" data-l="ALL">${t("allTunes")}</button>` +
+    mineCell +
+    `<button type="button" class="new" data-l="NEW">＋ ${t("newTune")}</button>` +
+    letters
+      .map((L) => `<button type="button" data-l="${L}"${have.has(L) ? "" : " disabled"}>${L}</button>`)
+      .join("");
+}
+
+let sheetLetters = null;
+function refreshLetterSheet() {
+  if (!sheetLetters) return;
+  renderLetterSheet(sheetLetters.letters, sheetLetters.have);
 }
 
 /** Songbook indices to show right now: search hits, or the chosen letter. */
 function visibleIndices(query) {
   const q = query.trim().toLowerCase();
+  const mineIdx = mine.map((_, k) => MINE_BASE + k);
   if (q) {
-    const hits = [];
+    const match = (s) => `${s.title} ${s.composer ?? ""} ${s.key ?? ""} ${s.style ?? ""}`.toLowerCase().includes(q);
+    // your own first: a short list you wrote beats a long one you did not
+    const hits = mineIdx.filter((i) => match(songAt(i)));
     for (let i = 0; i < SONGS.length && hits.length < SEARCH_LIMIT; i++) {
-      const s = SONGS[i];
-      if (`${s.title} ${s.composer} ${s.key} ${s.style}`.toLowerCase().includes(q)) hits.push(i);
+      if (match(SONGS[i])) hits.push(i);
     }
     return hits;
   }
+  if (state.letter === "MINE") return mineIdx;
   if (SONGS.length < LETTER_FROM || state.letter === "ALL") {
-    return SONGS.slice(0, ALL_CAP).map((_, i) => i);
+    return [...mineIdx, ...SONGS.slice(0, ALL_CAP).map((_, i) => i)];
   }
   const out = [];
   for (let i = 0; i < SONGS.length; i++) if (letterOf(SONGS[i].title) === state.letter) out.push(i);
@@ -110,13 +146,15 @@ function visibleIndices(query) {
 }
 
 function selectSong(i) {
+  const song = songAt(i);
+  if (!song) return;
   const wasPlaying = state.playing;
   if (wasPlaying) stop();
   state.songIndex = i;
   state.customSong = null;
-  if (SONGS.length >= LETTER_FROM && state.letter !== "ALL") state.letter = letterOf(SONGS[i].title);
+  state.mineId = isMineIdx(i) ? song.id : null;
+  if (!isMineIdx(i) && SONGS.length >= LETTER_FROM && state.letter !== "ALL") state.letter = letterOf(song.title);
   updateListView();
-  const song = SONGS[i];
   state.currentSong = song;
   $("#edit-preview").hidden = true;
   $("#song-title").textContent = song.title;
@@ -603,17 +641,19 @@ function updateListView() {
   const active = state.customSong ? -1 : state.songIndex;
   $("#tracklist").innerHTML = shownIdx
     .map((i) => {
-      const song = SONGS[i];
-      return `<li><button class="track${i === active ? " active" : ""}" data-i="${i}">
-        <span class="track-num">${String(i + 1).padStart(2, "0")}</span>
-        <span class="track-title">${song.title}</span>
-        <span class="track-meta">${song.key} · ${song.bpm} bpm · ${song.style}</span>
+      const song = songAt(i);
+      if (!song) return "";
+      const num = isMineIdx(i) ? "★" : String(i + 1).padStart(2, "0");
+      return `<li><button class="track${i === active ? " active" : ""}${isMineIdx(i) ? " mine" : ""}" data-i="${i}">
+        <span class="track-num">${num}</span>
+        <span class="track-title">${esc(song.title)}</span>
+        <span class="track-meta">${esc(song.key ?? "—")} · ${song.bpm} bpm · ${esc(song.style)}</span>
       </button></li>`;
     })
     .join("");
   const shown = shownIdx.length;
   $("#search-empty").hidden = shown > 0;
-  $("#sleeve-label").textContent = t("sleeveCount", { n: SONGS.length });
+  $("#sleeve-label").textContent = t("sleeveCount", { n: SONGS.length + mine.length });
   if (!$("#letter-trigger").hidden) {
     $("#letter-current").textContent = state.letter === "ALL" ? t("allTunes") : state.letter;
     $$("#letter-sheet button").forEach((b) => b.classList.toggle("on", b.dataset.l === state.letter));
@@ -693,8 +733,9 @@ function parseProgressionText(text, ts) {
 function buildEditorSong() {
   const ts = Number($("#ed-ts").value);
   const { progression, errors, warnings } = parseProgressionText($("#ed-prog").value, ts);
-  const title = $("#ed-title").value.trim();
-  if (!title) errors.unshift(t("err.titleRequired"));
+  // A title is no longer a gate. The shortest path from "I have some changes"
+  // to hearing them should not run through naming the thing first.
+  const title = $("#ed-title").value.trim() || randomTitle($("#ed-key").value.trim());
   const song = {
     title,
     composer: $("#ed-composer").value.trim() || "unknown",
@@ -712,7 +753,7 @@ function buildEditorSong() {
 
 const ALERT_ICON = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 20h16a2 2 0 0 0 1.73-2Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`;
 
-const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 function showEditorIssues(errors, warnings) {
   $("#ed-errors").innerHTML = [
@@ -724,8 +765,15 @@ function showEditorIssues(errors, warnings) {
   return errors.length > 0 || warnings.length > 0;
 }
 
-$("#open-editor").addEventListener("click", () => ($("#editor-overlay").hidden = false));
-$("#edit-preview").addEventListener("click", () => ($("#editor-overlay").hidden = false));
+function openEditor(song) {
+  if (song) fillEditor(song);
+  $("#editor-overlay").hidden = false;
+  $("#ed-title").focus();
+}
+
+$("#open-editor").addEventListener("click", () => openEditor());
+$("#add-tune-quick").addEventListener("click", () => openEditor());
+$("#edit-preview").addEventListener("click", () => openEditor());
 $("#ed-close").addEventListener("click", () => ($("#editor-overlay").hidden = true));
 $("#editor-overlay").addEventListener("click", (e) => {
   if (e.target === $("#editor-overlay")) $("#editor-overlay").hidden = true;
@@ -832,24 +880,105 @@ function progressionToText(progression, ts) {
     .join(" | ");
 }
 
+function fillEditor(song) {
+  const ts = song.timeSignature === 3 ? 3 : 4;
+  $("#ed-title").value = song.title ?? "";
+  $("#ed-composer").value = song.composer && song.composer !== "unknown" ? song.composer : "";
+  $("#ed-key").value = song.key && song.key !== "—" ? song.key : "";
+  $("#ed-bpm").value = song.bpm ?? 120;
+  $("#ed-style").value = [...$("#ed-style").options].some((o) => o.value === song.style) ? song.style : "swing";
+  $("#ed-ts").value = String(ts);
+  $("#ed-form").value = song.form ?? "";
+  $("#ed-source").value = song.source?.[0] ?? "";
+  $("#ed-prog").value = progressionToText(song.progression, ts);
+  $("#ed-errors").textContent = "";
+  editing = song.id ?? null;
+  syncEditorButtons();
+}
+
+// which saved tune the editor is currently standing in for, if any
+let editing = null;
+
+function syncEditorButtons() {
+  $("#ed-delete").hidden = !editing;
+  $("#ed-save").textContent = editing ? t("ed.update") : t("ed.save");
+}
+
 $("#ed-load").addEventListener("click", () => {
+  const text = $("#ed-import-json").value.trim();
+  if (!text) return;
+  // one box, two jobs: a single tune fills the form, a collection is imported
+  let parsed = null;
   try {
-    const song = JSON.parse($("#ed-import-json").value);
-    if (!song.title || !Array.isArray(song.progression)) throw new Error(t("err.needTitleProg"));
-    const ts = song.timeSignature === 3 ? 3 : 4;
-    $("#ed-title").value = song.title;
-    $("#ed-composer").value = song.composer ?? "";
-    $("#ed-key").value = song.key ?? "";
-    $("#ed-bpm").value = song.bpm ?? 120;
-    $("#ed-style").value = [...$("#ed-style").options].some((o) => o.value === song.style) ? song.style : "swing";
-    $("#ed-ts").value = String(ts);
-    $("#ed-form").value = song.form ?? "";
-    $("#ed-source").value = song.source?.[0] ?? "";
-    $("#ed-prog").value = progressionToText(song.progression, ts);
-    $("#ed-errors").textContent = "";
-  } catch (err) {
-    $("#ed-errors").textContent = t("err.loadJson", { msg: err.message });
+    parsed = JSON.parse(text);
+  } catch {
+    $("#ed-errors").textContent = t("err.loadJson", { msg: t("err.notJson") });
+    return;
   }
+  if (Array.isArray(parsed) || Array.isArray(parsed?.tunes)) {
+    const { added, skipped, error } = importMine(text);
+    if (error || !added) {
+      $("#ed-errors").textContent = t("err.loadJson", { msg: t("err.noTunes") });
+      return;
+    }
+    refreshMine();
+    $("#ed-errors").textContent = t("ed.imported", { n: added, skipped });
+    return;
+  }
+  if (!Array.isArray(parsed?.progression)) {
+    $("#ed-errors").textContent = t("err.loadJson", { msg: t("err.needTitleProg") });
+    return;
+  }
+  fillEditor({ ...parsed, id: null });
+});
+
+/** Re-read the store and put every view that shows tunes back in step. */
+function refreshMine() {
+  mine = loadMine();
+  refreshLetterSheet();
+  updateListView();
+}
+
+$("#ed-save").addEventListener("click", () => {
+  const { song, errors, warnings } = buildEditorSong();
+  if (showEditorIssues(errors, warnings)) return;
+  const stored = saveMine(song, editing);
+  editing = stored.id;
+  syncEditorButtons();
+  $("#ed-title").value = stored.title; // a generated name becomes visible
+  refreshMine();
+  $("#ed-errors").innerHTML = `${CHECK_ICON} ${esc(t("ed.saved", { title: stored.title }))}`;
+});
+
+$("#ed-delete").addEventListener("click", () => {
+  if (!editing) return;
+  removeMine(editing);
+  editing = null;
+  syncEditorButtons();
+  refreshMine();
+  $("#ed-errors").textContent = t("ed.deleted");
+});
+
+$("#ed-export-all").addEventListener("click", () => {
+  const blob = new Blob([exportMine()], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `woodshed-tunes-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+$("#ed-import-file").addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const { added, skipped, error } = importMine(await file.text());
+  e.target.value = "";
+  if (error || !added) {
+    $("#ed-errors").textContent = t("err.loadJson", { msg: t("err.noTunes") });
+    return;
+  }
+  refreshMine();
+  $("#ed-errors").innerHTML = `${CHECK_ICON} ${esc(t("ed.imported", { n: added, skipped }))}`;
 });
 
 const CHECK_ICON = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>`;

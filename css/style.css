@@ -148,6 +148,8 @@ body {
 /* --------------------------------------------------------------- sleeve */
 
 .sleeve-toggle { display: none; }
+.sleeve-bar { display: contents; } /* desktop: the bar is not a row, the button is hidden */
+.add-quick { display: none; }
 
 .sleeve {
   border-right: 2px solid var(--cream-25);
@@ -262,6 +264,32 @@ body {
   cursor: default;
   opacity: 0.45;
 }
+
+.letter-sheet .mine {
+  grid-column: 1 / 4;
+  aspect-ratio: auto;
+  padding: 0.55rem 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--ink-2);
+  color: var(--amber);
+  box-shadow: inset 0 0 0 2px var(--amber);
+}
+
+.letter-sheet .new {
+  grid-column: 4 / -1;
+  aspect-ratio: auto;
+  padding: 0.55rem 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--amber);
+  color: var(--ink);
+}
+
+/* your own tunes wear a star instead of a track number */
+.track.mine .track-num { color: var(--amber); }
 
 .letter-sheet .all {
   grid-column: 1 / -1;
@@ -773,11 +801,46 @@ body {
 
 .ed-actions .ed-secondary:hover { border-color: var(--amber); color: var(--amber); filter: none; }
 
+.ed-actions .ed-primary { background: var(--amber); color: var(--ink); }
+.ed-actions .ed-danger { background: transparent; color: var(--red); border-color: var(--red); }
+.ed-actions .ed-danger:hover { background: var(--red); color: var(--ink); filter: none; }
+.ed-actions .ed-danger[hidden] { display: none; }
+
+/* a file picker that looks like the buttons beside it */
+.ed-file { position: relative; display: inline-flex; }
+.ed-file input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+.ed-file span {
+  font-family: var(--body);
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--cream);
+  border: 2px solid var(--cream-25);
+  padding: 0.5rem 0.9rem;
+}
+.ed-file:hover span { border-color: var(--amber); color: var(--amber); }
+
+/* the fields most tunes do not need */
+.ed-more { margin: -0.4rem 0 0.2rem; }
+.ed-more summary {
+  cursor: pointer;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cream-60);
+  padding: 0.35rem 0;
+}
+.ed-more summary:hover { color: var(--amber); }
+.ed-more[open] summary { margin-bottom: 0.6rem; }
+
 .ed-link { color: var(--blue); font-size: 0.85rem; text-decoration: none; }
 .ed-link:hover { color: var(--amber); }
 
 .ed-hint { font-size: 0.78rem; color: var(--cream-60); margin-top: 0.6rem; line-height: 1.5; }
 
+.ed-note,
 .ed-warning {
   font-size: 0.82rem;
   line-height: 1.5;
@@ -787,6 +850,7 @@ body {
   margin-bottom: 1.2rem;
 }
 
+.ed-note strong,
 .ed-warning strong { color: var(--amber); }
 
 .ed-import {
@@ -1321,9 +1385,34 @@ input[type="range"]::-moz-range-thumb {
     text-align: left;
   }
 
-  /* on phones the editor button reads better after the list */
+  /* On a phone the editor button was hidden twice over: inside a sleeve that
+     starts collapsed, and then ordered *below* a list that renders up to 120
+     rows. It moves onto the tunes bar — the one thing always on screen — as a
+     square + beside it, and the long button inside the sleeve goes away. */
   .sleeve-body-inner { display: flex; flex-direction: column; }
-  .add-tune { order: 10; margin: 1.1rem 1.6rem 0.3rem; }
+  .add-tune { display: none; }
+
+  .sleeve-bar {
+    display: flex;
+    align-items: stretch;
+    gap: 0.5rem;
+    margin: 0 1.6rem 1rem;
+  }
+  .sleeve-bar .sleeve-toggle { flex: 1; margin: 0; width: auto; }
+
+  .add-quick {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 3rem;
+    background: transparent;
+    color: var(--amber);
+    border: 2px solid var(--amber);
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+  .add-quick .icon { width: 1.35rem; height: 1.35rem; }
+  .add-quick:active { background: var(--amber); color: var(--ink); }
 
   /* animated collapse: grid rows 1fr → 0fr tracks content height */
   .sleeve-body {
