@@ -748,42 +748,22 @@ body.modal-open {
 .ed-write { display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; }
 .ed-preview { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
 
-.ed-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.ed-meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
 
-.chip-in {
-  font-family: var(--body);
-  font-size: 0.82rem;
-  background: var(--ink);
-  color: var(--cream);
-  border: 2px solid var(--cream-25);
-  padding: 0.35rem 0.55rem;
-  width: auto;
+.ed-meta label {
+  flex: 1 1 4.5rem;
   min-width: 0;
-}
-.chip-in:focus { outline: none; border-color: var(--amber); }
-.chip-in::placeholder { color: var(--cream-25); }
-/* out-specify `.editor input/select/textarea { width: 100% }` above, or the
-   chips stack into a column instead of reading as one row */
-.ed-chips .chip-in { width: auto; }
-.ed-chips .chip-in.grow { flex: 1 1 8rem; width: auto; }
-.ed-chips .chip-in.narrow { width: 5rem; flex: 0 0 auto; }
-.ed-chips select.chip-in { cursor: pointer; flex: 0 0 auto; padding-right: 0.4rem; }
-
-/* bpm keeps its unit, since a bare number in a row of chips says nothing */
-/* the wrapper draws the box; the input inside must not draw a second one —
-   written past `.chip-in`'s own border, which otherwise ties on specificity */
-.chip-num { display: inline-flex; align-items: center; border: 2px solid var(--cream-25); background: var(--ink); }
-.ed-chips .chip-num input.chip-in { border: 0; width: 4rem; background: transparent; }
-.ed-chips .chip-num input.chip-in:focus { outline: none; border: 0; }
-.chip-num i {
-  font-style: normal;
-  font-size: 0.62rem;
-  letter-spacing: 0.14em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--cream-25);
-  padding-right: 0.5rem;
 }
-.chip-num:focus-within { border-color: var(--amber); }
+
+.ed-meta label.grow { flex: 2 1 9rem; }
+.editor .ed-meta select { cursor: pointer; }
 
 /* the chart, drawn from what is in the box right now */
 .ed-shape {
@@ -822,6 +802,8 @@ body.modal-open {
   margin-bottom: 0.4rem;
 }
 
+.ed-prog-label { color: var(--cream-25); }
+
 .editor label {
   display: flex;
   flex-direction: column;
@@ -834,6 +816,10 @@ body.modal-open {
 
 .ed-grid label { min-width: 0; }
 
+/* Everything in here used to wear the same 2px box — field, chip, button,
+   chart cell, footer — so nine objects carried equal weight and nothing led.
+   Only two things keep a border now: the chart, and the button you press.
+   The rest are labelled underlines, which also buys back the padding. */
 .editor input,
 .editor select,
 .editor textarea {
@@ -841,15 +827,33 @@ body.modal-open {
   min-width: 0;
   font-family: var(--body);
   font-size: 0.95rem;
-  background: var(--ink);
+  background: transparent;
   color: var(--cream);
-  border: 2px solid var(--cream-25);
-  padding: 0.45rem 0.6rem;
+  border: 0;
+  border-bottom: 2px solid var(--cream-25);
+  border-radius: 0;
+  padding: 0.35rem 0.1rem;
 }
 
 .editor input:focus,
 .editor select:focus,
-.editor textarea:focus { outline: none; border-color: var(--amber); }
+.editor textarea:focus { outline: none; border-bottom-color: var(--amber); }
+.editor input::placeholder,
+.editor textarea::placeholder { color: var(--cream-25); }
+
+/* the changes are the content, so theirs is the one rule that is lit — and
+   monospaced, because chord symbols line up as data rather than read as prose */
+.editor #ed-prog {
+  font-family: var(--mono, ui-monospace, "SF Mono", Menlo, monospace);
+  font-size: 0.88rem;
+  line-height: 1.85;
+  border-bottom-color: var(--amber);
+  resize: vertical;
+  min-height: 3.4rem;
+  /* the rule belongs under the text, not a screen below it — rows sets the
+     height, so it has to be small enough that a short tune does not float */
+  height: auto;
+}
 
 .editor .ed-prog-label {
   display: block;
@@ -894,9 +898,21 @@ body.modal-open {
 
 .ed-actions .ed-secondary:hover { border-color: var(--amber); color: var(--amber); filter: none; }
 
-.ed-actions .ed-primary { background: var(--amber); color: var(--ink); }
-.ed-actions .ed-danger { background: transparent; color: var(--red); border-color: var(--red); }
-.ed-actions .ed-danger:hover { background: var(--red); color: var(--ink); filter: none; }
+/* one filled button, and the rest demoted to text — four equally weighted
+   buttons in a row is four things asking to be pressed */
+.ed-actions .ed-primary { background: var(--amber); color: var(--ink); border: 2px solid var(--amber); }
+.ed-actions #ed-random,
+.ed-actions #ed-close,
+.ed-actions .ed-danger {
+  background: transparent;
+  border: 0;
+  padding-inline: 0.4rem;
+  color: var(--cream-60);
+}
+.ed-actions #ed-random:hover,
+.ed-actions #ed-close:hover { color: var(--amber); filter: none; }
+.ed-actions .ed-danger { color: var(--red); margin-left: auto; }
+.ed-actions .ed-danger:hover { color: var(--cream); filter: none; }
 .ed-actions .ed-danger[hidden] { display: none; }
 
 .ed-collection {
@@ -912,17 +928,18 @@ body.modal-open {
 .ed-collection .ed-file span {
   font-family: var(--body);
   font-weight: 700;
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   background: transparent;
-  color: var(--cream-60);
-  border: 2px solid var(--cream-25);
-  padding: 0.5rem 0.9rem;
+  color: var(--cream-25);
+  border: 0;
+  padding: 0.4rem 0;
   cursor: pointer;
 }
+.ed-collection { gap: 1.4rem; }
 .ed-collection button:hover,
-.ed-collection .ed-file:hover span { border-color: var(--amber); color: var(--amber); }
+.ed-collection .ed-file:hover span { color: var(--amber); }
 
 /* a file picker that looks like the buttons beside it */
 .ed-file { position: relative; display: inline-flex; }
@@ -1044,12 +1061,11 @@ body.modal-open {
   .ed-prog-label { font-size: 0.72rem; line-height: 1.45; color: var(--cream-25); }
   .ed-prog-label code { font-size: 0.95em; }
 
-  #ed-prog { min-height: 5.2rem; line-height: 1.5; }
-  #ed-prog::placeholder { color: rgba(242, 231, 211, 0.18); }
+  .editor #ed-prog { min-height: 4.4rem; line-height: 1.6; }
 
-  .ed-chips { gap: 0.35rem; }
-  .ed-chips .chip-in { padding: 0.42rem 0.5rem; }
-  .ed-chips .chip-in.grow { flex: 1 1 100%; }
+  .ed-meta { gap: 0.4rem 1.1rem; }
+  .ed-meta label { flex: 1 1 4rem; }
+  .ed-meta label.grow { flex: 1 1 100%; }
 
   .ed-shape { font-size: 0.6rem; }
   .ed-errors { font-size: 0.78rem; }

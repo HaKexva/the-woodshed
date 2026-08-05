@@ -97,7 +97,7 @@ export const STRINGS = {
     "ed.key": "key",
     "ed.bpm": "bpm",
     "ed.style": "style",
-    "ed.beatsPerBar": "beats / bar",
+    "ed.beatsPerBar": "beats",
     "ed.changesHint":
       'changes — bars split by <code>|</code>, chords in a bar by spaces, optional beats with <code>:</code> (e.g. <code>Dm7b5:3 G7:1</code>)',
     "ed.random": "random changes",
@@ -207,7 +207,7 @@ export const STRINGS = {
     "ed.key": "調性",
     "ed.bpm": "速度",
     "ed.style": "風格",
-    "ed.beatsPerBar": "每小節拍數",
+    "ed.beatsPerBar": "拍數",
     "ed.changesHint":
       "和弦進行——小節以 <code>|</code> 分隔、同小節和弦以空格分隔，拍數可用 <code>:</code> 指定（例如 <code>Dm7b5:3 G7:1</code>）",
     "ed.random": "隨機和弦",

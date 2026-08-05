@@ -256,19 +256,21 @@
       <div class="ed-main">
         <div class="ed-write">
           <label class="ed-prog-label" for="ed-prog" data-i18n-html="ed.changesHint">changes — bars split by <code>|</code>, chords in a bar by spaces, optional beats with <code>:</code> (e.g. <code>Dm7b5:3 G7:1</code>)</label>
-          <textarea id="ed-prog" rows="5" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="Cm7 | F7 | BbMaj7 | EbMaj7 | Am7b5 | D7 | Gm7 | Gm7"></textarea>
+          <textarea id="ed-prog" rows="3" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="Cm7 | F7 | BbMaj7 | EbMaj7 | Am7b5 | D7 | Gm7 | Gm7"></textarea>
 
-          <div class="ed-chips">
-            <input id="ed-title" class="chip-in grow" placeholder="untitled" data-i18n-ph="ed.titlePh" aria-label="title" />
-            <input id="ed-key" class="chip-in narrow" placeholder="key" data-i18n-ph="ed.key" aria-label="key" />
-            <span class="chip-num"><input id="ed-bpm" class="chip-in" type="number" min="40" max="300" value="120" aria-label="bpm" /><i>bpm</i></span>
-            <select id="ed-style" class="chip-in" aria-label="style">
-              <option>swing</option><option>bossa</option><option>ballad</option>
-              <option>blues</option><option>modal</option><option>latin</option><option>funk</option>
-            </select>
-            <select id="ed-ts" class="chip-in" aria-label="beats per bar">
-              <option value="4">4/4</option><option value="3">3/4</option>
-            </select>
+          <div class="ed-meta">
+            <label class="grow"><span data-i18n="ed.title">title</span><input id="ed-title" placeholder="untitled" data-i18n-ph="ed.titlePh" /></label>
+            <label><span data-i18n="ed.key">key</span><input id="ed-key" placeholder="—" /></label>
+            <label><span data-i18n="ed.bpm">bpm</span><input id="ed-bpm" type="number" min="40" max="300" value="120" /></label>
+            <label><span data-i18n="ed.style">style</span>
+              <select id="ed-style">
+                <option>swing</option><option>bossa</option><option>ballad</option>
+                <option>blues</option><option>modal</option><option>latin</option><option>funk</option>
+              </select>
+            </label>
+            <label><span data-i18n="ed.beatsPerBar">beats</span>
+              <select id="ed-ts"><option value="4">4/4</option><option value="3">3/4</option></select>
+            </label>
           </div>
 
         </div>
