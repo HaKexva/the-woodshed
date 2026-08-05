@@ -698,7 +698,16 @@ body {
 
 .editor-overlay[hidden] { display: none; }
 
-body.modal-open { overflow: hidden; }
+/* Pinned rather than merely overflow-hidden: iOS will happily scroll the page
+   behind a fixed overlay when a field takes focus, and the sheet then stops
+   answering to touch until it blurs. main.js stores the offset and puts it back. */
+body.modal-open {
+  position: fixed;
+  left: 0;
+  right: 0;
+  width: 100%;
+  overflow: hidden;
+}
 
 .ed-grab { display: none; }
 
@@ -1012,6 +1021,7 @@ body.modal-open { overflow: hidden; }
     padding: 0;
     border: 0;
     cursor: grab;
+    touch-action: none;
   }
   .ed-grab:active { cursor: grabbing; }
 

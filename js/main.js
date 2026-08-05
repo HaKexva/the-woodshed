@@ -819,6 +819,24 @@ for (const id of ["#ed-prog", "#ed-ts"]) {
   });
 }
 
+// Locking the page by hiding body overflow leaves iOS free to scroll the page
+// behind a fixed overlay when a field takes focus, and the sheet then stops
+// answering to touch until the field blurs. Pinning the body at its current
+// offset instead keeps the position and gives the sheet the only scroll.
+let lockedAt = 0;
+
+function lockPage() {
+  lockedAt = window.scrollY;
+  document.body.classList.add("modal-open");
+  document.body.style.top = `-${lockedAt}px`;
+}
+
+function unlockPage() {
+  document.body.classList.remove("modal-open");
+  document.body.style.top = "";
+  window.scrollTo(0, lockedAt);
+}
+
 function openEditor(song) {
   editing = null;
   editorHeld = false;
@@ -828,14 +846,16 @@ function openEditor(song) {
   else syncEditorButtons();
   renderEditorSheet();
   $("#editor-overlay").hidden = false;
-  // the page behind a modal should not scroll away under it
-  document.body.classList.add("modal-open");
-  $("#ed-title").focus();
+  lockPage();
+  // Only on a roomy screen, and the changes field rather than the title: on a
+  // phone this would throw the keyboard up before you had decided anything,
+  // and it aims at the wrong box — the changes are what you came to type.
+  if (window.matchMedia("(min-width: 901px)").matches) $("#ed-prog").focus();
 }
 
 function closeEditor() {
   $("#editor-overlay").hidden = true;
-  document.body.classList.remove("modal-open");
+  unlockPage();
 }
 
 $("#open-editor").addEventListener("click", () => openEditor());
@@ -858,18 +878,24 @@ $("#ed-grab").addEventListener("pointerdown", (e) => {
   const sheet = $(".editor");
   const from = e.clientY;
   let dy = 0;
+  e.target.setPointerCapture?.(e.pointerId);
   const move = (ev) => {
     dy = Math.max(0, ev.clientY - from);
     sheet.style.transform = `translateY(${dy}px)`;
   };
-  const up = () => {
+  const end = (ev) => {
     sheet.style.transform = "";
     document.removeEventListener("pointermove", move);
-    document.removeEventListener("pointerup", up);
-    if (dy > 90) closeEditor();
+    document.removeEventListener("pointerup", end);
+    document.removeEventListener("pointercancel", end);
+    if (ev.type === "pointerup" && dy > 90) closeEditor();
   };
   document.addEventListener("pointermove", move);
-  document.addEventListener("pointerup", up);
+  document.addEventListener("pointerup", end);
+  // the browser cancels the pointer the moment it decides a touch is a scroll;
+  // without this the move handler stays bound and every later drag moves the
+  // sheet instead of scrolling it
+  document.addEventListener("pointercancel", end);
 });
 $("#editor-overlay").addEventListener("click", (e) => {
   if (e.target === $("#editor-overlay")) closeEditor();
