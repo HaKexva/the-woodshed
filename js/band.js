@@ -2796,7 +2796,10 @@ export class Band {
     const combo = Math.floor(rand() * comboCount);
 
     for (let bar = 0; bar < totalBars; bar++) {
-      const fillBar = sectionEnd(bar) && bpb === 4 && slow < 0.3;
+      // A fill used to need slow < 0.3, i.e. 95 bpm and up, which silently
+      // excluded 35 of the songbook's tunes — every ballad among them. The
+      // form has to turn over at any tempo; what changes is how much fits.
+      const fillBar = sectionEnd(bar);
       if (endsByBar.has(bar) && slow < 0.3 && !fillBar && rand() < 0.5) {
         const off = Math.round(endsByBar.get(bar)[0] * 2) / 2;
         if (off >= 0 && off < bpb) push(bar, off, "snare", 32);
@@ -2814,7 +2817,27 @@ export class Band {
         } else if (rand() > slow * 0.5) {
           push(bar, 0, "kick", kv(22));
         }
-        if (bar % 8 === 7 && slow < 0.3 && rand() < 0.6) push(bar, bpb - 0.5, "snare", 24);
+        // A ballad still has to turn its form over. This branch continues
+        // before the fill code below ever runs, and its one gesture was gated
+        // on a tempo no ballad reaches — so it had none at all. Brushes, not
+        // a flurry: the loudest thing here is quieter than a swing backbeat.
+        if (sectionEnd(bar)) {
+          const bLead = bar === totalBars - 1;
+          if (bLead || rand() < 0.5) {
+            const fig = bLead
+              ? choice([
+                  [[-1.5, "rim", 22], [-1, "snare", 26], [-0.5, "snare", 32]],
+                  [[-1, "snare", 28], [-0.5, "kick", 30]],
+                  [[-2, "rim", 20], [-1, "rim", 26], [-0.5, "snare", 30]],
+                ])
+              : choice([[[-0.5, "snare", 22]], [[-1, "rim", 24]], [[-0.5, "rim", 26]]]);
+            for (const [rel, drum, vel] of fig) {
+              const off = bpb + rel;
+              if (off >= 0) push(bar, off, drum, kv(vel));
+            }
+            if (bLead) push(0, 0, "kick", kv(24));
+          }
+        }
         continue;
       }
 
@@ -2897,33 +2920,49 @@ export class Band {
       for (let b = 0; b < bpb; b++) if (rand() > kickThresh) push(bar, b, "kick", kv(rnd(14, 20)));
       if (slow < 0.3 && !fillBar && rand() < 0.08) push(bar, bpb - 0.5, "kick", kv(28));
       if (fillBar) {
-        // Every eight bars used to draw from the same three snare-only figures,
-        // and the bar that turns the form over drew from them too — so the way
-        // back to the top sounded identical every chorus. Two pools now: a
-        // section fill that punctuates, and a longer lead-in that hands the top
-        // back to the band. A drummer also declines to fill sometimes, which is
-        // what makes the fills that do land mean anything.
+        // Figures are written as offsets *back from the barline*, not as
+        // absolute beats, so one vocabulary serves 4/4 and 3/4 alike — the
+        // `bpb === 4` gate used to exclude all 29 waltzes on top of every
+        // ballad. Anything that would fall before beat 0 in a short bar is
+        // simply dropped.
         const lead = bar === totalBars - 1;
-        const pool = lead
+        const sparse = slow > 0.45; // under ~87 bpm there is no room for a flurry
+        const pool = sparse
+          ? lead
+            ? [
+                [[-2, "snare", 28], [-1, "snare", 38], [-0.5, "snare", 46]],
+                [[-2, "rim", 26], [-1, "snare", 34], [-0.5, "kick", 40]],
+                [[-1, "kick", 36], [-0.5, "snare", 44]],
+                [[-2, "snare", 24], [-1.5, "snare", 28], [-1, "snare", 34], [-0.5, "snare", 42]],
+              ]
+            : [
+                [[-1, "snare", 32]],
+                [[-0.5, "snare", 36]],
+                [[-1, "rim", 28], [-0.5, "snare", 34]],
+              ]
+          : lead
           ? [
-              [[2, "snare", 30], [2.5, "snare", 36], [3, "snare", 42], [3.5, "snare", 52]],
-              [[2, "kick", 34], [2.5, "snare", 34], [3, "snare", 44], [3.5, "kick", 46], [3.75, "snare", 54]],
-              [[1.5, "snare", 26], [2, "rim", 34], [2.5, "snare", 32], [3, "snare", 40], [3.25, "snare", 44], [3.5, "snare", 50]],
-              [[2, "snare", 40], [2.75, "snare", 30], [3, "kick", 42], [3.5, "snare", 50]],
-              [[0.5, "snare", 24], [1.5, "snare", 28], [2.5, "snare", 34], [3, "snare", 40], [3.5, "snare", 48], [3.75, "kick", 44]],
-              [[3, "snare", 46], [3.33, "snare", 46], [3.67, "snare", 52]],
+              [[-2, "snare", 30], [-1.5, "snare", 36], [-1, "snare", 42], [-0.5, "snare", 52]],
+              [[-2, "kick", 34], [-1.5, "snare", 34], [-1, "snare", 44], [-0.5, "kick", 46], [-0.25, "snare", 54]],
+              [[-2.5, "snare", 26], [-2, "rim", 34], [-1.5, "snare", 32], [-1, "snare", 40], [-0.75, "snare", 44], [-0.5, "snare", 50]],
+              [[-2, "snare", 40], [-1.25, "snare", 30], [-1, "kick", 42], [-0.5, "snare", 50]],
+              [[-3.5, "snare", 24], [-2.5, "snare", 28], [-1.5, "snare", 34], [-1, "snare", 40], [-0.5, "snare", 48], [-0.25, "kick", 44]],
+              [[-1, "snare", 46], [-0.67, "snare", 46], [-0.33, "snare", 52]],
             ]
           : [
-              [[2.5, "snare", 34], [3, "snare", 40], [3.5, "snare", 50]],
-              [[3, "snare", 38], [3.25, "snare", 42], [3.5, "snare", 46], [3.75, "snare", 52]],
-              [[3, "snare", 44], [3.5, "snare", 52]],
-              [[2.5, "rim", 30], [3, "snare", 38], [3.5, "kick", 44]],
-              [[3, "kick", 40], [3.5, "snare", 48]],
-              [[2.5, "snare", 28], [2.75, "snare", 32], [3.5, "snare", 46]],
-              [[3.5, "snare", 44]],
+              [[-1.5, "snare", 34], [-1, "snare", 40], [-0.5, "snare", 50]],
+              [[-1, "snare", 38], [-0.75, "snare", 42], [-0.5, "snare", 46], [-0.25, "snare", 52]],
+              [[-1, "snare", 44], [-0.5, "snare", 52]],
+              [[-1.5, "rim", 30], [-1, "snare", 38], [-0.5, "kick", 44]],
+              [[-1, "kick", 40], [-0.5, "snare", 48]],
+              [[-1.5, "snare", 28], [-1.25, "snare", 32], [-0.5, "snare", 46]],
+              [[-0.5, "snare", 44]],
             ];
         if (lead || rand() > 0.22) {
-          for (const [off, drum, vel] of choice(pool)) push(bar, off, drum, kv(vel));
+          for (const [rel, drum, vel] of choice(pool)) {
+            const off = bpb + rel;
+            if (off >= 0) push(bar, off, drum, kv(vel));
+          }
           // and land it: the top of the form gets the weight the lead-in promised
           if (lead) {
             push(0, 0, "kick", kv(44));
