@@ -244,10 +244,27 @@ export function t(key, vars = {}) {
   return s;
 }
 
-/** Re-render every statically tagged node for the current language. */
+/** Is there a string under this key at all? */
+const known = (key) => key in STRINGS.en || key in STRINGS[lang];
+
+/**
+ * Re-render every statically tagged node for the current language.
+ *
+ * A key with no string is left alone rather than written out raw. The page and
+ * the scripts are separate downloads with separate cache lifetimes, so a
+ * browser will sometimes hold an old index.html against a new i18n.js — and
+ * printing "ed.importLabel" where a sentence belongs turns a stale cache into
+ * something that looks broken. The markup already carries readable English as
+ * its own content; when the key is gone, that is the better answer.
+ */
 export function applyStatic() {
   document.documentElement.lang = lang === "zh" ? "zh-Hant" : "en";
-  document.querySelectorAll("[data-i18n]").forEach((el) => (el.textContent = t(el.dataset.i18n)));
-  document.querySelectorAll("[data-i18n-html]").forEach((el) => (el.innerHTML = t(el.dataset.i18nHtml)));
-  document.querySelectorAll("[data-i18n-ph]").forEach((el) => (el.placeholder = t(el.dataset.i18nPh)));
+  const set = (attr, apply) =>
+    document.querySelectorAll(`[${attr}]`).forEach((el) => {
+      const key = el.getAttribute(attr);
+      if (known(key)) apply(el, t(key));
+    });
+  set("data-i18n", (el, v) => (el.textContent = v));
+  set("data-i18n-html", (el, v) => (el.innerHTML = v));
+  set("data-i18n-ph", (el, v) => (el.placeholder = v));
 }
