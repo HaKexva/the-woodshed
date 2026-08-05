@@ -182,7 +182,7 @@ $("#style").addEventListener("change", (e) => {
   generateAndShow();
 });
 
-for (const [id, key] of [["crowd", "crowd"], ["phrase", "phrase"], ["cantabile", "cantabile"]]) {
+for (const [id, key] of [["crowd", "crowd"], ["phrase", "phrase"]]) {
   $(`#${id}`).addEventListener("input", (e) => {
     $(`#${id}-val`).textContent = e.target.value;
     band.setSoloFeel(key, Number(e.target.value) / 100);

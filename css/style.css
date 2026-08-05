@@ -545,6 +545,33 @@ body {
 .sbar-notes .n.now { box-shadow: 0 0 0 2px var(--cream); }
 .sbar-notes .rest { color: var(--cream-25); font-size: 0.8rem; }
 
+.score-wait {
+  padding: 1.2rem 0.4rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  color: var(--cream-25);
+}
+
+/* the line is drawn but the samples are not in yet — say so, rather than let a
+   silent soloist over a full score read as broken */
+.solo-line { position: relative; }
+
+.solo-line.loading .solo-score { opacity: 0.45; }
+
+.solo-line.loading::after {
+  content: attr(data-loading);
+  position: absolute;
+  right: 0.7rem;
+  bottom: 0.7rem;
+  padding: 0.3rem 0.6rem;
+  background: var(--ink);
+  border: 2px solid var(--amber);
+  color: var(--amber);
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
 /* woodshed row: hold a line still, walk the tempo up, drop the band out */
 .wood-row {
   display: flex;

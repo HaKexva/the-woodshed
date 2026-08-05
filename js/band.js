@@ -19,6 +19,12 @@ export const SOLO_HI = 88;
 // dynamics now, so this is simply the middle of the old range.
 const SOLO_HEAT = 0.5;
 
+// How much the line sings: legato join, note length, stepwise motion, the
+// phrase arch. It was a third dial and did not earn the space — the setting
+// that sounded right was a quarter above where the slider sat, and nobody
+// wanted the plain end of it. Held there instead.
+const SOLO_CANTABILE = 0.625;
+
 // The soloist is the piano, and horns are still the open question. The
 // literature puts rendition ahead of note content for whether a solo reads as
 // played (Frieler & Zaddach 2020: identical material scored 5.14 as audio and
@@ -183,7 +189,7 @@ export class Band {
     this.playing = false;
     this.paused = false; // playing && paused = held mid-tune, position kept
     this.soloOn = false;
-    this.soloFeel = { crowd: 0.5, phrase: 0.5, cantabile: 0.5 }; // packing · statement length · how much it sings
+    this.soloFeel = { crowd: 0.5, phrase: 0.5 }; // note packing · how long a statement runs
     this.soloStyleName = "silver";
     this.soloVoicing = "mono"; // mono: single-note line · multi: doubled holds, stabs, octaves
     this.soloInst = null;
@@ -197,6 +203,11 @@ export class Band {
     this.rampBpm = 0;
     this.rampCap = 320;
     this.breakBars = 0;
+    // Chromatic notes are the bebop marker and also the hardest thing to hear
+    // against the changes. Switching them off snaps every deliberately-outside
+    // note back into the chord scale, which is the "stay inside" limitation
+    // drill and, for a beginner, a far more readable line.
+    this.chromaticOn = true;
     // sound-quality A/B: mixing polish flags + instrument upgrades
     this.polish = { pan: true, eq: true, comp: true, reverb: true, sat: true, vel: true, drumTone: true };
     this.grandOn = true;
@@ -279,6 +290,12 @@ export class Band {
     }
   }
 
+  /** Let the line step outside the chord scale, or keep it inside. */
+  setChromatic(on) {
+    this.chromaticOn = !!on;
+    if (this.playing) this._rebuildSoloPart();
+  }
+
   setSoloVoicing(v) {
     if (!["mono", "multi"].includes(v) || v === this.soloVoicing) return;
     this.soloVoicing = v;
@@ -291,7 +308,7 @@ export class Band {
     if (this.playing) this._rebuildSoloPart();
   }
 
-  /** Set one solo-feel dial (0..1) — "crowd", "phrase" or "cantabile". Regenerates live. */
+  /** Set one solo-feel dial (0..1) — "crowd" or "phrase". Regenerates live. */
   setSoloFeel(dial, v) {
     if (!(dial in this.soloFeel)) return;
     this.soloFeel[dial] = Math.max(0, Math.min(1, v));
@@ -1441,7 +1458,12 @@ export class Band {
     // dynamics that matter here are the ones the *line* makes as it builds and
     // lays back, not a level the listener sets once. That range now lives in
     // the arc below, which the dial was mostly flattening.
-    const { crowd: c, phrase: ph, cantabile: cant } = this.soloFeel;
+    const { crowd: c, phrase: ph } = this.soloFeel;
+    const cant = SOLO_CANTABILE;
+    const chromOn = this.chromaticOn !== false;
+    /** Pull a deliberately-outside note back into the scale when chromatics are
+     *  off. Used at every site that reaches for a semitone on purpose. */
+    const inside = (m, p) => (chromOn ? m : p[nearestIdx(p, m)] ?? m);
     const h = SOLO_HEAT;
     // A dial that leaves the middle alone: 0.5 is exactly today's behaviour,
     // and the ends stretch away from it in both directions.
@@ -1697,7 +1719,7 @@ export class Band {
       let velBase = lerp(42, 98, intensity) + lerp(-4, 24, h) + M.velOff + (useAnswer ? -6 : 0);
       let blueBoost = 1;
       // outside color: tritone-sub scale over dominants near the peak
-      const subActive = intensity > 0.75 && rand() < 0.25;
+      const subActive = chromOn && intensity > 0.75 && rand() < 0.25;
       let forceStartMidi = null;
 
       let durs;
@@ -1926,7 +1948,7 @@ export class Band {
           if (n === 0 && !useMotif && !F.clave && t - 1 >= lastEnd && rand() < lerp(0.15, 0.4, intensity) * M.encl) {
             const above = pool[Math.min(pool.length - 1, idx + 1)];
             events.push({ beat: t - 1, midi: above, dur: 0.42, vel: Math.round(velBase - 14) });
-            events.push({ beat: t - 0.5, midi: target - 1, dur: 0.42, vel: Math.round(velBase - 10) });
+            events.push({ beat: t - 0.5, midi: inside(target - 1, pool), dur: 0.42, vel: Math.round(velBase - 10) });
           } else if (n === 0 && !ballad && !F.clave && t - 0.5 >= lastEnd && Math.abs(t - Math.round(t)) < 0.05 && rand() < 0.4) {
             // pickup entry: two stepwise notes on the & of the previous beat,
             // walking up into the landing
@@ -1941,7 +1963,7 @@ export class Band {
           if (idx >= 0) cur = pool[idx];
         } else if (rand() < M.sit) {
           sat = true; // deliberately sit on the note
-        } else if (rand() < lerp(0.1, 0.22, intensity) * blueBoost * M.blue) {
+        } else if (chromOn && rand() < lerp(0.1, 0.22, intensity) * blueBoost * M.blue) {
           const blue = blueNote(c, cur);
           if (blue !== null) cur = blue;
         } else {
@@ -1977,7 +1999,7 @@ export class Band {
               const ti = nearestIdx(tp, cur + dir * 3);
               atom.target = ti >= 0 ? tp[ti] : cur;
               const ai = nearestIdx(pool, atom.target + 1);
-              atom.seq = [ai >= 0 ? pool[ai] : atom.target + 2, atom.target - 1, atom.target];
+              atom.seq = [ai >= 0 ? pool[ai] : atom.target + 2, inside(atom.target - 1, pool), atom.target];
             }
           }
           const idxIn = (arr) => nearestIdx(arr, cur);
@@ -2030,7 +2052,7 @@ export class Band {
             const ti = nearestIdx(nextPool, cur, (mm) => mm % 12 === aimNext.pc);
             if (ti >= 0) {
               const tgt = nextPool[ti];
-              const approach = aimNext.prep !== null ? tgt + 1 : tgt + (rand() < 0.62 ? -1 : 1);
+              const approach = inside(aimNext.prep !== null ? tgt + 1 : tgt + (rand() < 0.62 ? -1 : 1), nextPool);
               if (approach >= lo - 2 && approach <= hi + 2) cur = approach;
             }
           }
@@ -2043,9 +2065,17 @@ export class Band {
           if (pulled >= 0) cur = pool[pulled];
         }
         const last = n === durs.length - 1;
+        // A chromatic note earns its place by going somewhere: stepped into,
+        // stepped out of, and gone before anyone can weigh it against the
+        // chord. Held or left at the end of a phrase it is not a passing tone,
+        // it is a wrong note — so anything outside the chord scale is kept
+        // short here, and the hygiene pass below drags the long ones back in.
+        // against the chord's own scale, not `pool` — while a tritone sub is
+        // armed `pool` *is* the outside notes, and they would all read as inside
+        if (!poolFor(c).includes(cur) && !last) durs[n] = Math.min(durs[n], 0.5);
         // avoid-note hygiene: anything held a beat or longer (any flavor,
         // planned or not) must be a chord tone or a safe tension
-        if (!subActive && (durs[n] >= 1.5 || last)) {
+        if (durs[n] >= 1.5 || last) {
           const iv2 = c.info.intervals;
           const safe = new Set(iv2.filter((x) => x > 0).map((x) => (c.info.rootPc + x) % 12));
           safe.add((c.info.rootPc + 2) % 12); // 9th
@@ -2058,6 +2088,14 @@ export class Band {
             const si = nearestIdx(pool, cur, (m) => want.has(m % 12));
             if (si >= 0 && Math.abs(pool[si] - cur) <= 6) cur = pool[si];
           }
+        }
+        // Whatever else happens, a phrase does not end outside the scale. The
+        // hygiene pass above searches within six semitones and can come back
+        // empty; this is the backstop, because a chromatic left hanging is the
+        // one that sounds like a mistake rather than like bebop.
+        if (last && !poolFor(c).includes(cur)) {
+          const si = nearestIdx(poolFor(c), cur);
+          if (si >= 0) cur = poolFor(c)[si];
         }
         // phrase ends resolve — 3rd or 9th of the sounding chord, the thing
         // that makes a line sound intentional
@@ -2111,11 +2149,11 @@ export class Band {
         if (ghost) vel = Math.max(25, Math.round(vel * 0.45));
         // grace-note scoop/crush into phrase starts and held notes
         if ((t === phraseStart || last) && t - 0.25 >= lastEnd && rand() < M.crush) {
-          events.push({ beat: t - 0.25, midi: cur - 1, dur: S.crushDur ?? 0.22, vel: Math.max(30, vel - 26) });
+          events.push({ beat: t - 0.25, midi: inside(cur - 1, pool), dur: S.crushDur ?? 0.22, vel: Math.max(30, vel - 26) });
         }
         // bebop passing tone: a chromatic 16th slipped between a whole-step
         // descent over a dominant chord
-        if (lastMain && Math.abs(lastMain.midi - cur) === 2 && lastMain.rawDur === 0.5 && !ghost
+        if (chromOn && lastMain && Math.abs(lastMain.midi - cur) === 2 && lastMain.rawDur === 0.5 && !ghost
             && rand() < (isDom(c) ? 0.4 : 0.2) * Math.min(1.4, M.encl)) {
           lastMain.dur = 0.25 * legato;
           const between = cur + (lastMain.midi > cur ? 1 : -1);

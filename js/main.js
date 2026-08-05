@@ -411,11 +411,26 @@ async function setMode(mode) {
   $$(".mode-btn").forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
   $("#inspire-panel").hidden = mode !== "inspire";
   $("#solo-line").hidden = mode !== "inspire";
-  clearSoloLine();
+  if (mode !== "inspire") {
+    clearSoloLine();
+  } else if (soloLine) {
+    // Draw what the band already has. The line exists from the moment the song
+    // loaded — it is generated whether or not anyone is listening to it — and
+    // only the band rebuilding republished it, so switching mode mid-tune left
+    // the panel empty until the next time the form came round.
+    renderSoloLine(soloLine.events, soloLine);
+  } else {
+    $("#solo-score").innerHTML = `<p class="score-wait">${t("lineWait")}</p>`;
+  }
   band.setSolo(mode === "inspire");
   if (mode === "inspire" && !band.soloInst) {
+    // the samples take a moment, and a silent soloist over a drawn line reads
+    // as broken rather than as loading
+    $("#solo-line").dataset.loading = t("lineLoading");
+    $("#solo-line").classList.add("loading");
     setStatus(t("status.loadingSolo"));
     await band.loadSoloist();
+    $("#solo-line").classList.remove("loading");
     setStatus("");
   }
 }
@@ -456,7 +471,6 @@ $$(".mode-btn").forEach((b) => b.addEventListener("click", () => setMode(b.datas
 
 $("#feel-crowd").addEventListener("change", (e) => band.setSoloFeel("crowd", Number(e.target.value) / 100));
 $("#feel-phrase").addEventListener("change", (e) => band.setSoloFeel("phrase", Number(e.target.value) / 100));
-$("#feel-cantabile").addEventListener("change", (e) => band.setSoloFeel("cantabile", Number(e.target.value) / 100));
 
 // soloist style chips, straight from the presets; the active style's
 // character reads inline next to the label
@@ -506,6 +520,7 @@ document.addEventListener("click", (e) => {
 $("#hold-take").addEventListener("change", (e) => band.setHoldTake(e.target.checked));
 $("#tempo-ramp").addEventListener("change", (e) => band.setTempoRamp(Number(e.target.value)));
 $("#chord-breaks").addEventListener("change", (e) => band.setBreakBars(Number(e.target.value)));
+$("#chromatic").addEventListener("change", (e) => band.setChromatic(e.target.checked));
 
 $("#take-seed").addEventListener("change", (e) => {
   const v = e.target.value.trim();
