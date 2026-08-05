@@ -16,6 +16,7 @@ generator moves.
 | [practice-tools-and-pedagogy.md](practice-tools-and-pedagogy.md) | What comparable tools do, how improvisers are actually taught, and what a static site can deliver |
 | [solo-fixes-applied.md](solo-fixes-applied.md) | What was changed in the generator as a result, with before/after numbers |
 | [songbook-sourcing.md](songbook-sourcing.md) | Where chord changes for a larger songbook can come from, and what the licences actually say |
+| [solo-vocabulary-plan.md](solo-vocabulary-plan.md) | Why the line still reads as random after the fixes, and the vocabulary/cadence/rendition plan that follows |
 
 ## The short version
 

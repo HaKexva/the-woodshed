@@ -449,41 +449,135 @@ body {
 
 .solo-note.root { border-color: var(--amber); color: var(--amber); }
 
-/* rolling feed of what the soloist played, grouped by bar */
-.solo-feed[hidden] { display: none; }
+/* The solo written out: the chorus against the chart, every note coloured by
+   what it is doing over the chord it lands on. Replaces a rolling list of
+   letter names that told a student nothing the chord symbol hadn't. */
+.solo-line[hidden] { display: none; }
 
-.solo-feed {
+.solo-line { margin: -0.4rem 0 1.6rem; }
+
+.line-key {
   display: flex;
-  align-items: baseline;
-  gap: 0.7rem;
-  margin: -0.6rem 0 1.6rem;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin-bottom: 0.55rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--cream-60);
+}
+
+.line-key .k { display: inline-flex; align-items: center; gap: 0.35rem; }
+
+.line-key .k::before {
+  content: "";
+  width: 0.6rem;
+  height: 0.6rem;
+  background: var(--cream-25);
+}
+
+/* these have to out-rank `.line-key .k::before` above, or every swatch is grey */
+.line-key .k-chordtone::before { background: var(--green); }
+.line-key .k-tension::before { background: var(--blue); }
+.line-key .k-approach::before { background: var(--amber); }
+.line-key .k-outside::before { background: var(--red); }
+/* the two markings that are not colours: where the note sits, and how long it
+   lasts. Drawn the same way the notes themselves are marked. */
+.k-gap { width: 1px; align-self: stretch; background: var(--cream-10); }
+.line-key .k-beat::before { background: var(--cream-25); border-bottom: 2px solid var(--cream); }
+.line-key .k-held::before { background: var(--cream-25); outline: 2px solid var(--cream-25); outline-offset: 1px; }
+
+.solo-score {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  max-height: 15rem;
+  overflow-y: auto;
+  padding: 0.6rem;
+  background: var(--ink-2);
+  border: 2px solid var(--cream-10);
+}
+
+.sbar {
+  flex: 1 1 7.5rem;
+  min-width: 7.5rem;
+  padding: 0.35rem 0.45rem;
+  border-left: 3px solid transparent;
+  background: var(--ink-3);
+}
+
+.sbar.on { border-left-color: var(--amber); }
+
+.sbar-head {
   font-family: var(--body);
-  font-weight: 600;
-  font-size: 0.95rem;
+  font-weight: 700;
+  font-size: 0.72rem;
   letter-spacing: 0.05em;
   color: var(--cream-60);
-  min-height: 1.4em;
-  overflow: hidden;
+  margin-bottom: 0.3rem;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.feed-label {
+.sbar-notes { display: flex; flex-wrap: wrap; gap: 0.18rem; min-height: 1.5rem; }
+
+.sbar-notes .n {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.1em;
+  padding: 0.1rem 0.28rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-bottom: 2px solid transparent;
+  background: var(--cream-10);
+  color: var(--cream);
+}
+
+.sbar-notes .n i { font-style: normal; font-size: 0.66em; opacity: 0.7; }
+.sbar-notes .n.chordtone { background: var(--green); color: var(--ink); }
+.sbar-notes .n.tension { background: var(--blue); color: var(--ink); }
+.sbar-notes .n.approach { background: var(--amber); color: var(--ink); }
+.sbar-notes .n.outside { background: var(--red); color: var(--cream); }
+/* a note that lands on a beat, and one that is actually held */
+.sbar-notes .n.downbeat { border-bottom-color: var(--cream); }
+.sbar-notes .n.held { outline: 2px solid var(--cream-25); outline-offset: 1px; }
+.sbar-notes .n.now { box-shadow: 0 0 0 2px var(--cream); }
+.sbar-notes .rest { color: var(--cream-25); font-size: 0.8rem; }
+
+/* woodshed row: hold a line still, walk the tempo up, drop the band out */
+.wood-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.4rem;
+  margin: -0.6rem 0 1.3rem;
+}
+
+.wood-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
   font-size: 0.68rem;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--cream-25);
-  flex-shrink: 0;
+  color: var(--cream-60);
+  cursor: pointer;
 }
 
-.feed-bar { flex-shrink: 0; min-width: 1ch; }
-
-.feed-bar:last-child {
-  color: var(--amber);
-  border-bottom: 2px solid var(--amber);
-  padding-bottom: 0.15rem;
+.wood-opt select {
+  font-family: var(--body);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--ink-3);
+  color: var(--cream);
+  border: 2px solid var(--cream-25);
+  padding: 0.28rem 0.4rem;
+  cursor: pointer;
 }
 
-.feed-sep { color: var(--cream-25); flex-shrink: 0; }
+.wood-opt select:focus { outline: none; border-color: var(--amber); }
+.wood-opt input[type="checkbox"] { accent-color: var(--amber); width: 1rem; height: 1rem; }
 
 /* ------------------------------------------------------------ leadsheet */
 
@@ -710,6 +804,113 @@ body {
 
 .style-chip.active,
 .voice-chip.active { background: var(--amber); border-color: var(--amber); color: var(--ink); }
+
+/* "new take" is an action, not a third member of the voicing toggle group next
+   to it — it never carries an .active state, so sharing the chip look made it
+   read as an un-selected option and left the real selection ambiguous. */
+.take-btn {
+  font-family: var(--body);
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: var(--cream-10);
+  color: var(--amber);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  padding: 0.42rem 1.1rem;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.take-btn:hover { background: var(--amber); color: var(--ink); }
+.take-btn:active { transform: translateY(1px); }
+
+/* the take strip: reroll the line, or type a seed back in to hear one again */
+/* the field, its help icon and the tip travel together — with the icon out in
+   the row's own 0.9rem gap it read as unrelated to the box it explains */
+.take-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.take-row {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin: -0.5rem 0 1.3rem;
+  flex-wrap: wrap;
+}
+
+.take-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--cream-60);
+  cursor: pointer;
+  transition: color 0.12s;
+}
+
+.take-help .icon { width: 1.05rem; height: 1.05rem; }
+.take-help:hover,
+.take-help[aria-expanded="true"] { color: var(--amber); }
+
+.take-tip {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 5;
+  width: max-content;
+  max-width: min(32rem, 70vw);
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  background: var(--ink-3);
+  border: 2px solid var(--cream-25);
+  color: var(--cream-60);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s;
+}
+
+.take-help:hover ~ .take-tip,
+.take-help:focus-visible ~ .take-tip,
+.take-tip.open { opacity: 1; visibility: visible; }
+
+.take-seed {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--body);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--cream-60);
+}
+
+.take-seed input {
+  font-family: var(--body);
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--cream);
+  border: 2px solid var(--cream-25);
+  padding: 0.36rem 0.55rem;
+  width: 14ch; /* seven base-36 digits, plus the wide tracking and the padding */
+}
+
+.take-seed input:focus { outline: none; border-color: var(--amber); }
 
 .feel-dials { display: flex; gap: 3rem; flex-wrap: wrap; }
 

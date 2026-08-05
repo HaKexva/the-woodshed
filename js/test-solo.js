@@ -6,7 +6,7 @@
 // a change to the generator can be judged by more than vibes.
 
 import { SONGS } from "./songs.js";
-import { Band, SOLO_STYLES, SOLO_LO, SOLO_HI } from "./band.js";
+import { Band, SOLO_STYLES } from "./band.js";
 import { flatName } from "./theory.js";
 import { analyze, classify, chordAt, REF } from "./solo-metrics.js";
 
@@ -50,7 +50,7 @@ function generate() {
   const bpb = s.beatsPerBar ?? 4;
   const chords = band._flatten(s, bpb);
   const totalBeats = s.progression.length * bpb;
-  const events = improvise.call(band, chords, totalBeats, s.style, SOLO_LO, SOLO_HI, bpb);
+  const events = improvise.call(band, chords, totalBeats, s.style, band.soloRange.lo, band.soloRange.hi, bpb);
   events.sort((a, b) => a.beat - b.beat);
   return { events, chords, totalBeats, bpb, style: s.style };
 }
@@ -97,6 +97,12 @@ function renderMetrics(m) {
        <span style="color:var(--amber)">${Math.round(m.roleMix.approach * 100)}</span>`,
       "chordTone", m.roleMix.chordtone,
       `<p class="metric-ref">chord tone / tension / chromatic · human corpora ≈ 56 / 34 / 10</p>`),
+    card("thirds", pct(m.thirds), "thirds", m.thirds,
+      `<p class="metric-ref">the arpeggio figure's share — WJD 26.5%</p>`),
+    card("direction run", num(m.dirRun, 2), "dirRun", m.dirRun,
+      `<p class="metric-ref">intervals before the line turns — a walk turns constantly</p>`),
+    card("lands on the change", pct(m.landOnChange), "landOnChange", m.landOnChange,
+      `<p class="metric-ref">counted only over changes it plays through</p>`),
     card("interval spread", `${m.phrases}<small> phrases</small>`, null, 0,
       histoHtml(m.intervalHisto, (i) => (i % 3 === 0 ? i : ""))),
   ].join("");
@@ -176,7 +182,7 @@ $("#style").addEventListener("change", (e) => {
   generateAndShow();
 });
 
-for (const [id, key] of [["crowd", "crowd"], ["heat", "heat"]]) {
+for (const [id, key] of [["crowd", "crowd"], ["phrase", "phrase"], ["cantabile", "cantabile"]]) {
   $(`#${id}`).addEventListener("input", (e) => {
     $(`#${id}-val`).textContent = e.target.value;
     band.setSoloFeel(key, Number(e.target.value) / 100);

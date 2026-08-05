@@ -3,6 +3,7 @@
 import { SONGS } from "./songs.js";
 import { Band, SOLO_STYLES } from "./band.js";
 import { parseChord, parseWarnings, soloScale, flatName } from "./theory.js";
+import { classify, chordAt } from "./solo-metrics.js";
 import { t, getLang, setLang, applyStatic } from "./i18n.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -34,6 +35,11 @@ const band = new Band({
   onChord: handleChord,
   onBeat: handleBeat,
   onSoloNote: handleSoloNote,
+  onSoloLine: renderSoloLine,
+  onTempo: (bpm) => {
+    $("#tempo").value = bpm;
+    $("#tempo-val").textContent = bpm;
+  },
   onProgress: (n, total) => setStatus(t("status.loading", { n, total })),
   onReady: () => {
     state.ready = true;
@@ -211,28 +217,61 @@ function renderSoloStrip(info) {
   $("#solo-strip").hidden = false;
 }
 
-// rolling feed of solo notes, grouped by bar — previous bar + the ongoing one
-const soloFeed = [];
-const FEED_BARS = 4;
+// The solo, written out. A rolling list of note *names* used to live here —
+// four bars of letters that scrolled away — which told a student nothing the
+// chord symbol hadn't already. The generator knows the harmonic function of
+// every note it plays, so show that instead: the whole chorus against the
+// chart, coloured by role, with each note's degree over its own chord.
+let soloLine = null; // { events, chords, totalBeats, bpb }
 
-function renderSoloFeed() {
-  $("#solo-feed").innerHTML =
-    `<span class="feed-label">${t("played")}</span>` +
-    soloFeed
-      .map((bar) => `<span class="feed-bar">${bar.join(" ")}</span>`)
-      .join(`<span class="feed-sep">|</span>`);
-}
-
-function clearSoloFeed() {
-  soloFeed.length = 0;
-  renderSoloFeed();
-}
-
-function handleSoloNote(pc) {
+function renderSoloLine(events, ctx) {
+  soloLine = { events, ...ctx };
   if (state.mode !== "inspire") return;
-  if (!soloFeed.length) soloFeed.push([]);
-  soloFeed[soloFeed.length - 1].push(flatName(pc));
-  renderSoloFeed();
+  const bars = ctx.totalBeats / ctx.bpb;
+  const html = [];
+  for (let bar = 0; bar < bars; bar++) {
+    const inBar = events.filter((e) => e.beat >= bar * ctx.bpb && e.beat < (bar + 1) * ctx.bpb);
+    const symbols = ctx.chords.filter((c) => c.bar === bar).map((c) => c.symbol).join(" ");
+    const notes = inBar.length
+      ? inBar
+          .map((e) => {
+            const c = classify(e.midi, chordAt(ctx.chords, e.beat, ctx.totalBeats));
+            const strong = Math.abs(e.beat - Math.round(e.beat)) < 0.02 ? " downbeat" : "";
+            const held = e.dur >= 1 ? " held" : "";
+            return `<span class="n ${c.role}${strong}${held}" data-beat="${e.beat.toFixed(3)}" title="${e.atom ?? ""}">${flatName(e.midi % 12)}<i>${c.deg}</i></span>`;
+          })
+          .join("")
+      : `<span class="rest">·</span>`;
+    html.push(
+      `<div class="sbar" data-bar="${bar}"><div class="sbar-head">${symbols || "&nbsp;"}</div><div class="sbar-notes">${notes}</div></div>`
+    );
+  }
+  $("#solo-score").innerHTML = html.join("");
+  $("#solo-line").hidden = false;
+}
+
+function markLineBar(bar) {
+  $$("#solo-score .sbar").forEach((el) => el.classList.toggle("on", Number(el.dataset.bar) === bar));
+}
+
+function clearSoloLine() {
+  $("#solo-score").innerHTML = "";
+}
+
+// follow the sounding note, and keep it on screen — the line is a whole chorus
+// now, which is more than fits
+let lastLit = null;
+function handleSoloNote(note) {
+  if (state.mode !== "inspire" || !soloLine) return;
+  lastLit?.classList.remove("now");
+  const el = $(`#solo-score .n[data-beat="${note.beat.toFixed(3)}"]`);
+  if (!el) return;
+  el.classList.add("now");
+  lastLit = el;
+  const box = $("#solo-score");
+  const r = el.getBoundingClientRect();
+  const b = box.getBoundingClientRect();
+  if (r.top < b.top || r.bottom > b.bottom) el.scrollIntoView({ block: "nearest" });
 }
 
 // ------------------------------------------------------------------ transport
@@ -276,7 +315,7 @@ function stop() {
   state.paused = false;
   renderTransport();
   resetChordDisplay();
-  clearSoloFeed();
+  clearSoloLine();
 }
 
 // the round button plays what it shows: a triangle to start or pick up, two
@@ -303,11 +342,7 @@ function handleBeat(bar, beatInBar) {
   if (beatInBar === 0) {
     highlightBar(bar);
     renderSystemView(bar);
-    if (state.mode === "inspire") {
-      soloFeed.push([]);
-      while (soloFeed.length > FEED_BARS) soloFeed.shift();
-      renderSoloFeed();
-    }
+    if (state.mode === "inspire") markLineBar(bar);
   }
 }
 
@@ -375,8 +410,8 @@ async function setMode(mode) {
   state.mode = mode;
   $$(".mode-btn").forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
   $("#inspire-panel").hidden = mode !== "inspire";
-  $("#solo-feed").hidden = mode !== "inspire";
-  clearSoloFeed();
+  $("#solo-line").hidden = mode !== "inspire";
+  clearSoloLine();
   band.setSolo(mode === "inspire");
   if (mode === "inspire" && !band.soloInst) {
     setStatus(t("status.loadingSolo"));
@@ -420,7 +455,8 @@ $("#bg-vol").addEventListener("input", (e) => band.setBgVolume(Number(e.target.v
 $$(".mode-btn").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
 
 $("#feel-crowd").addEventListener("change", (e) => band.setSoloFeel("crowd", Number(e.target.value) / 100));
-$("#feel-heat").addEventListener("change", (e) => band.setSoloFeel("heat", Number(e.target.value) / 100));
+$("#feel-phrase").addEventListener("change", (e) => band.setSoloFeel("phrase", Number(e.target.value) / 100));
+$("#feel-cantabile").addEventListener("change", (e) => band.setSoloFeel("cantabile", Number(e.target.value) / 100));
 
 // soloist style chips, straight from the presets; the active style's
 // character reads inline next to the label
@@ -448,9 +484,37 @@ $$(".style-chip").forEach((b) =>
   })
 );
 
+// take controls: every line is a seeded improvisation, so a take you liked can
+// be written down and played again instead of being lost to the next roll
+$("#take-seed").value = band.takeId;
+$("#new-take").addEventListener("click", () => {
+  $("#take-seed").value = band.newTake();
+});
+// the seed needs a word of explanation, and a bare number in a box gets none
+$("#take-help").addEventListener("click", () => {
+  const btn = $("#take-help");
+  const open = btn.getAttribute("aria-expanded") !== "true";
+  btn.setAttribute("aria-expanded", String(open));
+  $("#take-tip").classList.toggle("open", open);
+});
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#take-help") || e.target.closest("#take-tip")) return;
+  $("#take-help")?.setAttribute("aria-expanded", "false");
+  $("#take-tip")?.classList.remove("open");
+});
+
+$("#hold-take").addEventListener("change", (e) => band.setHoldTake(e.target.checked));
+$("#tempo-ramp").addEventListener("change", (e) => band.setTempoRamp(Number(e.target.value)));
+$("#chord-breaks").addEventListener("change", (e) => band.setBreakBars(Number(e.target.value)));
+
+$("#take-seed").addEventListener("change", (e) => {
+  const v = e.target.value.trim();
+  e.target.value = v ? band.newTake(v) : band.newTake();
+});
+
 document.addEventListener("keydown", (e) => {
   if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
-  if (state.mode === "inspire" && /^[1-8]$/.test(e.key)) {
+  if (state.mode === "inspire" && /^[1-4]$/.test(e.key)) {
     $$(".style-chip")[Number(e.key) - 1]?.click();
   }
 });
@@ -793,7 +857,7 @@ $("#lang-toggle").addEventListener("click", () => {
   // re-render everything dynamic in the new language
   updateListView();
   renderStyleBlurb();
-  renderSoloFeed();
+  if (soloLine) renderSoloLine(soloLine.events, soloLine);
   renderSystemView(-1);
   renderTransport();
 });

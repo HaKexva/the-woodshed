@@ -51,6 +51,12 @@ export const REF = {
   endChordTone: [0.6, 1, "≥60% of phrases come to rest on a chord tone"],
   rangeSemitones: [12, 26, "an octave to just over two"],
   motifRecurrence: [0.1, 1, "≥10% of phrases echo earlier material"],
+  // Measured from the 456 solos of the Weimar Jazz Database rather than quoted
+  // from a paper — see research/wjd-mine.py and js/solo-vocab.js. These are
+  // corpus-wide; per-player figures live in solo-vocab.js.
+  thirds: [0.22, 0.31, "26.5% of intervals in the WJD — the arpeggio's share"],
+  dirRun: [1.8, 2.4, "2.04 intervals per direction in the WJD"],
+  landOnChange: [0.6, 1, "arrivals: land on the change when playing through it"],
 };
 
 /** Split a line into phrases — a gap of a beat or more ends one. */
@@ -100,6 +106,61 @@ export function analyze({ events, chords, totalBeats, bpb }) {
   m.stepwise = ivs.length ? ivs.filter((x) => x <= 2).length / ivs.length : 0;
   m.leapRate = ivs.length ? ivs.filter((x) => x >= 5).length / ivs.length : 0;
   m.intervalHisto = histo(ivs, 13);
+  // Thirds are the arpeggio's fingerprint, and the one interval class the
+  // generator was chronically short of: the corpus plays 26.5% and a line built
+  // by stepping around a scale plays half that.
+  m.thirds = ivs.length ? ivs.filter((x) => x >= 3 && x <= 4).length / ivs.length : 0;
+
+  // How far the line carries on in one direction before turning. A random walk
+  // turns constantly; a figure — a scale run, an arpeggio — does not, so this
+  // is the cheapest single read on whether the line is made of figures.
+  const runs = [];
+  let run = 1;
+  let prevSign = 0;
+  for (let i = 1; i < events.length; i++) {
+    if (events[i].beat - events[i - 1].beat > bpb) continue;
+    const sign = Math.sign(events[i].midi - events[i - 1].midi);
+    if (sign && sign === prevSign) run++;
+    else {
+      if (prevSign) runs.push(run);
+      run = 1;
+    }
+    if (sign) prevSign = sign;
+  }
+  if (prevSign) runs.push(run);
+  m.dirRun = runs.length ? runs.reduce((a, b) => a + b, 0) / runs.length : 0;
+
+  // Does the line arrive? Counted only over changes it actually plays through —
+  // a chord that turns over while the player is resting cannot be landed on.
+  {
+    const onset = new Set(events.map((e) => e.beat.toFixed(3)));
+    // One sorted pass. Scanning the whole event list per chord is quadratic,
+    // and this runs over hundreds of lines at a time in the metric sweeps.
+    const beats = events.map((e) => e.beat).sort((a, b) => a - b);
+    const firstAtOrAfter = (x) => {
+      let lo = 0;
+      let hi = beats.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (beats[mid] < x) lo = mid + 1;
+        else hi = mid;
+      }
+      return lo;
+    };
+    let played = 0;
+    let landed = 0;
+    for (let i = 0; i < chords.length; i++) {
+      const at = chords[i].startBeat;
+      if (i > 0 && chords[i - 1].startBeat === at) continue;
+      const k = firstAtOrAfter(at);
+      const before = k > 0 && beats[k - 1] > at - 1.6;
+      const after = k < beats.length && beats[k] < at + 1.6;
+      if (!before || !after) continue;
+      played++;
+      if (onset.has(at.toFixed(3))) landed++;
+    }
+    m.landOnChange = played ? landed / played : 0;
+  }
 
   // Bebop's signature is not that it is stepwise — folk song is more stepwise —
   // but that its steps are half steps roughly a third of the time.

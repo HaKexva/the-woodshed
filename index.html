@@ -83,11 +83,57 @@
         <div id="solo-notes" class="solo-notes"></div>
       </div>
 
-      <div id="solo-feed" class="solo-feed" hidden></div>
+      <div id="solo-line" class="solo-line" hidden>
+        <div class="line-key">
+          <span class="k k-chordtone" data-i18n="keyChordTone">chord tone</span>
+          <span class="k k-tension" data-i18n="keyTension">colour</span>
+          <span class="k k-approach" data-i18n="keyApproach">chromatic</span>
+          <span class="k k-outside" data-i18n="keyOutside">outside</span>
+          <span class="k-gap" aria-hidden="true"></span>
+          <span class="k k-beat" data-i18n="keyOnBeat">on the beat</span>
+          <span class="k k-held" data-i18n="keyHeld">held</span>
+        </div>
+        <div id="solo-score" class="solo-score"></div>
+      </div>
 
       <div id="inspire-panel" class="inspire-panel" hidden>
         <p class="inspire-label"><span data-i18n="soloistStyle">soloist style · </span><em id="style-blurb"></em></p>
         <div id="style-picker" class="style-picker" role="group" aria-label="soloist style"></div>
+        <div class="take-row">
+          <button id="new-take" class="take-btn" data-i18n="newTake">new take</button>
+          <label class="wood-opt"><input type="checkbox" id="hold-take" /> <span data-i18n="holdTake">hold this line</span></label>
+          <span class="take-field">
+          <label class="take-seed">
+            <span data-i18n="takeLabel">take</span>
+            <input id="take-seed" type="text" size="8" spellcheck="false" autocomplete="off" aria-label="take seed" />
+          </label>
+          <button id="take-help" class="take-help" aria-expanded="false" aria-controls="take-tip" aria-label="what is a take?">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 17v-5"/><path d="M12 8h.01"/></svg>
+          </button>
+          <p id="take-tip" class="take-tip" role="tooltip" data-i18n="takeTip">
+            Every solo is improvised from this number. The same one always plays the same line, so write down a take you liked and type it back to hear it again. "New take" rolls a fresh one.
+          </p>
+          </span>
+        </div>
+        <div class="wood-row">
+          <label class="wood-opt"><span data-i18n="tempoRamp">tempo ramp</span>
+            <select id="tempo-ramp">
+              <option value="0" data-i18n="rampOff">off</option>
+              <option value="2">+2 bpm</option>
+              <option value="5">+5 bpm</option>
+              <option value="10">+10 bpm</option>
+            </select>
+          </label>
+          <label class="wood-opt"><span data-i18n="chordBreaks">chord breaks</span>
+            <select id="chord-breaks">
+              <option value="0" data-i18n="rampOff">off</option>
+              <option value="2" data-i18n="breaks2">2 bars</option>
+              <option value="4" data-i18n="breaks4">4 bars</option>
+              <option value="8" data-i18n="breaks8">8 bars</option>
+            </select>
+          </label>
+        </div>
+
         <div class="feel-dials">
           <div>
             <p class="inspire-label" data-i18n="crowding">crowding</p>
@@ -98,11 +144,19 @@
             </label>
           </div>
           <div>
-            <p class="inspire-label" data-i18n="loudness">loudness</p>
+            <p class="inspire-label" data-i18n="phrasing">phrasing</p>
             <label class="density-ctl">
-              <span class="density-tag" data-i18n="soft">soft</span>
-              <input id="feel-heat" type="range" min="0" max="100" value="50" />
-              <span class="density-tag" data-i18n="sharp">sharp</span>
+              <span class="density-tag" data-i18n="short">short</span>
+              <input id="feel-phrase" type="range" min="0" max="100" value="50" />
+              <span class="density-tag" data-i18n="long">long</span>
+            </label>
+          </div>
+          <div>
+            <p class="inspire-label" data-i18n="cantabile">cantabile</p>
+            <label class="density-ctl">
+              <span class="density-tag" data-i18n="plain">plain</span>
+              <input id="feel-cantabile" type="range" min="0" max="100" value="50" />
+              <span class="density-tag" data-i18n="singing">singing</span>
             </label>
           </div>
           <div>
@@ -125,6 +179,13 @@
           lead-sheet practice, cross-checked against jazz-education references.
         </p>
         <p id="song-source-line"><span data-i18n="verified">changes for this song verified against: </span><span id="song-source"></span></p>
+        <p data-i18n-html="creditsWjd">
+          The soloist's phrasing figures are measured from the
+          <a href="https://jazzomat.hfm-weimar.de/" rel="noopener">Weimar Jazz Database</a> —
+          456 hand-transcribed solos from the Jazzomat Research Project, Hochschule für Musik Franz Liszt Weimar,
+          under the <a href="https://opendatacommons.org/licenses/odbl/" rel="noopener">Open Database License (ODbL 1.0)</a>.
+          No transcription is reproduced; what ships is derived statistics.
+        </p>
         <p id="song-note" class="song-note"></p>
         <p data-i18n-html="credits2">
           Samples: <a href="https://github.com/gleitz/midi-js-soundfonts" rel="noopener">MusyngKite soundfont kit (CC BY-SA 3.0)</a>
