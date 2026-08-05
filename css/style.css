@@ -766,6 +766,8 @@ body.modal-open {
 .editor .ed-meta select { cursor: pointer; }
 
 /* the chart, drawn from what is in the box right now */
+.ed-shape b { color: var(--green); }
+
 .ed-shape {
   font-size: 0.62rem;
   letter-spacing: 0.2em;
@@ -1008,26 +1010,32 @@ body.modal-open {
     flex-direction: column;
     overflow-y: auto;
     overscroll-behavior: contain;
+    /* Square, not rounded. Nothing else in this app curves — it is hard
+       rectangles and 3px cream rules throughout — and a rounded cream arc
+       across the top reads as a borrowed iOS shape rather than as this
+       product. A straight rule matches the one under the masthead. */
     border-width: 3px 0 0;
-    border-radius: 20px 20px 0 0;
-    box-shadow: 0 -14px 34px rgba(0, 0, 0, 0.5);
+    border-radius: 0;
+    box-shadow: 0 -14px 34px rgba(0, 0, 0, 0.55);
     padding: 0.6rem 1.1rem 0;
     animation: sheet-up 0.26s ease;
   }
 
+  /* the handle is a hairline notch in the rule above it, not a floating pill */
   .ed-grab {
     display: block;
-    width: 44px;
-    height: 4px;
-    border-radius: 2px;
+    width: 56px;
+    height: 2px;
+    border-radius: 0;
     background: var(--cream-25);
-    margin: 0.2rem auto 0.7rem;
+    margin: 0.55rem auto 0.6rem;
     flex: none;
     padding: 0;
     border: 0;
     cursor: grab;
     touch-action: none;
   }
+  .ed-grab:active { background: var(--amber); }
   .ed-grab:active { cursor: grabbing; }
 
   .editor h2 { font-size: 1.5rem; margin-bottom: 0.9rem; }

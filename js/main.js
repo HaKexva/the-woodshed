@@ -754,19 +754,18 @@ function renderEditorSheet() {
     .map((bar, i) => `<span class="${bad.has(i + 1) ? "bad" : ""}">${bar.map((c) => esc(c.chord)).join(" ")}</span>`)
     .join("");
 
-  $("#ed-shape").textContent = progression.length
-    ? t("ed.shape", { bars: progression.length, ts: `${ts}/4` })
-    : t("ed.sheetEmpty");
+  // the verdict rides on the shape line rather than taking a line of its own —
+  // "8 bars · 4/4 · reads" says everything the tick and the sentence did
+  const clean = progression.length > 0 && !errors.length && !warnings.length;
+  $("#ed-shape").innerHTML = progression.length
+    ? esc(t("ed.shape", { bars: progression.length, ts: `${ts}/4` })) + (clean ? ` · <b>${esc(t("ed.reads"))}</b>` : "")
+    : esc(t("ed.sheetEmpty"));
 
   // the status line only reports on the changes; save and delete write to it too
   if (!editorHeld) {
     const issues = [...errors, ...warnings];
-    $("#ed-errors").classList.toggle("ok", !issues.length && progression.length > 0);
-    $("#ed-errors").innerHTML = issues.length
-      ? issues.map(esc).join("<br>")
-      : progression.length
-      ? `${CHECK_ICON} ${esc(t("ed.reads"))}`
-      : "";
+    $("#ed-errors").classList.remove("ok");
+    $("#ed-errors").innerHTML = issues.map(esc).join("<br>");
   }
   return { progression, errors, warnings };
 }
