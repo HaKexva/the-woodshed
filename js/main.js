@@ -733,7 +733,12 @@ function parseProgressionText(text, ts) {
  *  make it, in the same grid the player uses, rather than after a button. */
 function renderEditorSheet() {
   const ts = Number($("#ed-ts").value) || 4;
-  const { progression, errors, warnings } = parseProgressionText($("#ed-prog").value, ts);
+  const text = $("#ed-prog").value;
+  // an empty field is not a mistake — it is the state you open in
+  const blank = !text.trim();
+  const { progression, errors, warnings } = blank
+    ? { progression: [], errors: [], warnings: [] }
+    : parseProgressionText(text, ts);
   // Flag by bar number, which every message carries, rather than by digging a
   // chord symbol out of the prose — "unknown quality \"zzz7\" in Bbzzz7" quotes
   // the quality, not the chord.
@@ -741,15 +746,14 @@ function renderEditorSheet() {
     [...errors, ...warnings].map((m) => Number((m.match(/bar (\d+)/) ?? [])[1])).filter(Boolean)
   );
 
-  $("#ed-sheet").innerHTML = progression.length
-    ? progression
-        .map((bar, i) => `<span class="${bad.has(i + 1) ? "bad" : ""}">${bar.map((c) => esc(c.chord)).join(" ")}</span>`)
-        .join("")
-    : `<span class="ed-sheet-empty">${esc(t("ed.sheetEmpty"))}</span>`;
+  $("#ed-sheet").hidden = !progression.length;
+  $("#ed-sheet").innerHTML = progression
+    .map((bar, i) => `<span class="${bad.has(i + 1) ? "bad" : ""}">${bar.map((c) => esc(c.chord)).join(" ")}</span>`)
+    .join("");
 
   $("#ed-shape").textContent = progression.length
     ? t("ed.shape", { bars: progression.length, ts: `${ts}/4` })
-    : "";
+    : t("ed.sheetEmpty");
 
   // the status line only reports on the changes; save and delete write to it too
   if (!editorHeld) {

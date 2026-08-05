@@ -770,9 +770,11 @@ body.modal-open {
 .ed-chips select.chip-in { cursor: pointer; flex: 0 0 auto; padding-right: 0.4rem; }
 
 /* bpm keeps its unit, since a bare number in a row of chips says nothing */
+/* the wrapper draws the box; the input inside must not draw a second one —
+   written past `.chip-in`'s own border, which otherwise ties on specificity */
 .chip-num { display: inline-flex; align-items: center; border: 2px solid var(--cream-25); background: var(--ink); }
-.chip-num input { border: 0; width: 4rem; }
-.chip-num input:focus { outline: none; }
+.ed-chips .chip-num input.chip-in { border: 0; width: 4rem; background: transparent; }
+.ed-chips .chip-num input.chip-in:focus { outline: none; border: 0; }
 .chip-num i {
   font-style: normal;
   font-size: 0.62rem;
@@ -798,7 +800,6 @@ body.modal-open {
   gap: 1px;
   background: var(--cream-10);
   border: 1px solid var(--cream-10);
-  min-height: 3.5rem;
 }
 
 .ed-sheet span {
@@ -812,13 +813,7 @@ body.modal-open {
   text-overflow: ellipsis;
 }
 .ed-sheet span.bad { color: var(--red); box-shadow: inset 0 -2px 0 var(--red); }
-.ed-sheet .ed-sheet-empty {
-  grid-column: 1 / -1;
-  color: var(--cream-25);
-  font-weight: 400;
-  font-size: 0.78rem;
-  padding: 1rem 0.5rem;
-}
+.ed-sheet[hidden] { display: none; }
 
 .ed-grid {
   display: grid;
@@ -1044,6 +1039,36 @@ body.modal-open {
     padding: 1rem 1.1rem calc(1.2rem + env(safe-area-inset-bottom));
     border-top: 0;
   }
+
+  /* Everything above this point was sized for a desktop dialog, and on a phone
+     it came out as a screen of mostly empty boxes: a five-row field holding a
+     placeholder, a chart frame with nothing in it, and the buttons pushed onto
+     three rows. Tighter type, a field that starts short, and a chart that only
+     exists once there is something to draw. */
+  .ed-main { gap: 0.9rem; margin-bottom: 0.9rem; }
+  .ed-write { gap: 0.5rem; }
+
+  .ed-prog-label { font-size: 0.72rem; line-height: 1.45; color: var(--cream-25); }
+  .ed-prog-label code { font-size: 0.95em; }
+
+  #ed-prog { min-height: 5.2rem; line-height: 1.5; }
+  #ed-prog::placeholder { color: rgba(242, 231, 211, 0.18); }
+
+  .ed-chips { gap: 0.35rem; }
+  .ed-chips .chip-in { padding: 0.42rem 0.5rem; }
+  .ed-chips .chip-in.grow { flex: 1 1 100%; }
+
+  .ed-more summary { padding: 0.15rem 0; }
+  .ed-shape { font-size: 0.6rem; }
+  .ed-errors { font-size: 0.78rem; }
+
+  /* one clear action, then the rest sharing a row */
+  .ed-actions { flex-wrap: wrap; gap: 0.5rem; }
+  .ed-actions .ed-primary { flex: 1 1 100%; padding-block: 0.75rem; }
+  .ed-actions #ed-random,
+  .ed-actions #ed-delete,
+  .ed-actions #ed-close { flex: 1 1 0; padding-inline: 0.4rem; font-size: 0.7rem; }
+  .ed-actions #ed-random .icon { display: none; }
 }
 
 @keyframes sheet-up {
