@@ -4,7 +4,6 @@
 
 export const STRINGS = {
   en: {
-    tagline: "play along with anything",
     "mode.session": "Session",
     "mode.inspire": "Inspire",
     tunes: "tunes",
@@ -116,7 +115,6 @@ export const STRINGS = {
     "blurb.silver": "short funky riffs, repeated and squeezed, gospel smears",
   },
   zh: {
-    tagline: "什麼曲子都能合",
     "mode.session": "合奏",
     "mode.inspire": "靈感",
     tunes: "曲目",
