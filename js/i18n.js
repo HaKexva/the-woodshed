@@ -291,4 +291,6 @@ export function applyStatic() {
   set("data-i18n", (el, v) => (el.textContent = v));
   set("data-i18n-html", (el, v) => (el.innerHTML = v));
   set("data-i18n-ph", (el, v) => (el.placeholder = v));
+  // a control whose whole label is an icon still has to say what it does
+  set("data-i18n-aria", (el, v) => el.setAttribute("aria-label", v));
 }

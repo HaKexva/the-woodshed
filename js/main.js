@@ -1144,6 +1144,13 @@ $("#editor-overlay").addEventListener("click", (e) => {
   if (e.target === $("#editor-overlay")) closeEditor();
 });
 
+// A dialog you can open with a key you can leave with a key. The close button
+// went to an icon in the corner, and on a phone the backdrop is a thin strip
+// above a near-full-height sheet, so this stopped being optional.
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("#editor-overlay").hidden) closeEditor();
+});
+
 
 
 
