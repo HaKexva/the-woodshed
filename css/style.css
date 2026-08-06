@@ -1522,6 +1522,128 @@ input[type="range"]::-moz-range-thumb {
   cursor: pointer;
 }
 
+/* ------------------------------------------------------------------ the rig */
+
+/* Its own full-width row at the top of the transport: flex-wrap gives it the
+   line, and the negative margins take it back out to the footer's edges so it
+   reads as a separate deck rather than as more transport. */
+.rig {
+  flex: 1 0 100%;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin: -0.75rem -2rem 0.1rem;
+  padding: 0.5rem 2rem 0.55rem;
+  background: var(--ink-3);
+  border-bottom: 1px solid var(--cream-10);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.rig::-webkit-scrollbar { display: none; }
+
+.rig-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--amber);
+  white-space: nowrap;
+  flex: none;
+  padding-bottom: 0.35rem;
+}
+
+/* A pedal reads in the off state — name, what it is set to, what that does —
+   so the row can be scanned without opening anything. */
+.pedal {
+  flex: none;
+  display: grid;
+  gap: 0.1rem;
+  min-width: 6rem;
+  padding: 0.32rem 0.6rem 0.36rem;
+  background: var(--ink-2);
+  border: 2px solid var(--cream-25);
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--body);
+  transition: border-color 0.12s, background-color 0.12s;
+}
+
+.pedal:hover { border-color: var(--cream-60); }
+.pedal:focus-within { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+.pedal-k {
+  font-size: 0.55rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--cream-25);
+}
+
+.pedal-v {
+  font-family: var(--display);
+  font-size: 1rem;
+  line-height: 1.1;
+  color: var(--cream-60);
+  text-transform: lowercase;
+}
+
+/* the select is the value: the pedal box already draws the border */
+select.pedal-v {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+}
+
+select.pedal-v:focus { outline: none; }
+select.pedal-v option { background: var(--ink-2); font-family: var(--body); }
+
+.pedal-sub {
+  font-size: 0.6rem;
+  line-height: 1.15;
+  color: var(--cream-25);
+}
+
+/* armed: the amber is the whole point of the row being visible at rest */
+.pedal.on { border-color: var(--amber); background: rgba(240, 138, 36, 0.1); }
+.pedal.on .pedal-k { color: var(--amber); }
+.pedal.on .pedal-v { color: var(--cream); }
+
+/* your four, during trading — the same amber the chord card takes */
+.pedal.yours { background: var(--amber); border-color: var(--amber); }
+.pedal.yours .pedal-k,
+.pedal.yours .pedal-v,
+.pedal.yours .pedal-sub { color: var(--ink); }
+
+.rig-chorus {
+  flex: none;
+  margin-left: auto;
+  text-align: right;
+  line-height: 1;
+  padding-bottom: 0.2rem;
+}
+
+.rig-chorus b {
+  display: block;
+  font-family: var(--display);
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: var(--amber);
+}
+
+.rig-chorus span {
+  font-size: 0.55rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--cream-25);
+}
+
+/* chart hidden: the map goes, the sounding chord stays. Practising without the
+   page in front of you is the drill; being told nothing at all is not. */
+body.chart-hidden #leadsheet,
+body.chart-hidden #system-view { display: none; }
+
 .mutes { display: flex; gap: 0.5rem; }
 
 .mute {
@@ -1648,7 +1770,26 @@ input[type="range"]::-moz-range-thumb {
   .song-search,
   .take-seed input,
   .reading-ctl select,
+  select.pedal-v,
   .wood-opt select { font-size: 16px; }
+
+  /* The rig keeps every pedal on a phone — it is the row you reach for with an
+     instrument in your hands, so nothing here collapses behind a menu. It
+     scrolls sideways instead, and the sub-lines go: the name and the value are
+     what you read mid-tune. The chorus count leads, because it is the one thing
+     you look at rather than touch. */
+  .rig {
+    margin: -0.75rem -1.2rem 0.1rem;
+    padding: 0.45rem 1.2rem 0.5rem;
+    gap: 0.4rem;
+    align-items: center;
+  }
+  .rig-label { display: none; }
+  .pedal { min-width: 0; padding: 0.28rem 0.5rem 0.3rem; }
+  .pedal-sub { display: none; }
+  .pedal-v { font-size: 0.95rem; }
+  .rig-chorus { order: -1; margin-left: 0; text-align: left; padding-bottom: 0; }
+  .rig-chorus b { font-size: 1.25rem; }
 
   .layout { grid-template-columns: 1fr; }
 

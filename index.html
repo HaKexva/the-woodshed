@@ -142,23 +142,10 @@
           </span>
         </div>
         <div class="wood-row">
-          <label class="wood-opt"><span data-i18n="tempoRamp">tempo ramp</span>
-            <select id="tempo-ramp">
-              <option value="0" data-i18n="rampOff">off</option>
-              <option value="2">+2 bpm</option>
-              <option value="5">+5 bpm</option>
-              <option value="10">+10 bpm</option>
-            </select>
-          </label>
+          <!-- the tempo ramp used to live here, where only the generated soloist
+               could reach it; it is a practice control and now sits in the rig.
+               Chord breaks are gone entirely — the mechanism is trading fours. -->
           <label class="wood-opt"><input type="checkbox" id="chromatic" /> <span data-i18n="chromaticOpt">chromatic notes</span></label>
-          <label class="wood-opt"><span data-i18n="chordBreaks">chord breaks</span>
-            <select id="chord-breaks">
-              <option value="0" data-i18n="rampOff">off</option>
-              <option value="2" data-i18n="breaks2">2 bars</option>
-              <option value="4" data-i18n="breaks4">4 bars</option>
-              <option value="8" data-i18n="breaks8">8 bars</option>
-            </select>
-          </label>
         </div>
 
         <div class="feel-dials">
@@ -229,6 +216,53 @@
   </main>
 
   <footer class="transport">
+    <!-- The rig. Every practice control the band already knows how to do, in the
+         one place you can reach with a horn in your hands, and readable in the
+         off state so you can see what is armed without opening anything. It
+         rides above the transport rather than inside the stage because it has to
+         stay put while the chart scrolls. Each pedal drives the existing band
+         API — nothing here teaches the band anything new. -->
+    <div class="rig" id="rig">
+      <p class="rig-label" data-i18n="rig">the rig</p>
+
+      <label class="pedal" id="pedal-ramp">
+        <span class="pedal-k" data-i18n="rampK">ramp</span>
+        <select id="tempo-ramp" class="pedal-v" aria-label="tempo ramp">
+          <option value="0" data-i18n="rampOff">off</option>
+          <option value="2">+2 bpm</option>
+          <option value="5">+5 bpm</option>
+          <option value="10">+10 bpm</option>
+        </select>
+        <span class="pedal-sub" data-i18n="rampSub">each chorus</span>
+      </label>
+
+      <button type="button" class="pedal pedal-btn" id="trade" aria-pressed="false">
+        <span class="pedal-k" data-i18n="tradeK">trade</span>
+        <span class="pedal-v" id="trade-v" data-i18n="rampOff">off</span>
+        <span class="pedal-sub" id="trade-sub" data-i18n="tradeSub">fours</span>
+      </button>
+
+      <label class="pedal" id="pedal-count">
+        <span class="pedal-k" data-i18n="countK">choruses</span>
+        <select id="stop-after" class="pedal-v" aria-label="stop after n choruses">
+          <option value="0">∞</option>
+          <option value="2">2</option>
+          <option value="4">4</option>
+          <option value="8">8</option>
+          <option value="12">12</option>
+        </select>
+        <span class="pedal-sub" data-i18n="countSub">then stop</span>
+      </label>
+
+      <button type="button" class="pedal pedal-btn" id="chart-hide" aria-pressed="false">
+        <span class="pedal-k" data-i18n="chartK">chart</span>
+        <span class="pedal-v" id="chart-v" data-i18n="chartShown">shown</span>
+        <span class="pedal-sub" data-i18n="chartSub">hide to test</span>
+      </button>
+
+      <p class="rig-chorus"><b id="chorus-n">—</b><span data-i18n="chorusK">chorus</span></p>
+    </div>
+
     <button id="play" class="play-btn" aria-label="play / pause">
       <span class="play-glyph" aria-hidden="true"></span>
     </button>

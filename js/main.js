@@ -57,6 +57,10 @@ const state = {
   paused: false, // playing && paused = held on the bar, position kept
   loading: false,
   ready: false,
+  // the rig
+  trading: false, // band four bars, you four, alternating
+  stopAfter: 0, // choruses to play before stopping — 0 runs until you stop it
+  chorus: 0, // times round the form so far, 1-based while playing
 };
 
 const band = new Band({
@@ -385,6 +389,9 @@ async function play() {
   await band.play();
   state.playing = true;
   state.paused = false;
+  chorusBar = -1;
+  state.chorus = 1; // the first time round is chorus one, not chorus zero
+  renderRig();
   renderTransport();
 }
 
@@ -408,6 +415,7 @@ function stop() {
   renderTransport();
   resetChordDisplay();
   clearSoloLine();
+  resetRig();
 }
 
 // the round button plays what it shows: a triangle to start or pick up, two
@@ -426,6 +434,82 @@ function setStatus(msg) {
   $("#status").textContent = msg;
 }
 
+// ------------------------------------------------------------------ the rig
+
+// Trading fours is `setBreakBars(4)` under the name of the drill it already is:
+// the band plays four bars and rests four, which with a human in the room is
+// call and response. band.js works out who is sounding from the bar index, so
+// the screen derives whose four it is from the same number rather than needing
+// to be told — same formula, same bar, no engine change.
+const TRADE_BARS = 4;
+
+// The chorus count is derived too: the form has come round whenever the bar
+// index stops climbing. band.js keeps a private `_chorus` for the arrangement
+// and never publishes it.
+//
+// Deriving it costs one thing worth knowing: these downbeats arrive through
+// Tone's draw callbacks, which a browser stops running when the tab is in the
+// background. Audio keeps going, so a tune left playing behind another window
+// undercounts, and "stop after four" will not fire. Nothing here can fix that —
+// the count has to come off the transport, which means band.js publishing its
+// `_chorus`, which is the engine half of this item.
+let chorusBar = -1;
+
+function renderChorus() {
+  $("#chorus-n").textContent = state.chorus || "—";
+}
+
+function armPedal(sel, on) {
+  $(sel).classList.toggle("on", !!on);
+}
+
+/** Repaint every pedal from state. Also the language hook: the value and
+ *  sub-lines are written from here, so `applyStatic` cannot leave a pedal
+ *  reading its placeholder after a language switch. */
+function renderRig() {
+  armPedal("#pedal-ramp", Number($("#tempo-ramp").value) > 0);
+  armPedal("#pedal-count", state.stopAfter > 0);
+
+  const yours = state.trading && state.yourFour;
+  $("#trade-v").textContent = t(state.trading ? "tradeFours" : "rampOff");
+  $("#trade-sub").textContent = state.trading ? t(yours ? "tradeYou" : "tradeBand") : t("tradeSub");
+  $("#trade").classList.toggle("yours", yours);
+  $("#trade").setAttribute("aria-pressed", String(state.trading));
+  armPedal("#trade", state.trading);
+
+  const hidden = document.body.classList.contains("chart-hidden");
+  $("#chart-v").textContent = t(hidden ? "chartHidden" : "chartShown");
+  $("#chart-hide").setAttribute("aria-pressed", String(hidden));
+  armPedal("#chart-hide", hidden);
+
+  renderChorus();
+}
+
+/** A bar has started. Returns false if the rig stopped the band on it, so the
+ *  caller knows not to go on and light a bar that is no longer playing. */
+function rigBar(bar) {
+  if (bar <= chorusBar) {
+    state.chorus++;
+    // "four choruses then stop" means four complete times round, so the count
+    // runs out on the downbeat that would have started a fifth
+    if (state.stopAfter && state.chorus > state.stopAfter) {
+      stop();
+      return false;
+    }
+  }
+  chorusBar = bar;
+  if (state.trading) state.yourFour = Math.floor(bar / TRADE_BARS) % 2 === 1;
+  renderRig();
+  return true;
+}
+
+function resetRig() {
+  chorusBar = -1;
+  state.chorus = 0;
+  state.yourFour = false;
+  renderRig();
+}
+
 // ------------------------------------------------------------------ band events
 
 // what is on screen right now, so a reading-key change can repaint it without
@@ -437,6 +521,7 @@ function handleBeat(bar, beatInBar) {
   $$(".beat-light").forEach((el, i) => el.classList.toggle("on", i === beatInBar));
   if (bar < 0) return; // count-in: pulse the lights, touch nothing else
   if (beatInBar === 0) {
+    if (!rigBar(bar)) return; // the rig ran the chorus count out on this downbeat
     lastBar = bar;
     highlightBar(bar);
     renderSystemView(bar);
@@ -617,9 +702,33 @@ document.addEventListener("click", (e) => {
 });
 
 $("#hold-take").addEventListener("change", (e) => band.setHoldTake(e.target.checked));
-$("#tempo-ramp").addEventListener("change", (e) => band.setTempoRamp(Number(e.target.value)));
-$("#chord-breaks").addEventListener("change", (e) => band.setBreakBars(Number(e.target.value)));
 $("#chromatic").addEventListener("change", (e) => band.setChromatic(e.target.checked));
+
+// ---- the rig ----
+
+$("#tempo-ramp").addEventListener("change", (e) => {
+  band.setTempoRamp(Number(e.target.value));
+  renderRig();
+});
+
+$("#trade").addEventListener("click", () => {
+  state.trading = !state.trading;
+  state.yourFour = false;
+  band.setBreakBars(state.trading ? TRADE_BARS : 0);
+  renderRig();
+});
+
+// Nothing is scheduled ahead: the count is checked on each downbeat, so
+// changing this mid-tune takes effect on the next time round.
+$("#stop-after").addEventListener("change", (e) => {
+  state.stopAfter = Number(e.target.value);
+  renderRig();
+});
+
+$("#chart-hide").addEventListener("click", () => {
+  document.body.classList.toggle("chart-hidden");
+  renderRig();
+});
 
 $("#take-seed").addEventListener("change", (e) => {
   const v = e.target.value.trim();
@@ -1256,6 +1365,7 @@ $("#lang-toggle").addEventListener("click", () => {
   if (soloLine) renderSoloLine(soloLine.events, soloLine);
   renderSystemView(-1);
   renderTransport();
+  renderRig(); // the pedal values are written from state, not from data-i18n
 });
 
 // ------------------------------------------------------------------ boot
@@ -1267,6 +1377,7 @@ renderTracklist();
 selectSong(0);
 updateListView();
 setMode("session");
+renderRig();
 
 // a phone speaker or a pair of earbuds loses the bass fundamental, so the
 // boost starts engaged there — off everywhere else, and the switch overrides

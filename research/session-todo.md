@@ -11,14 +11,14 @@ project).
 
 | # | | Item | Effort | Status |
 |---|---|---|---|---|
-| 1 | `[P]` | Move the **tempo ramp** out of `#inspire-panel` (index.html:114) into session mode. It is implemented, correct, and invisible to the person who came to practise. The case for it is not that it is another way to set the tempo — it is the only one you can operate with your hands full: set +5, play eight choruses, finish 40 bpm up without ever having stopped. Backed by Allingham & Wöllner (2022), where gradual increase is the most common way musicians organise slow practice | XS | |
+| 1 | `[P]` | Move the **tempo ramp** out of `#inspire-panel` (index.html:114) into session mode. It is implemented, correct, and invisible to the person who came to practise. The case for it is not that it is another way to set the tempo — it is the only one you can operate with your hands full: set +5, play eight choruses, finish 40 bpm up without ever having stopped. Backed by Allingham & Wöllner (2022), where gradual increase is the most common way musicians organise slow practice | XS | **done** |
 | 1b | `[P]` | ~~Surface **chord breaks**~~ — **dropped.** One vendor precedent (Band-in-a-Box), no study, and as a density option it does not earn a slot. The mechanism survives as item 7: `setBreakBars(4)` is trading fours, which is a named drill rather than a setting | — | **dropped** |
 | 2 | `[B]` | **Voice-led, non-deterministic piano voicings.** Candidate set per chord, scored by voice motion from the previous chord and by top-note recency, picked weighted-random among the best few. Fixed the frozen top line, the 85 two-note voicings and the 12 ♯9 semitone clusters in one change — 0.186 → 0.343 distinct top notes per chord, top-voice motion *down* from 2.48 to 1.60 semitones, clusters and dyads to zero. See the applied section of [backing-band-audit.md](backing-band-audit.md#1-voice-led-non-deterministic-piano-voicings--applied) | M | **done** |
 | 3 | `[B]` | **Invert the ride weights** — the canonical figure played in 15% of bars, a figure with no beat 2 in 40%, and a `slow > 0.3` gate zeroed the skip note below 95 bpm. Reweighted, and the one skip figure split into three (skip on 2, on 4, on both); gate deleted. Bars with a swung skip note: 30% → 70% above 95 bpm, **0% → 66%** below it | XS | **done** |
 | 4 | `[P]` | **Display transposition** (C / B♭ / E♭ / F) on the chord card, next-chord readout, scale strip, system view, lead sheet and Inspire score. Nothing in the codebase transposed anything, which for a horn player is close to disqualifying. The control sits under the song title rather than in the transport: it changes what is written, never what sounds | S | **done** |
 | 5 | `[P]` | **Section loop** with a bar-range picker and a pre-roll, snapping to barlines. `loopStart`/`loopEnd` already do the work. Most-used practice strategy in the literature | S | |
-| 6 | `[P]` | **Chorus counter and stop-after-N**, both off `_chorus` (band.js:914), which is tracked and never surfaced | XS | |
-| 7 | `[P]` | **Name and surface trading fours.** `setBreakBars(4)` already *is* that cycle. Needs a label and a cue for whose bars are whose. Zero music modelling | XS | |
+| 6 | `[P]` | **Chorus counter and stop-after-N.** Both shipped, but derived in main.js from the bar index rather than off `_chorus`, which band.js still does not publish. Exact while the page is being drawn; a tab left playing in the background stops receiving downbeats, so the count stalls and the stop never fires. Publishing `_chorus` is the remaining half | XS | **done (UI)** |
+| 7 | `[P]` | **Name and surface trading fours.** `setBreakBars(4)` already *was* that cycle; it now has the name, and the pedal turns solid amber on your four. The screen derives whose bars they are from the same `bar` index band.js uses, so no callback was added | XS | **done** |
 | 8 | `[B]` | **Two-feel** — per-chorus bass feel, drums following. The bass walked quarters from bar 1 of chorus 1 to the end. `two` and `four` are in (`pedal` and `broken` are not); the head chorus and the quiet chorus of the wave take two. 4.14 → 2.03 notes/bar with the root still on 78% of chord changes, drums sitting back to match | S | **done** |
 | 9 | `[B]` | **Separate the piano and guitar registers.** Only the piano moved in the end: its floor went F♯3 → A3, taking the overlap from 46.7% to about 25%. Moving the guitar as well was tried twice — floor to E2, ceiling to G3 — and both take it out of the range its voicings were built for, so it stays at 43–65 | XS | **done** |
 | 10 | `[P]` | **Let the band lay out for a human.** `duck()` (band.js:1002) and the drummer's phrase-end answers (band.js:993) are gated on `soloOn`, so the one part of the engine that models a band listening to a soloist is off whenever there is a real one | S | |
@@ -42,7 +42,7 @@ project).
 
 ## Where it stands
 
-**Done: 2, 3, 4, 8, 9, 11, 13, 14, 20, 27.** Between them they cover what a
+**Done: 1, 2, 3, 4, 6, 7, 8, 9, 11, 13, 14, 20, 27.** Between them they cover what a
 player names first — the comp repeating itself, the cymbal not swinging, the bass
 never changing gear, the guitar sitting on the band, and having to transpose the
 whole chart in your head. The comp colour that came out of item 2 grew past the
@@ -53,8 +53,19 @@ instruments.
 part wanted was voice leading and ghosting, which became item 27.
 **Dropped: 1b.**
 
-**Still open, cheapest first:** 1, 6, 7, 16, 17 (all XS) · 5, 10, 15, 21, 22, 23
-(S) · 12, 18, 24, 25 (M) · 26 (L).
+**Still open, cheapest first:** 16, 17 (XS) · 5, 10, 15, 21, 22, 23 (S) ·
+12, 18, 24, 25 (M) · 26 (L).
+
+Items 1, 6 and 7 shipped together as **the rig** — a row across the top of the
+transport holding the practice controls, readable in the off state so you can see
+what is armed without opening anything. It was deliberately a UI-only change:
+every pedal drives the band through an API it already had, which is why item 6
+arrived with its count derived rather than published, and why item 5 (section
+loop) is not there — that one needs `loopStart` / `loopEnd`, and there is nowhere
+UI-side to put it. The row has a slot waiting for it.
+
+Reading transposition stayed under the song title rather than moving into the
+rig. It changes what is written, never what sounds, so it belongs with the chart.
 
 Two of those changed shape along the way. Item 12 is now the natural home for
 anything per-chorus, since the bass feel and the comp colour both already work
