@@ -1261,9 +1261,13 @@ export class Band {
     const sections = formSections(song);
     const layOut = { piano: new Set(), guitar: new Set() };
 
-    // Enough range to be heard. The quiet chorus keeps about 74% of the comp at
-    // ten velocity under; the peak keeps all of it, four over.
-    const energy = [0.55, 0.78, 1, 0.35][chorus % 4];
+    // A four-chorus arc: the head sits back, it builds, it peaks, it drops off
+    // before starting again. Enough range to be heard — the levers this replaces
+    // moved velocity by ±3.6 and thinned by 5%, which is nothing — but the drop
+    // is backing off, not dropping out. The first pass put the low point at
+    // 0.35 and that took a third of the comp away along with four bars of the
+    // form, which is further than a section goes behind a soloist.
+    const energy = [0.55, 0.78, 1, 0.5][chorus % 4];
 
     // Who leads. Both comping full-time every chorus is a machine's tell, but so
     // is trading it every single time round.
