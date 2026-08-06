@@ -250,17 +250,55 @@ symbols), the old function reconstructed from its last commit:
 So the line moves, it moves smoothly, and it moves somewhere different every
 chorus — and the rhythm, which was the part that was already right, is untouched.
 
-### 2. Fix the ride weights, and un-gate slow tempos
+### 2. Fix the ride weights, and un-gate slow tempos — **applied**
 
-Invert the pool so the skip figure is the default (~60–70% of bars) and plain
-quarters are the variation; delete the `slow > 0.3` forcing so ballads get the
-detail they should. Four numbers.
+The pool is reweighted so some skip lands in roughly two bars out of three, and
+the one skip figure is split into three so the skip falls on 2, on 4, or on both
+rather than always together. Plain quarters and the leave-beat-2-out figure stay
+in as the contrast they were meant to be. The `slow > 0.3` forcing is gone.
 
-### 3. Two-feel
+Bars containing a swung skip note, 30 choruses per tempo:
 
-Add a per-chorus bass feel — `two | four | pedal | broken` — with the drums
-following (hi-hat on 2 and 4, ride quarters, kick out). ~20 lines, changes the
-character of 83% of the songbook, and gives the arrangement somewhere to go.
+| | before | after |
+|---|---|---|
+| 70 bpm | 0% | **67%** |
+| 88 bpm | 0% | **65%** |
+| 100 bpm | 31% | **70%** |
+| 140 bpm | 32% | **70%** |
+| 200 bpm | 31% | **70%** |
+| 260 bpm | 30% | **68%** |
+
+Ride hits go from 4.03 to 4.89 a bar. Kick feathering and hi-hat are unchanged.
+
+### 3. Two-feel — **applied** (`two` and `four`; `pedal` and `broken` are not)
+
+`_bassLine` takes a `feel` and the swing branch honours it. In two, beat 1 takes
+the same target the walk would have taken — so the harmony lands identically —
+and beat 3 takes the fifth while the chord holds, or the approach note when the
+chord is about to change, so the line still walks into the barline the way it
+does in four. Every other branch returns before the check, so ballad, funk, bossa
+and latin are untouched.
+
+`_buildParts` picks the feel per chorus: the first time through stands in for the
+head, and the quiet chorus of the existing four-chorus wave drops back 60% of the
+time. The drums follow, which is what makes the opening up read as a lift rather
+than as the bass changing its mind on its own.
+
+Autumn Leaves, 30 choruses each:
+
+| | in four | in two |
+|---|---|---|
+| bass notes/bar | 4.14 | **2.03** |
+| bass onsets | 1 · 2 · 3 · 4 | **1 · 3** |
+| root on the chord change | 79.0% | 78.3% |
+| kick | 1.34/bar | **0.64** |
+| snare comping | 0.94/bar | **0.73** |
+| bars with a ride skip | 71% | **38%** |
+
+The 8th-note pickup also moved from half a beat *after the note it follows* to
+half a beat *before the note it leads to* — identical when the line is in four
+and its neighbours are a beat apart, and the difference between a pickup and a
+note left hanging when they are two apart.
 
 ### 4. Split the piano and guitar registers
 
