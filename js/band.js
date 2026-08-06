@@ -4,7 +4,7 @@
 
 import * as Tone from "https://cdn.jsdelivr.net/npm/tone@15.1.22/+esm";
 import { Soundfont, SplendidGrandPiano, Sampler } from "https://cdn.jsdelivr.net/npm/smplr@1.0.0/+esm";
-import { parseChord, voiceComp, guitarVoicing, bassPcs, placeNear, soloScaleSteps } from "./theory.js";
+import { parseChord, voiceComp, COMP_COLOUR, guitarVoicing, bassPcs, placeNear, soloScaleSteps } from "./theory.js";
 import { WJD } from "./solo-vocab.js";
 
 const BASS_LO = 30; // F#1
@@ -218,6 +218,19 @@ export class Band {
     this.hqOn = false;
     this._hq = {};
     this.bassBoost = false; // see _gainFor
+    // How much the whole rhythm section reaches: the piano's voicings, how often
+    // the guitar pushes and colours, how far the bass strays from the root and
+    // how many 8ths it fills with, and how busy the drummer's comping and fills
+    // are. Warm is the default because the point of a rhythm section is to state
+    // the tune under whoever is playing over it, not to be interesting on its own.
+    this.compColour = COMP_COLOUR.warm;
+  }
+
+  /** "plain" | "warm" | "rich" — how much the rhythm section reaches. */
+  setCompColour(name) {
+    if (!(name in COMP_COLOUR)) return;
+    this.compColour = COMP_COLOUR[name];
+    if (this.playing && this._songCtx) this._buildParts(this.song, this._lastFeel);
   }
 
   /** Push the bass forward for walking-line practice — level in _gainFor,
@@ -1014,10 +1027,14 @@ export class Band {
     const bassFeel = walking && (!chorus || (chorus % 4 === 3 && rand() < 0.6)) ? "two" : "four";
 
     const ev = {
-      piano: duck(this._pianoEvents(chords, style, straight, bpb)),
-      guitar: duck(this._guitarEvents(chords, song, style, straight, bpb)),
-      bass: this._bassEvents(chords, totalBeats, style, straight, bpb, bassFeel),
-      drums: this._drumEvents(song, style, straight, bpb, { phraseEnds, bassFeel }),
+      piano: duck(this._pianoEvents(chords, style, straight, bpb, this.compColour)),
+      guitar: duck(this._guitarEvents(chords, song, style, straight, bpb, this.compColour)),
+      bass: this._bassEvents(chords, totalBeats, style, straight, bpb, bassFeel, this.compColour),
+      drums: this._drumEvents(song, style, straight, bpb, {
+        phraseEnds,
+        bassFeel,
+        colour: this.compColour,
+      }),
       meta: [],
     };
 
@@ -2339,7 +2356,7 @@ export class Band {
     return chords;
   }
 
-  _pianoEvents(chords, style, straight, bpb) {
+  _pianoEvents(chords, style, straight, bpb, colour = COMP_COLOUR.warm) {
     const events = [];
     // Swing comping lives on the upbeats. A pool where most patterns start on
     // beat 1 is the machine tell a player hears first, so the offbeat-first
@@ -2395,7 +2412,7 @@ export class Band {
     // way the soloist's guide-tone thread is: a chord's shape depends on the one
     // before it, and the anticipation at the end of a bar has to be the *same*
     // shape the next bar then plays.
-    const voicings = voiceComp(chords, rand);
+    const voicings = voiceComp(chords, rand, { colour });
 
     for (let i = 0; i < chords.length; i++) {
       const c = chords[i];
@@ -2478,8 +2495,13 @@ export class Band {
     return events;
   }
 
-  _guitarEvents(chords, song, style, straight, bpb) {
+  _guitarEvents(chords, song, style, straight, bpb, colour = COMP_COLOUR.warm) {
     const events = [];
+    // plain keeps the shell and stays out of the way; rich reaches for the
+    // rootless colour shape, pushes over the barline more, and lays out more
+    const VARIANT = [0.12, 0.35, 0.62][colour] ?? 0.35;
+    const BREATHE = [0.04, 0.1, 0.18][colour] ?? 0.1;
+    const PUSH = [0.06, 0.15, 0.3][colour] ?? 0.15;
     const chordAt = (beat) => {
       let cur = chords[0];
       for (const c of chords) if (c.startBeat <= beat) cur = c;
@@ -2495,7 +2517,7 @@ export class Band {
         events.push({
           beat: barIdx * bpb,
           dur: bpb,
-          midis: guitarVoicing(c.info, rand() < 0.4 ? 1 : 0),
+          midis: guitarVoicing(c.info, rand() < VARIANT ? 1 : 0),
           vel: 28,
           roll: rand() < 0.5,
         });
@@ -2517,7 +2539,7 @@ export class Band {
     const modalPool = [[0], [1.5], [2.5], [], [], [0, 2.5]];
 
     for (let bar = 0; bar < totalBars; bar++) {
-      const variant = rand() < 0.35 ? 1 : 0;
+      const variant = rand() < VARIANT ? 1 : 0;
       let offsets;
       if (style === "funk") offsets = choice(funkPool);
       // latin before the straight branch: it locks to clave instead of a pool
@@ -2525,7 +2547,7 @@ export class Band {
       else if (straight) offsets = choice(bossaPool);
       else if (style === "modal") offsets = choice(modalPool);
       else if (style === "blues") offsets = choice(bluesPool);
-      else if (rand() < 0.1) offsets = [1, 3]; // breathe: comp 2 & 4 only
+      else if (rand() < BREATHE) offsets = [1, 3]; // breathe: comp 2 & 4 only
       else offsets = [...Array(bpb).keys()]; // Freddie Green quarters
 
       // modal holds its voicings; latin's guajeo is short and percussive
@@ -2546,7 +2568,7 @@ export class Band {
       }
 
       // swing: occasional push — anticipate next bar's chord on the & of 4
-      if (!straight && style !== "funk" && bar < totalBars - 1 && rand() < 0.15) {
+      if (!straight && style !== "funk" && bar < totalBars - 1 && rand() < PUSH) {
         const next = chordAt((bar + 1) * bpb);
         events.push({
           beat: bar * bpb + bpb - 0.5,
@@ -2560,8 +2582,8 @@ export class Band {
   }
 
   /** Walking/riff line, then one sustain pass over the top of it. */
-  _bassEvents(chords, totalBeats, style, straight, bpb, feel = "four") {
-    const events = this._bassLine(chords, totalBeats, style, straight, bpb, feel);
+  _bassEvents(chords, totalBeats, style, straight, bpb, feel = "four", colour = COMP_COLOUR.warm) {
+    const events = this._bassLine(chords, totalBeats, style, straight, bpb, feel, colour);
 
     // Note length, every style alike. Short plucked notes leave audible holes
     // between the beats, which is what makes a sampled bass read as *plucked*
@@ -2583,8 +2605,12 @@ export class Band {
     return events;
   }
 
-  _bassLine(chords, totalBeats, style, straight, bpb, feel = "four") {
+  _bassLine(chords, totalBeats, style, straight, bpb, feel = "four", colour = COMP_COLOUR.warm) {
     const events = [];
+    // plain plants the root on the change and walks plain quarters; rich takes
+    // the third and the fifth as targets more often and fills more of the gaps
+    const TARGETS = [[0.07, 0.11], [0.14, 0.22], [0.24, 0.36]][colour] ?? [0.14, 0.22];
+    const SKIPS = [0.45, 1, 2.3][colour] ?? 1;
     const chordAt = (beat) => {
       let cur = chords[0];
       for (const c of chords) if (c.startBeat <= beat) cur = c;
@@ -2680,7 +2706,7 @@ export class Band {
       const p = bassPcs(info);
       const r = rand();
       // mostly the root; other chord tones keep it from spelling out every bar
-      return r < 0.14 ? p.third : r < 0.22 ? p.fifth : p.root;
+      return r < TARGETS[0] ? p.third : r < TARGETS[1] ? p.fifth : p.root;
     };
 
     let dir = 1;
@@ -2788,7 +2814,7 @@ export class Band {
     for (let i = 0; i < quarters.length - 1; i++) {
       const cur = quarters[i];
       const nxt = quarters[i + 1];
-      const chance = leadIns.has(cur.beat) ? 0.16 : cur.beat % bpb === 1 ? 0.06 : 0.03;
+      const chance = (leadIns.has(cur.beat) ? 0.16 : cur.beat % bpb === 1 ? 0.06 : 0.03) * SKIPS;
       if (rand() >= chance) continue;
       const gap = nxt.midi - cur.midi;
       const dir = Math.sign(gap) || 1;
@@ -2805,6 +2831,11 @@ export class Band {
     const events = [];
     const totalBars = song.progression.length;
     const twoFeel = opts.bassFeel === "two"; // what the bass is doing this chorus
+    // plain keeps time and stays out of the way; rich comps more, fills more,
+    // and leans on the busier ride figures
+    const colour = opts.colour ?? COMP_COLOUR.warm;
+    const COLOUR_COMP = [0.55, 1, 1.6][colour] ?? 1;
+    const COLOUR_FILL = [-0.22, 0, 0.14][colour] ?? 0;
     const push = (bar, off, drum, vel, extra) => events.push({ beat: bar * bpb + off, drum, vel, ...extra });
     // where the soloist ends phrases, the drummer answers
     const endsByBar = new Map();
@@ -2967,7 +2998,8 @@ export class Band {
         // backwards: a slow tune is where a drummer puts more detail into the
         // ride, not less. A two-feel chorus is the one place the plain figure
         // genuinely belongs.
-        const pattern = twoFeel && rand() < 0.45 ? RIDE_PLAIN : pickRide();
+        const plainer = (twoFeel && rand() < 0.45) || (colour === COMP_COLOUR.plain && rand() < 0.5);
+        const pattern = plainer ? RIDE_PLAIN : pickRide();
         for (const [off, vel] of pattern) push(bar, off, "ride", vel);
         push(bar, 1, "hat", 50);
         push(bar, 3, "hat", 50);
@@ -3025,7 +3057,7 @@ export class Band {
               [[-1, "rim", 34], [-0.5, "rim", 42]],
               [[-0.5, "snare", 44]],
             ];
-        if (lead || rand() > 0.22) {
+        if (lead || rand() > 0.22 - COLOUR_FILL) {
           for (const [rel, drum, vel] of choice(pool)) {
             const off = bpb + rel;
             if (off >= 0) push(bar, off, drum, kv(vel));
@@ -3038,7 +3070,7 @@ export class Band {
           continue;
         }
       }
-      const density = compMul * comboComp * (twoFeel ? 0.55 : 1);
+      const density = compMul * comboComp * (twoFeel ? 0.55 : 1) * COLOUR_COMP;
       const hits = rand() < (0.55 - slow * 0.25) * density ? 1 : rand() < 0.25 * density ? 2 : 0;
       // `hits` can be 2 while a slow tune offers only one spot, and the second
       // splice off an empty array then pushed a hit at beat NaN — one bogus

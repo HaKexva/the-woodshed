@@ -133,6 +133,43 @@ export function flatName(pc) {
   return FLAT_NAMES[((pc % 12) + 12) % 12];
 }
 
+// ------------------------------------------------------- reading transposition
+//
+// How far above concert pitch each instrument *reads*. A tenor player looking at
+// a concert C chart has to play D, so the chart they want to see says D — the
+// band is not moved, only the writing. Baritone reads the same pitch classes as
+// alto an octave down, so it shares the E♭ shift.
+export const READING_KEYS = {
+  C: { label: "concert", shift: 0 },
+  Bb: { label: "B♭", shift: 2 }, // tenor & soprano sax, trumpet, clarinet
+  Eb: { label: "E♭", shift: 9 }, // alto & baritone sax
+  F: { label: "F", shift: 7 }, // french horn, english horn
+};
+
+/** Written spelling for a transposed root. Flats throughout, which is both the
+ *  app's existing convention and what a jazz chart mostly uses. */
+const shiftName = (name, semitones) => flatName(notePc(name) + semitones);
+
+/**
+ * Rewrite a chord symbol into a transposing instrument's written pitch, keeping
+ * the quality suffix and any slash bass exactly as written: "Bb7#11" +2 → "C7#11".
+ */
+export function transposeSymbol(symbol, semitones) {
+  if (!semitones) return symbol;
+  const [main, bassStr] = String(symbol).trim().split("/");
+  const m = main.match(/^([A-G][b#♭♯]?)(.*)$/);
+  if (!m) return symbol; // unparseable — leave it alone rather than mangle it
+  const out = shiftName(m[1], semitones) + m[2];
+  return bassStr ? `${out}/${shiftName(bassStr, semitones)}` : out;
+}
+
+/** The same for a free-text key ("G minor", "D dorian", "Eb") — the leading
+ *  note name moves and the rest of the words are left alone. */
+export function transposeKey(key, semitones) {
+  if (!semitones || !key) return key;
+  return String(key).replace(/^\s*([A-G][b#♭♯]?)/, (m0, n) => shiftName(n, semitones));
+}
+
 /** Nearest MIDI note with pitch class `pc` to `ref`, clamped to [lo, hi]. */
 export function placeNear(pc, ref, lo, hi) {
   let best = null;
@@ -191,15 +228,28 @@ function rising(ivs) {
 
 const voicingCache = new Map();
 
+/** How much colour the comp reaches for. 0 = guide-tone shells and nothing
+ *  else; 1 = the rootless forms with a ninth; 2 = thirteenths, drop-2 and the
+ *  quartal stack on top of those. */
+export const COMP_COLOUR = { plain: 0, warm: 1, rich: 2 };
+
 /**
  * The shapes a pianist would reach for on this chord, as interval stacks from
- * the root: every three- and four-note combination of the chord's colour tones
- * that keeps a guide tone, in every inversion that stays inside a tenth.
- * Rotating the set is what produces different notes on top, which is the line
- * the ear actually follows.
+ * the root.
+ *
+ * These are *named forms* — the shells, the two rootless voicings, drop-2, the
+ * quartal stack — and not, as a first attempt had it, every combination of the
+ * chord's colour tones in every inversion. That produced 29 shapes for a Dm7,
+ * thirteen of which had no third in them at all, because a filter that keeps
+ * anything containing a third *or* a seventh happily passes {9, 11, 5, ♭7}.
+ * The comp had plenty of variety and stopped sounding like comping.
+ *
+ * Every form here carries both guide tones where the chord has them; the
+ * quartal stack is the one deliberate exception, and it is colour 2 only.
  */
-export function pianoVoicings(chord) {
-  if (voicingCache.has(chord.symbol)) return voicingCache.get(chord.symbol);
+export function pianoVoicings(chord, colour = COMP_COLOUR.warm) {
+  const cacheKey = `${chord.symbol}|${colour}`;
+  if (voicingCache.has(cacheKey)) return voicingCache.get(cacheKey);
 
   const iv = chord.intervals;
   const third = pick(iv, [4, 3, 5, 2]) ?? 4; // 5/2 = the suspended chords
@@ -213,42 +263,79 @@ export function pianoVoicings(chord) {
   const ninth =
     pick(iv, [14, 13, 15]) ??
     (seventh !== null && soloScaleSteps(chord).includes(2) ? 14 : null);
-  const thirteenth = pick(iv, [21, 20]);
+  // and the same for the thirteenth, which is what lets the rich setting reach
+  // two colour tones at once — without it almost no chord in the book offers
+  // more than one, and rich came out indistinguishable from warm
+  const thirteenth =
+    pick(iv, [21, 20]) ??
+    (seventh !== null && soloScaleSteps(chord).includes(9) ? 21 : null);
   const suspended = third === 5 || third === 2;
   const minorish = third === 3;
 
-  const pool = [...new Set([third, fifth, seventh, ninth, thirteenth].filter((t) => t !== null))];
-  // an eleventh over a major third is an avoid note; over a minor or suspended
-  // chord it is the "So What" sound
-  if (minorish || suspended) pool.push(pick(iv, [17, 18]) ?? 5);
-  if (seventh === null) pool.push(0); // triads need the root to make three voices
-
   const seen = new Set();
   const out = [];
-  const offer = (ivs) => {
+  // how many voices are reaching past root / 3rd / 5th / 7th — the number the
+  // colour setting is actually a target for
+  const core = new Set([0, third % 12, fifth % 12, seventh === null ? -1 : seventh % 12]);
+  const offer = (...ivs) => {
+    if (ivs.some((v) => v === null || v === undefined)) return;
     const v = rising(ivs);
     if (v[v.length - 1] - v[0] > COMP_SPAN) return;
     const key = v.join();
     if (seen.has(key)) return;
     seen.add(key);
-    out.push(v);
+    out.push({ ivs: v, extras: v.filter((x) => !core.has(((x % 12) + 12) % 12)).length });
   };
 
-  for (let mask = 1; mask < 1 << pool.length; mask++) {
-    const set = pool.filter((_, i) => mask & (1 << i));
-    if (set.length < 3 || set.length > 4) continue;
-    if (!set.includes(third) && !set.includes(seventh)) continue; // keep a guide tone
-    for (let r = 0; r < set.length; r++) offer([...set.slice(r), ...set.slice(0, r)]);
-  }
-  // rooted shells, for the bars where the comp wants to state the chord plainly
-  if (seventh !== null) {
-    offer([0, seventh, third]);
-    offer([0, third, seventh]);
+  if (seventh === null) {
+    // triads and the chords with no seventh at all — these used to comp as two
+    // notes, 85 of the songbook's 502 distinct symbols among them
+    offer(third, fifth, 0);
+    offer(0, third, fifth);
+    if (colour >= COMP_COLOUR.warm) offer(fifth, 0, third);
+    if (colour >= COMP_COLOUR.warm) offer(third, fifth, ninth);
+  } else {
+    // shells: the guide tones, with the root under or over them. The whole
+    // vocabulary at colour 0, and still the backbone above it.
+    offer(0, third, seventh);
+    offer(0, seventh, third);
+    offer(third, seventh, 0);
+    offer(third, fifth, seventh);
+    offer(seventh, third, fifth);
+
+    if (colour >= COMP_COLOUR.warm) {
+      offer(third, fifth, seventh, ninth); // rootless A
+      offer(seventh, ninth, third, fifth); // rootless B
+      offer(third, seventh, ninth);
+      offer(seventh, third, ninth);
+    }
+
+    if (colour >= COMP_COLOUR.rich) {
+      // two colour tones at once is what makes rich a different sound rather
+      // than a slightly wider warm
+      offer(third, seventh, ninth, thirteenth);
+      offer(seventh, third, ninth, thirteenth);
+      offer(seventh, ninth, third, thirteenth);
+      offer(seventh, third, thirteenth);
+      offer(third, seventh, thirteenth);
+      offer(...drop2(rising([third, fifth, seventh, ninth ?? fifth])));
+      // a fourth over a major third is an avoid note, so the quartal stack is
+      // for the minor and suspended chords only — this is the "So What" sound
+      if (minorish || suspended) offer(pick(iv, [17, 18]) ?? 5, seventh, third, ninth ?? fifth);
+    }
   }
 
-  const cands = out.length ? out : [rising([third, fifth, seventh ?? 0])];
-  voicingCache.set(chord.symbol, cands);
-  return cands;
+  if (!out.length) out.push({ ivs: rising([third, fifth, seventh ?? 0]), extras: 0 });
+  voicingCache.set(cacheKey, out);
+  return out;
+}
+
+/** Drop the second voice from the top down an octave. */
+function drop2(ivs) {
+  if (ivs.length < 4) return ivs;
+  const out = [...ivs];
+  out[out.length - 2] -= 12;
+  return out.sort((a, b) => a - b);
 }
 
 /** Put one interval stack on the keyboard, centred as near `anchor` as the
@@ -284,43 +371,70 @@ function motion(prev, next) {
  * same tune is voiced a different way each time round while staying joined up
  * inside any one chorus.
  */
-export function voiceComp(chords, rand = Math.random) {
-  const WEIGHTS = [0.45, 0.28, 0.17, 0.1];
+// What each colour setting is actually asking for. Widening the pool alone did
+// not work: the shells voice-lead better than anything else, so they won at
+// every setting and the three sounded the same. The setting has to bias the
+// *choice*, and on more than one axis, or it is a label rather than a sound.
+//   extras — voices reaching past root/3rd/5th/7th, which is the tone colour
+//   size   — how many voices the hand puts down
+//   centre — where the shape sits, so the three occupy different air
+//   hold   — how readily a held chord is left alone
+//   pick   — how often anything but the smoothest option gets taken
+const COMP_SETTINGS = [
+  { extras: 0, size: 3, centre: 61, hold: 0.88, pick: [0.86, 0.11, 0.03] },
+  { extras: 1, size: 4, centre: 65, hold: 0.74, pick: [0.7, 0.21, 0.07, 0.02] },
+  { extras: 2, size: 4, centre: 69, hold: 0.5, pick: [0.5, 0.27, 0.15, 0.08] },
+];
+
+export function voiceComp(chords, rand = Math.random, opts = {}) {
+  const colour = opts.colour ?? COMP_COLOUR.warm;
+  const set = COMP_SETTINGS[colour] ?? COMP_SETTINGS[COMP_COLOUR.warm];
   const mean = (v) => v.reduce((a, b) => a + b, 0) / v.length;
   const out = [];
   const recentTops = [];
   let prev = null;
+  let prevSymbol = null;
 
   for (const c of chords) {
-    const anchor = prev ? mean(prev) : 65;
-    const scored = pianoVoicings(c.info)
-      .map((ivs) => place(c.info, ivs, anchor))
-      .map((v) => {
+    // A comper leaves the hand where it is while the chord does. Revoicing a
+    // held chord every single bar is its own kind of tell — the variety reads
+    // as restlessness rather than as playing.
+    if (prev && c.symbol === prevSymbol && rand() < set.hold) {
+      out.push(prev);
+      continue;
+    }
+
+    const anchor = prev ? mean(prev) : set.centre;
+    const scored = pianoVoicings(c.info, colour)
+      .map((cand) => ({ ...cand, v: place(c.info, cand.ivs, anchor) }))
+      .map((cand) => {
+        const v = cand.v;
         const top = v[v.length - 1];
         return {
           v,
-          // voice leading, then the top voice again on its own because it is the
-          // line the ear follows, then a shove away from a top note just used —
-          // that last term is what keeps a chord that sits still from sitting
-          // still, and it is the only reason "So What" gets a moving comp
+          // The colour terms come first and are weighted to dominate, because
+          // the differences in voice leading between candidates are only a
+          // semitone or two and would otherwise decide every choice.
           s:
+            2.6 * Math.abs(cand.extras - set.extras) +
+            1.4 * Math.abs(v.length - set.size) +
+            0.25 * Math.abs(mean(v) - set.centre) +
             motion(prev, v) +
             0.5 * (prev ? Math.abs(top - prev[prev.length - 1]) : 0) +
-            (recentTops.includes(top) ? 1.6 : 0) +
-            (recentTops.some((t) => (t - top) % 12 === 0) ? 0.8 : 0) +
-            0.12 * Math.abs(mean(v) - 65),
+            (recentTops.includes(top) ? 0.6 * (colour + 1) : 0),
         };
       })
       .sort((a, b) => a.s - b.s);
 
-    const n = Math.min(WEIGHTS.length, scored.length);
-    let r = rand() * WEIGHTS.slice(0, n).reduce((a, b) => a + b, 0);
+    const n = Math.min(set.pick.length, scored.length);
+    let r = rand() * set.pick.slice(0, n).reduce((a, b) => a + b, 0);
     let i = 0;
-    while (i < n - 1 && (r -= WEIGHTS[i]) > 0) i++;
+    while (i < n - 1 && (r -= set.pick[i]) > 0) i++;
 
     const chosen = scored[i].v;
     out.push(chosen);
     prev = chosen;
+    prevSymbol = c.symbol;
     recentTops.push(chosen[chosen.length - 1]);
     if (recentTops.length > 3) recentTops.shift();
   }

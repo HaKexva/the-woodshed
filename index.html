@@ -74,6 +74,17 @@
             <span id="delete-tune-label" data-i18n="deleteTune">delete</span>
           </button>
           <p id="song-detail"></p>
+          <!-- reading transposition belongs with the chart, not with the band:
+               it changes what is written, never what sounds -->
+          <label class="reading-ctl">
+            <span class="ctl-label" data-i18n="reading">reading</span>
+            <select id="reading-key" aria-label="reading transposition">
+              <option value="C" data-i18n="readC">concert</option>
+              <option value="Bb">B♭</option>
+              <option value="Eb">E♭</option>
+              <option value="F">F</option>
+            </select>
+          </label>
         </div>
         <div class="chord-card">
           <span id="chord-now" class="chord-now">—</span>
@@ -237,6 +248,15 @@
       <button class="mute" data-inst="bass" data-i18n="mute.bass">bass</button>
       <button class="mute" data-inst="drums" data-i18n="mute.drums">drums</button>
     </div>
+
+    <label class="reading-ctl">
+      <span class="ctl-label" data-i18n="comp">comp</span>
+      <select id="comp-colour" aria-label="comping colour">
+        <option value="plain" data-i18n="compPlain">plain</option>
+        <option value="warm" selected data-i18n="compWarm">warm</option>
+        <option value="rich" data-i18n="compRich">rich</option>
+      </select>
+    </label>
 
     <span class="boost-group">
       <label class="real-toggle">
