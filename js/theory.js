@@ -451,8 +451,122 @@ export function voiceComp(chords, rand = Math.random, opts = {}) {
   return out;
 }
 
+// ---------------------------------------------------------- guitar voicings
+//
+// The rhythm guitar had the same problem the piano had: two shapes per chord,
+// deterministic, each placed near a fixed anchor with no reference to the chord
+// before it. Measured, that gave 0.74 common tones per change and a top voice
+// that leapt past a fourth on a fifth of them — and "So What" got two distinct
+// top notes across thirty-two chords.
+//
+// Which is backwards for this part specifically. The teaching material on
+// Freddie Green is *entirely* voice leading — "the Em7 and A7 share the
+// fifth-fret G", "the highest note of both the Dm7 and the G7 is the tenth-fret
+// F". The line the top notes trace is the part. See research/guitar-comping.md.
+
+const GTR_LO = 43; // G2
+const GTR_HI = 65; // F4
+const GTR_SPAN = 16; // a tenth — about what the 6-4-2 and 5-3-1 shapes cover
+
+const gtrCache = new Map();
+
 /**
- * Compact 3-note guitar voicing, low-mid register.
+ * The shapes a rhythm guitarist has under the hand for this chord: root, third
+ * and seventh with the fifth omitted, in the inversions that stay inside a
+ * tenth. Green's own vocabulary, and the octave freedom between them is what
+ * gives the voice leading somewhere to go.
+ */
+export function guitarVoicings(chord) {
+  if (gtrCache.has(chord.symbol)) return gtrCache.get(chord.symbol);
+
+  const iv = chord.intervals;
+  const third = pick(iv, [4, 3, 5]) ?? 4;
+  const seventh = pick(iv, [10, 11, 9, 7]) ?? 7;
+  const fifth = pick(iv, [7, 6, 8]) ?? 7;
+
+  const seen = new Set();
+  const out = [];
+  const offer = (...ivs) => {
+    const v = rising(ivs);
+    const span = v[v.length - 1] - v[0];
+    if (span > GTR_SPAN) return;
+    // A shape only counts if some octave of it lands wholly on the neck. The
+    // widest inversions have none for certain roots — both octaves hang off an
+    // end — and offering them anyway put 4.8% of voicings outside the range,
+    // which is how the guitar ended up under the bass again.
+    const bottomPc = (((chord.rootPc + v[0]) % 12) + 12) % 12;
+    let fits = false;
+    for (let m = bottomPc; m <= GTR_HI; m += 12) {
+      if (m >= GTR_LO && m + span <= GTR_HI) { fits = true; break; }
+    }
+    if (!fits) return;
+    const key = v.join();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(v);
+  };
+
+  offer(0, third, seventh); // R-3-7, the close shape
+  offer(0, seventh, third); // R-7-3, the spread one
+  offer(third, seventh, 0); // 3-7-R
+  offer(seventh, 0, third); // 7-R-3
+  offer(third, 0, seventh);
+  offer(seventh, third, 0);
+  // the fifth only where the third and seventh collapse onto each other
+  if (third === seventh) offer(0, third, fifth);
+
+  if (!out.length) out.push(rising([0, third, seventh]));
+  gtrCache.set(chord.symbol, out);
+  return out;
+}
+
+/**
+ * Voicings for a whole form, voice-led chord to chord — common tones held where
+ * they exist, and the top voice moved as little as the shapes allow.
+ */
+export function guitarComp(chords, rand = Math.random) {
+  const out = [];
+  let prev = null;
+
+  for (const c of chords) {
+    const anchor = prev ? prev[0] : 50;
+    const scored = guitarVoicings(c.info)
+      .map((ivs) => {
+        const bottomPc = (((c.info.rootPc + ivs[0]) % 12) + 12) % 12;
+        let best = null;
+        for (let m = bottomPc; m < 120; m += 12) {
+          const notes = ivs.map((v) => m + (v - ivs[0]));
+          const outside =
+            Math.max(0, notes[notes.length - 1] - GTR_HI) + Math.max(0, GTR_LO - notes[0]);
+          const cost = 12 * outside + Math.abs(m - anchor);
+          if (!best || cost < best.cost) best = { notes, cost };
+        }
+        return best.notes;
+      })
+      .map((v) => ({
+        v,
+        // Common tones first, because they are what the style is built on, then
+        // the top voice, which is the line a listener follows.
+        s:
+          -2.2 * (prev ? v.filter((m) => prev.includes(m)).length : 0) +
+          1.0 * (prev ? Math.abs(v[v.length - 1] - prev[prev.length - 1]) : 0) +
+          0.35 * motion(prev, v) +
+          0.1 * Math.abs(v.reduce((a, b) => a + b, 0) / v.length - 53),
+      }))
+      .sort((a, b) => a.s - b.s);
+
+    // Near-deterministic: this part is a line, and a line does not re-roll. The
+    // second choice only comes up when it scores essentially as well.
+    const chosen = scored.length > 1 && rand() < 0.18 ? scored[1].v : scored[0].v;
+    out.push(chosen);
+    prev = chosen;
+  }
+  return out;
+}
+
+/**
+ * Compact 3-note guitar voicing, low-mid register. Kept for the ballad pad,
+ * which places one chord a bar with nothing to lead from.
  * variant 0: shell — root + 3rd + 7th (or 5th).
  * variant 1: rootless color — 3rd + 7th + 9th/5th, a touch higher.
  */
