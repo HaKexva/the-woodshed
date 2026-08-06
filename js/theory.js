@@ -212,12 +212,18 @@ function pick(iv, wanted) {
 // one, and `place` charges 12 penalty points a semitone for leaving, so the
 // remainder only strays when nothing else is possible.
 const COMP_LO = 57; // A3
-const COMP_HI = 81; // A5
-// A tenth. Wider stops being one hand's shape, and — measured — it is also what
-// keeps the whole vocabulary inside the register band: at a 12th, five of the
-// twelve possible bottom notes have no octave that fits, and those shapes end up
-// a couple of semitones above or below the band whichever way they are placed.
-const COMP_SPAN = 16;
+// A tenth at plain and warm — wider stops being one hand's shape. Rich reaches
+// further because it has to: the ordinary 3-7-9-13 stack spans seventeen
+// semitones, so a sixteen-semitone cap threw away every thirteenth voicing
+// before it was ever scored, which is why rich came out barely richer than warm.
+// The ceiling moves with it, since a band has to clear a shape's span by twelve
+// or some bottom notes have no octave that fits at all.
+const COMP_SPAN = [16, 16, 20];
+// Rich needs headroom for the extra voices but not a licence to climb into the
+// soloist: at a C♯6 ceiling its top note sat above A5 on 14% of chords, which is
+// a register a comper visits rather than lives in. A♯5 keeps the five-note
+// shapes and puts the weight of them back under the melody.
+const COMP_TOP = [81, 81, 82]; // A5 · A5 · A♯5
 
 /**
  * Stack these tones upward, each one at its nearest instance strictly more than
@@ -290,7 +296,7 @@ export function pianoVoicings(chord, colour = COMP_COLOUR.warm) {
   const offer = (...ivs) => {
     if (ivs.some((v) => v === null || v === undefined)) return;
     const v = rising(ivs);
-    if (v[v.length - 1] - v[0] > COMP_SPAN) return;
+    if (v[v.length - 1] - v[0] > (COMP_SPAN[colour] ?? 16)) return;
     const key = v.join();
     if (seen.has(key)) return;
     seen.add(key);
@@ -321,17 +327,24 @@ export function pianoVoicings(chord, colour = COMP_COLOUR.warm) {
     }
 
     if (colour >= COMP_COLOUR.rich) {
-      // two colour tones at once is what makes rich a different sound rather
-      // than a slightly wider warm
+      // Two and three colour tones at once is what makes rich a different sound
+      // rather than a slightly wider warm.
       offer(third, seventh, ninth, thirteenth);
       offer(seventh, third, ninth, thirteenth);
       offer(seventh, ninth, third, thirteenth);
       offer(seventh, third, thirteenth);
       offer(third, seventh, thirteenth);
+      // five voices — the guide tones with the whole upper structure over them
+      offer(third, fifth, seventh, ninth, thirteenth);
+      offer(seventh, ninth, third, fifth, thirteenth);
       offer(...drop2(rising([third, fifth, seventh, ninth ?? fifth])));
       // a fourth over a major third is an avoid note, so the quartal stack is
       // for the minor and suspended chords only — this is the "So What" sound
-      if (minorish || suspended) offer(pick(iv, [17, 18]) ?? 5, seventh, third, ninth ?? fifth);
+      if (minorish || suspended) {
+        const eleventh = pick(iv, [17, 18]) ?? 5;
+        offer(eleventh, seventh, third, ninth ?? fifth);
+        offer(eleventh, seventh, ninth, third, thirteenth);
+      }
     }
   }
 
@@ -350,13 +363,13 @@ function drop2(ivs) {
 
 /** Put one interval stack on the keyboard, centred as near `anchor` as the
  *  register band allows. */
-function place(chord, ivs, anchor) {
+function place(chord, ivs, anchor, top = COMP_TOP[1]) {
   const bottomPc = (((chord.rootPc + ivs[0]) % 12) + 12) % 12;
   let best = null;
   for (let m = bottomPc; m < 120; m += 12) {
     const notes = ivs.map((v) => m + (v - ivs[0]));
     const outside =
-      Math.max(0, notes[notes.length - 1] - COMP_HI) + Math.max(0, COMP_LO - notes[0]);
+      Math.max(0, notes[notes.length - 1] - top) + Math.max(0, COMP_LO - notes[0]);
     const centre = notes.reduce((a, b) => a + b, 0) / notes.length;
     // a semitone outside the band costs a full octave of anchor distance, so
     // leaving it only ever happens to a shape too wide to fit anywhere
@@ -393,7 +406,7 @@ function motion(prev, next) {
 const COMP_SETTINGS = [
   { extras: 0, size: 3, centre: 61, hold: 0.88, pick: [0.86, 0.11, 0.03] },
   { extras: 1, size: 4, centre: 65, hold: 0.74, pick: [0.7, 0.21, 0.07, 0.02] },
-  { extras: 2, size: 4, centre: 69, hold: 0.5, pick: [0.5, 0.27, 0.15, 0.08] },
+  { extras: 3, size: 5, centre: 66, hold: 0.5, pick: [0.5, 0.27, 0.15, 0.08] },
 ];
 
 export function voiceComp(chords, rand = Math.random, opts = {}) {
@@ -416,7 +429,7 @@ export function voiceComp(chords, rand = Math.random, opts = {}) {
 
     const anchor = prev ? mean(prev) : set.centre;
     const scored = pianoVoicings(c.info, colour)
-      .map((cand) => ({ ...cand, v: place(c.info, cand.ivs, anchor) }))
+      .map((cand) => ({ ...cand, v: place(c.info, cand.ivs, anchor, COMP_TOP[colour] ?? COMP_TOP[1]) }))
       .map((cand) => {
         const v = cand.v;
         const top = v[v.length - 1];
