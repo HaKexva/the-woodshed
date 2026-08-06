@@ -178,6 +178,47 @@ const randomSeed = () => (Math.random() * 0xffffffff) >>> 0;
 const rnd = (lo, hi) => lo + rand() * (hi - lo);
 const choice = (arr) => arr[Math.floor(rand() * arr.length)];
 
+// The form, in sections. The band's entire structural knowledge used to be
+// `bar % 8 === 7`, which puts a fill at bar 8 of a twelve-bar blues — mid-phrase,
+// four bars from where the phrase actually turns — and at bars 8, 16 and 24 of a
+// 26-bar tune, none of which is a section end. A song may declare its own
+// sections; otherwise they are derived, because 447 tunes are not going to be
+// annotated by hand and the default is right for most of them.
+const SECTIONS = new WeakMap();
+export function formSections(song) {
+  if (SECTIONS.has(song)) return SECTIONS.get(song);
+  const bars = song.progression.length;
+  const out = [];
+
+  if (Array.isArray(song.sections) && song.sections.length) {
+    let at = 0;
+    for (const s of song.sections) {
+      if (at >= bars) break;
+      const n = Math.min(Math.max(1, s.bars | 0), bars - at);
+      out.push({ label: s.label ?? "", start: at, bars: n });
+      at += n;
+    }
+    // whatever the declaration leaves over is its own tail rather than silently
+    // losing its fill
+    if (at < bars) out.push({ label: "", start: at, bars: bars - at });
+  } else if (bars === 12) {
+    // the blues turns over in fours, and there are 21 of them in the book
+    for (let at = 0; at < bars; at += 4) out.push({ label: "", start: at, bars: 4 });
+  } else {
+    // eight-bar blocks, with a short tail folded into the last block rather than
+    // left as a two-bar section nobody would phrase
+    for (let at = 0; at < bars; ) {
+      const left = bars - at;
+      const n = left <= 11 ? left : 8;
+      out.push({ label: "", start: at, bars: n });
+      at += n;
+    }
+  }
+
+  SECTIONS.set(song, out);
+  return out;
+}
+
 export class Band {
   constructor(callbacks = {}) {
     this.cb = callbacks; // { onChord, onBeat, onProgress, onReady }
@@ -2881,7 +2922,8 @@ export class Band {
       for (const { w, p } of ridePool) { if ((r -= w) <= 0) return p; }
       return ridePool[0].p;
     };
-    const sectionEnd = (bar) => bar % 8 === 7 || bar === totalBars - 1;
+    const sectionEnds = new Set(formSections(song).map((s) => s.start + s.bars - 1));
+    const sectionEnd = (bar) => sectionEnds.has(bar) || bar === totalBars - 1;
     const bpm = Tone.getTransport().bpm.value;
     const slow = Math.max(0, Math.min(1, (110 - bpm) / 50));
     const kv = (v) => Math.max(8, Math.round(v * (1 - slow * 0.45)));

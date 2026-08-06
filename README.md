@@ -58,6 +58,12 @@ Song object shape:
   form: "32-bar AABA",
   source: ["https://…"], // where the changes were verified — please include
   note: "…",             // optional: known chart variants
+  // optional: where the phrases turn over, which is where the drummer fills.
+  // Derived when absent — a 12-bar blues gets 4/4/4, everything else gets
+  // 8-bar blocks with a short tail folded into the last one. Worth declaring
+  // only when the tune phrases somewhere the default would miss.
+  sections: [{ label: "A", bars: 8 }, { label: "A", bars: 8 },
+             { label: "B", bars: 8 }, { label: "A", bars: 8 }],
   progression: [
     [{ chord: "Gm7", beats: 2 }, { chord: "C7", beats: 2 }],
     [{ chord: "FMaj7", beats: 4 }],
