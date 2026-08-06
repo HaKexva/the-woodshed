@@ -190,10 +190,38 @@ function selectSong(i) {
   if (wasPlaying) play();
 }
 
+// A citation should name the source, not the host it happens to sit on. The two
+// corpora behind almost every tune in the book were rendering as "doi.org" and
+// "github.com", which credits nobody and tells a reader nothing. Named where a
+// name exists; a GitHub URL falls back to its repository; everything else to the
+// hostname, which for a one-off blog post is the honest label anyway.
+const SOURCE_NAMES = {
+  "doi.org/10.5281/zenodo.3546040": "iRealPro Corpus of Jazz Standards",
+  "github.com/Impro-Visor/Impro-Visor": "Impro-Visor",
+  "jazzomat.hfm-weimar.de": "Weimar Jazz Database",
+  "en.wikipedia.org": "Wikipedia",
+};
+
+function sourceLabel(url) {
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return url;
+  }
+  const host = u.hostname.replace(/^www\./, "");
+  const path = u.pathname.replace(/\/$/, "");
+  return (
+    SOURCE_NAMES[host + path] ??
+    SOURCE_NAMES[host] ??
+    (host === "github.com" ? path.split("/").filter(Boolean).pop() ?? host : host)
+  );
+}
+
 function renderSources(song) {
   const box = $("#song-source");
   box.innerHTML = (song.source ?? [])
-    .map((url) => `<a href="${url}" target="_blank" rel="noopener">${new URL(url).hostname.replace(/^www\./, "")}</a>`)
+    .map((url) => `<a href="${url}" target="_blank" rel="noopener">${esc(sourceLabel(url))}</a>`)
     .join(" · ");
   $("#song-source-line").hidden = !song.source?.length;
   $("#song-note").textContent = song.note ?? "";
