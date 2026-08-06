@@ -1069,7 +1069,10 @@ body.modal-open {
   .ed-prog-label { font-size: 0.72rem; line-height: 1.45; color: var(--cream-25); }
   .ed-prog-label code { font-size: 0.95em; }
 
-  .editor #ed-prog { min-height: 4.4rem; line-height: 1.6; }
+  /* The 16px floor above is written as `.editor textarea`, which an ID
+     selector beats — so the one field you type the most into was still 14px
+     and still triggered the zoom. Restated here with the same ID. */
+  .editor #ed-prog { font-size: 16px; min-height: 4.4rem; line-height: 1.6; }
 
   .ed-meta { gap: 0.4rem 1.1rem; }
   .ed-meta label { flex: 1 1 4rem; }
