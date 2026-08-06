@@ -2779,12 +2779,19 @@ export class Band {
       endsByBar.get(bar).push(b - bar * bpb);
     }
 
-    // per-bar ride pattern pool — kept sparse; the ride marks time
+    // Per-bar ride pattern pool. The skip note — the "da" of ding, ding-da — is
+    // the most recognisable rhythm in the idiom and the thing that makes the
+    // cymbal swing rather than merely keep time. The pool used to carry it in
+    // 15% of bars while a figure with no beat 2 at all played in 40%, which is
+    // the wrong way round: plain quarters are the contrast, not the norm. Some
+    // skip in roughly two bars out of three now.
+    const RIDE_PLAIN = [[0, 44], [1, 50], [2, 44], [3, 50]];
     const ridePool = [
-      { w: 0.3, p: [[0, 44], [1, 50], [2, 44], [3, 50]] },
-      { w: 0.4, p: [[0, 44], [2, 46], [3, 50]] },
-      { w: 0.15, p: [[0, 44], [1, 50], [2, 44], [3, 50], [3.5, 28]] },
-      { w: 0.15, p: [[0, 46], [1, 52], [1.5, 30], [2, 46], [3, 52], [3.5, 30]] },
+      { w: 0.34, p: [[0, 46], [1, 52], [1.5, 30], [2, 46], [3, 52], [3.5, 30]] }, // both skips
+      { w: 0.18, p: [[0, 44], [1, 50], [1.5, 28], [2, 44], [3, 50]] }, // skip on 2
+      { w: 0.16, p: [[0, 44], [1, 50], [2, 44], [3, 50], [3.5, 28]] }, // skip on 4
+      { w: 0.18, p: RIDE_PLAIN },
+      { w: 0.14, p: [[0, 44], [2, 46], [3, 50]] }, // leave beat 2 out for air
     ];
     const pickRide = () => {
       let r = rand();
@@ -2917,7 +2924,10 @@ export class Band {
         for (const [off, vel] of [[0, 48], [1, 38], [2, 42]]) push(bar, off, "ride", vel);
         push(bar, 1, "hat", 46);
       } else {
-        const pattern = slow > 0.3 ? ridePool[0].p : pickRide();
+        // The old `slow > 0.3` gate forced plain quarters below 95 bpm, which is
+        // backwards: a slow tune is where a drummer puts more detail into the
+        // ride, not less.
+        const pattern = pickRide();
         for (const [off, vel] of pattern) push(bar, off, "ride", vel);
         push(bar, 1, "hat", 50);
         push(bar, 3, "hat", 50);
