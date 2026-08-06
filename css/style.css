@@ -1303,12 +1303,43 @@ body.modal-open {
   max-width: 60ch;
 }
 
-.credits h3 {
+/* the standing attribution, folded away — a native disclosure, so it is
+   keyboard-reachable and openable with no script */
+.credits-more { margin-top: 0.7rem; }
+
+.credits-more > summary {
   font-size: 0.68rem;
   letter-spacing: 0.35em;
   text-transform: uppercase;
   color: var(--cream-25);
-  margin-bottom: 0.6rem;
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+}
+.credits-more > summary::-webkit-details-marker { display: none; }
+
+/* a caret that turns, rather than the platform triangle */
+.credits-more > summary::after {
+  content: "";
+  width: 0.36rem;
+  height: 0.36rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translate(-0.1em, -0.1em);
+  transition: transform 0.18s ease;
+}
+.credits-more[open] > summary::after { transform: rotate(-135deg) translate(-0.06em, -0.06em); }
+
+.credits-more > summary:hover { color: var(--cream-60); }
+.credits-more > summary:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+
+.credits-more > *:not(summary) { margin-top: 0.5rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .credits-more > summary::after { transition: none; }
 }
 
 .credits p { font-size: 0.78rem; line-height: 1.55; color: var(--cream-60); margin-bottom: 0.5rem; }

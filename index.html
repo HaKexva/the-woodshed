@@ -190,14 +190,20 @@
 
       <div id="leadsheet" class="leadsheet"></div>
 
+      <!-- The per-song lines stay out in the open — they are two lines, they
+           change with the tune, and they are the ones a player reads. The
+           standing attribution folds away: still on the page and still one
+           click from anywhere, without pushing the chart up the screen. -->
       <section class="credits">
-        <h3 data-i18n="creditsHead">sources &amp; credits</h3>
+        <p id="song-source-line"><span data-i18n="verified">changes for this song verified against: </span><span id="song-source"></span></p>
+        <p id="song-note" class="song-note"></p>
+        <details class="credits-more">
+        <summary data-i18n="creditsHead">sources &amp; credits</summary>
         <p data-i18n-html="credits1">
           This tool displays <strong>chord symbols only</strong> — no melodies, no lyrics, no recordings.
           Song titles and composer names are shown as factual metadata. Chord changes follow common
           lead-sheet practice, cross-checked against jazz-education references.
         </p>
-        <p id="song-source-line"><span data-i18n="verified">changes for this song verified against: </span><span id="song-source"></span></p>
         <p data-i18n-html="creditsWjd">
           The soloist's phrasing figures are measured from the
           <a href="https://jazzomat.hfm-weimar.de/" rel="noopener">Weimar Jazz Database</a> —
@@ -205,7 +211,6 @@
           under the <a href="https://opendatacommons.org/licenses/odbl/" rel="noopener">Open Database License (ODbL 1.0)</a>.
           No transcription is reproduced; what ships is derived statistics.
         </p>
-        <p id="song-note" class="song-note"></p>
         <p data-i18n-html="credits2">
           Samples: <a href="https://github.com/gleitz/midi-js-soundfonts" rel="noopener">MusyngKite soundfont kit (CC BY-SA 3.0)</a>
           and the Splendid Grand Piano via <a href="https://github.com/danigb/smplr" rel="noopener">smplr (MIT)</a> ·
@@ -218,6 +223,7 @@
              href="https://github.com/HaKexva/the-woodshed/issues/new"
              target="_blank" rel="noopener" data-i18n="reportProblem">report a problem →</a>
         </p>
+        </details>
       </section>
     </section>
   </main>
