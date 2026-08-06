@@ -2592,6 +2592,15 @@ export class Band {
     const bluesPool = [[1, 3], [1, 3], [0, 1, 2, 3], [1, 2.5, 3], [0.5, 1, 3]];
     // modal lays out or holds — the guitar is texture here, not time
     const modalPool = [[0], [1.5], [2.5], [], [], [0, 2.5]];
+    // Freddie Green quarters are the sound and stay the default, but a bar of
+    // four identical chops at one fixed length is not what a rhythm guitarist
+    // plays — measured, 96.6% of the guitar's attacks were on the quarter with a
+    // 0.42-beat duration every time. Quarters still win most bars; behind them
+    // sit half notes, a hole on beat 3, and a bar that pushes its own & of 4.
+    const swingPool = [
+      [0, 1, 2, 3], [0, 1, 2, 3], [0, 1, 2, 3], [0, 1, 2, 3], [0, 1, 2, 3],
+      [0, 2], [0, 1, 3], [0, 1, 2, 3, 3.5],
+    ];
 
     for (let bar = 0; bar < totalBars; bar++) {
       const variant = rand() < VARIANT ? 1 : 0;
@@ -2603,24 +2612,29 @@ export class Band {
       else if (style === "modal") offsets = choice(modalPool);
       else if (style === "blues") offsets = choice(bluesPool);
       else if (rand() < BREATHE) offsets = [1, 3]; // breathe: comp 2 & 4 only
-      else offsets = [...Array(bpb).keys()]; // Freddie Green quarters
+      else offsets = bpb === 4 ? choice(swingPool) : [...Array(bpb).keys()];
 
       // modal holds its voicings; latin's guajeo is short and percussive
       const hold = style === "modal" ? 2.2 : style === "latin" ? 0.5 : straight ? 0.6 : 0.42;
 
-      for (const off of offsets) {
+      offsets.forEach((off, i) => {
         const beat = bar * bpb + off;
         const c = chordAt(beat);
         const accent = !straight && off % 2 === 1; // lean on 2 & 4
         const lean =
           style === "blues" && (off === 1 || off === 3) ? 8 : style === "modal" ? -8 : 0;
+        // A chord left with room in front of it rings into that room — the same
+        // rule the bass line uses. Without it a half-note bar chopped as short
+        // as a quarter-note one and the pattern was inaudible.
+        const gap = (i + 1 < offsets.length ? offsets[i + 1] : bpb) - off;
+        const dur = Math.min(hold * 3, Math.max(hold, gap * 0.72)) * rnd(0.9, 1.15);
         events.push({
           beat,
-          dur: hold,
+          dur,
           midis: guitarVoicing(c.info, variant),
           vel: Math.max(18, Math.round(rnd(30, 38)) + (accent ? 6 : 0) + (style === "funk" ? 10 : 0) + lean),
         });
-      }
+      });
 
       // swing: occasional push — anticipate next bar's chord on the & of 4.
       // The last bar pushes into the top of the form rather than being skipped;
@@ -2707,6 +2721,51 @@ export class Band {
         ]);
         for (const [off, midi, dur, vel] of shape) {
           if (off < c.beats) events.push({ beat: c.startBeat + off, midi, dur, vel });
+        }
+      }
+      return events;
+    }
+
+    if (style === "latin" && bpb === 4) {
+      // TUMBAO. The 23 latin tunes used to fall through to the bossa branch and
+      // play dotted-quarter roots while the drums, piano and guitar were all on
+      // 3-2 son clave — the section playing two styles at once. What defines a
+      // latin bass is that it does *not* play the downbeat: the root is
+      // anticipated on the & of 4 of the bar before and tied over, and the
+      // weight inside the bar falls on the & of 2 and on beat 4.
+      let pending = null; // the anticipation owed to the next chord
+      for (const c of chords) {
+        const pcs = bassPcs(c.info);
+        const root = placeNear(pcs.root, 38, BASS_LO, BASS_HI);
+        const fifth = placeNear(pcs.fifth, root, BASS_LO, BASS_HI);
+        const octave = Math.min(BASS_HI, root + 12);
+
+        // If the bar before announced this chord, that note is still sounding
+        // and the downbeat stays empty — a tie, not a re-attack. Playing it
+        // again is exactly the thing an anticipated bass does not do.
+        if (pending === null) events.push({ beat: c.startBeat, midi: root, dur: 0.9, vel: 96 });
+        pending = null;
+
+        if (c.beats >= 4) {
+          events.push({ beat: c.startBeat + 1.5, midi: fifth, dur: 0.9, vel: 92 }); // & of 2
+          events.push({ beat: c.startBeat + 3, midi: root, dur: 0.9, vel: 88 }); // beat 4
+        } else if (c.beats >= 2) {
+          events.push({ beat: c.startBeat + 1.5, midi: fifth, dur: 0.6, vel: 88 });
+        }
+
+        // Anticipate the next chord on the & of 4 — the gesture the whole feel
+        // hangs on. Only when this chord owns the bar, and only when the harmony
+        // actually moves: announcing a chord that is already sounding just plays
+        // the root twice half a beat apart, which is a stutter rather than a
+        // push. A held bar takes the octave instead.
+        const changing = c.next.symbol !== c.symbol;
+        if (c.beats >= 4 && changing && rand() < 0.78) {
+          const nextRoot = placeNear(c.next.info.bassPc, root, BASS_LO, BASS_HI);
+          // rings across the barline into the bar it announces
+          events.push({ beat: c.startBeat + 3.5, midi: nextRoot, dur: 1.4, vel: 94 });
+          pending = nextRoot;
+        } else if (c.beats >= 4 && rand() < 0.4) {
+          events.push({ beat: c.startBeat + 3.5, midi: octave, dur: 0.45, vel: 80 });
         }
       }
       return events;
