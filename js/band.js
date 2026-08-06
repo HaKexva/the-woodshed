@@ -2623,11 +2623,14 @@ export class Band {
         const accent = !straight && off % 2 === 1; // lean on 2 & 4
         const lean =
           style === "blues" && (off === 1 || off === 3) ? 8 : style === "modal" ? -8 : 0;
-        // A chord left with room in front of it rings into that room — the same
-        // rule the bass line uses. Without it a half-note bar chopped as short
-        // as a quarter-note one and the pattern was inaudible.
+        // A chord with real room in front of it rings into that room, so the
+        // half-note bars are audible as half notes. A quarter does NOT: the
+        // Freddie Green chop is short on purpose, and stretching it to fill its
+        // beat — which is what a plain fill-the-gap rule does — turns four
+        // chops a bar into a wash and puts the guitar over the whole band.
         const gap = (i + 1 < offsets.length ? offsets[i + 1] : bpb) - off;
-        const dur = Math.min(hold * 3, Math.max(hold, gap * 0.72)) * rnd(0.9, 1.15);
+        const dur =
+          gap >= 1.5 ? Math.min(hold * 3, gap * 0.7) * rnd(0.92, 1.08) : hold * rnd(0.88, 1.12);
         events.push({
           beat,
           dur,
