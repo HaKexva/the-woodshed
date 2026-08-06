@@ -11,10 +11,11 @@ project).
 
 | # | | Item | Effort | Status |
 |---|---|---|---|---|
-| 1 | `[P]` | Move **tempo ramp** and **chord breaks** out of `#inspire-panel` (index.html:114) into the session transport, and rename chord breaks to say what it is for. Both are implemented and correct; both are invisible to the person who came to practise | XS | |
+| 1 | `[P]` | Move the **tempo ramp** out of `#inspire-panel` (index.html:114) into session mode. It is implemented, correct, and invisible to the person who came to practise. The case for it is not that it is another way to set the tempo — it is the only one you can operate with your hands full: set +5, play eight choruses, finish 40 bpm up without ever having stopped. Backed by Allingham & Wöllner (2022), where gradual increase is the most common way musicians organise slow practice | XS | |
+| 1b | `[P]` | ~~Surface **chord breaks**~~ — **dropped.** One vendor precedent (Band-in-a-Box), no study, and as a density option it does not earn a slot. The mechanism survives as item 7: `setBreakBars(4)` is trading fours, which is a named drill rather than a setting | — | **dropped** |
 | 2 | `[B]` | **Voice-led, non-deterministic piano voicings.** Candidate set per chord, scored by voice motion from the previous chord and by top-note recency, picked weighted-random among the best few. Fixed the frozen top line, the 85 two-note voicings and the 12 ♯9 semitone clusters in one change — 0.186 → 0.343 distinct top notes per chord, top-voice motion *down* from 2.48 to 1.60 semitones, clusters and dyads to zero. See the applied section of [backing-band-audit.md](backing-band-audit.md#1-voice-led-non-deterministic-piano-voicings--applied) | M | **done** |
 | 3 | `[B]` | **Invert the ride weights** — the canonical figure played in 15% of bars, a figure with no beat 2 in 40%, and a `slow > 0.3` gate zeroed the skip note below 95 bpm. Reweighted, and the one skip figure split into three (skip on 2, on 4, on both); gate deleted. Bars with a swung skip note: 30% → 70% above 95 bpm, **0% → 66%** below it | XS | **done** |
-| 4 | `[P]` | **Display transposition** (concert / B♭ / E♭ / F) on the chord card, next-chord readout, scale strip, system view and lead sheet. Nothing in the codebase transposes anything; for a horn player that is close to disqualifying | S | |
+| 4 | `[P]` | **Display transposition** (C / B♭ / E♭ / F) on the chord card, next-chord readout, scale strip, system view, lead sheet and Inspire score. Nothing in the codebase transposed anything, which for a horn player is close to disqualifying. The control sits under the song title rather than in the transport: it changes what is written, never what sounds | S | **done** |
 | 5 | `[P]` | **Section loop** with a bar-range picker and a pre-roll, snapping to barlines. `loopStart`/`loopEnd` already do the work. Most-used practice strategy in the literature | S | |
 | 6 | `[P]` | **Chorus counter and stop-after-N**, both off `_chorus` (band.js:914), which is tracked and never surfaced | XS | |
 | 7 | `[P]` | **Name and surface trading fours.** `setBreakBars(4)` already *is* that cycle. Needs a label and a cue for whose bars are whose. Zero music modelling | XS | |
@@ -44,10 +45,16 @@ project).
 any music modelling. Then **2** on its own is the biggest audible change available
 in the band.
 
-Done so far: **2** (piano voicings), **3** (ride weights), **8** (two-feel).
-Between them they cover the three things a listener would name first — the comp
-repeating itself, the cymbal not swinging, and the bass never changing gear.
-Remaining first-cut items: 1, 6, 7, 9, 14, 16, 17.
+Done so far: **2** (piano voicings), **3** (ride weights), **8** (two-feel), and
+**4** (display transposition, which jumped the queue because a horn player cannot
+use the app without it). The comp colour that came out of item 2 grew into a
+band-wide plain/warm/rich control touching all four instruments.
+
+Between them they cover the four things a player names first — the comp repeating
+itself, the cymbal not swinging, the bass never changing gear, and having to
+transpose the whole chart in your head.
+
+Remaining first-cut items: 1, 6, 7, 9, 14, 16, 17. Item 1b is dropped.
 
 Item 9's headline number has already moved: the new voicings took piano/guitar
 pitch doubling from 47% to about 31% on their own, so the register split has less
