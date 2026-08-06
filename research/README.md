@@ -27,10 +27,10 @@ Session-mode review. Code line numbers in the solo documents refer to commit
 **The band's rhythm was varied and its pitch was a constant.** Every chord mapped
 to exactly one piano voicing and two guitar voicings, deterministically, forever.
 Consecutive choruses of the comp overlapped by only 0.15 (Jaccard) and every bit
-of that difference was rhythm. The measured consequence: across all 428 tunes the
+of that difference was rhythm. The measured consequence: across all 447 tunes the
 piano's top voice averaged 0.19 distinct notes per chord — *So What* got **two top
 notes across thirty-two chords**, identical in every chorus of every take. The
-piano half of this is fixed (item 2 in the work list, applied — 0.35 now, with
+piano half of this is fixed (item 2 in the work list, applied — 0.34 now, with
 *better* voice leading than before); the guitar's two shapes are not.
 
 **The swing ride is backwards.** The canonical jazz ride figure plays in 15% of
