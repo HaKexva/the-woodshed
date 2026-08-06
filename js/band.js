@@ -4,7 +4,16 @@
 
 import * as Tone from "https://cdn.jsdelivr.net/npm/tone@15.1.22/+esm";
 import { Soundfont, SplendidGrandPiano, Sampler } from "https://cdn.jsdelivr.net/npm/smplr@1.0.0/+esm";
-import { parseChord, voiceComp, COMP_COLOUR, guitarVoicing, bassPcs, placeNear, soloScaleSteps } from "./theory.js";
+import {
+  parseChord,
+  voiceComp,
+  COMP_COLOUR,
+  guitarVoicing,
+  guitarComp,
+  bassPcs,
+  placeNear,
+  soloScaleSteps,
+} from "./theory.js";
 import { WJD } from "./solo-vocab.js";
 
 const BASS_LO = 30; // F#1
@@ -2564,6 +2573,24 @@ export class Band {
     };
     const totalBars = song.progression.length;
 
+    // voice-led for the whole form before any event exists, the way the piano's
+    // comp and the soloist's guide-tone thread are
+    const shapes = new Map();
+    guitarComp(chords, rand).forEach((v, i) => shapes.set(chords[i], v));
+
+    // Green fingered three notes and sounded one or two: "ghosting all but one
+    // of the notes in a three-note chord", the rest deadened. Sounding the whole
+    // shape four times a bar is most of why this part sat over the band. The
+    // full chord lands on the accents — 2 and 4 — so the backbeat is a change of
+    // weight and not only of velocity.
+    const SOUND = [0.18, 0.3, 0.45][colour] ?? 0.3; // chance of the whole shape off the accent
+    const ghost = (v, accent) => {
+      if (accent || rand() < SOUND) return v;
+      // the voice that rings is the middle one — Green let the fourth string
+      // through and damped the outer two
+      return rand() < 0.5 ? [v[1]] : v.slice(1);
+    };
+
     if (style === "ballad") {
       // sparse pads, some rolled, resting every few bars
       song.progression.forEach((bar, barIdx) => {
@@ -2626,7 +2653,7 @@ export class Band {
         events.push({
           beat,
           dur: hold,
-          midis: guitarVoicing(c.info, variant),
+          midis: ghost(shapes.get(c) ?? guitarVoicing(c.info, variant), accent),
           vel: Math.max(18, Math.round(rnd(30, 38)) + (accent ? 6 : 0) + (style === "funk" ? 10 : 0) + lean),
         });
       }
@@ -2640,7 +2667,8 @@ export class Band {
         events.push({
           beat: bar * bpb + bpb - 0.5,
           dur: 0.3,
-          midis: guitarVoicing(next.info, variant),
+          // a push announces a chord, so it states it rather than ghosting it
+          midis: shapes.get(next) ?? guitarVoicing(next.info, variant),
           vel: Math.round(rnd(40, 46)),
         });
       }
