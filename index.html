@@ -2,7 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- interactive-widget tells the browser the on-screen keyboard should resize
+       the content rather than shrink the visual viewport, which is the whole
+       cause of the stuck-zoom on iOS. viewport-fit=cover lets the transport
+       reach into the safe area. Deliberately no maximum-scale: pinch-zoom on a
+       chord chart is a feature, and iOS ignores user-scalable=no anyway. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
   <title>the woodshed · play along with anything</title>
   <meta name="description" content="Practice jazz chord progressions with a full backing band — piano, guitar, bass and drums. Session mode to play along, inspire mode adds an improvised solo to learn from." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />

@@ -1090,6 +1090,63 @@ $("#ed-import-file").addEventListener("change", async (e) => {
 const CHECK_ICON = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>`;
 
 
+// ---- iOS: put the viewport back after the keyboard goes.
+//
+// Two separate bugs wear the same face. The first is the auto-zoom on any field
+// under 16px, which is fixed in the stylesheet. The second is WebKit's own: on
+// dismissing the keyboard it does not always restore visualViewport.height or
+// offsetTop, so the page stays scaled and shifted and has to be pinched back by
+// hand. It is worst on pages with position: fixed chrome, which this one is all
+// the way down — a fixed transport, a fixed overlay, and a body that pins
+// itself while the editor is open.
+//
+// WebKit will not re-measure on its own, but it will if something forces a
+// reflow. So: notice the keyboard leaving, then make it look again.
+{
+  const vv = window.visualViewport;
+  const touch = matchMedia("(hover: none)").matches;
+  if (vv && touch) {
+    let keyboardUp = false;
+
+    const remeasure = () => {
+      const el = document.documentElement;
+      const was = el.style.minHeight;
+      el.style.minHeight = `${vv.height + 1}px`;
+      void el.offsetHeight; // synchronous reflow — the point of the exercise
+      el.style.minHeight = was;
+      // and land the scroll where it belongs rather than wherever the keyboard
+      // left it. The editor pins the body, so respect that offset if it is set.
+      const pinned = document.body.classList.contains("modal-open");
+      window.scrollTo(0, pinned ? 0 : window.scrollY);
+    };
+
+    const settle = () => {
+      // the keyboard is down again once the visual viewport is back to roughly
+      // the layout viewport's height
+      const down = vv.height >= window.innerHeight - 40;
+      if (!down) {
+        keyboardUp = true;
+        return;
+      }
+      if (!keyboardUp) return;
+      keyboardUp = false;
+      // one frame late, so WebKit has finished its own animation first
+      requestAnimationFrame(remeasure);
+    };
+
+    vv.addEventListener("resize", settle);
+    // blur fires even when the viewport events do not, on the "Done" button
+    document.addEventListener(
+      "focusout",
+      (e) => {
+        if (!e.target.matches?.("input, textarea, select")) return;
+        setTimeout(settle, 120);
+      },
+      true
+    );
+  }
+}
+
 // ------------------------------------------------------------------ language
 
 function renderLangToggle() {
