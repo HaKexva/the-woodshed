@@ -201,8 +201,18 @@ function pick(iv, wanted) {
 // rather than nearest-wins, because always taking the smoothest option is its
 // own kind of frozen: a comper revoices a chord that sits still.
 
-const COMP_LO = 54; // F#3
-const COMP_HI = 79; // G5
+// The piano keeps the upper half of the middle register and the guitar takes the
+// lower (see guitarVoicing). They used to overlap through most of their range —
+// measured, 7 of the 15 pitches the piano touched on a chorus were also played
+// by the guitar, and the two instruments doubled each other into mud. Splitting
+// them is what lets both be heard as themselves.
+// The ceiling has to clear the floor by more than a shape's span or some bottom
+// notes have no octave that fits and get placed outside the band; a 16-semitone
+// span over a 22-semitone band left five of the twelve short. 24 gets all but
+// one, and `place` charges 12 penalty points a semitone for leaving, so the
+// remainder only strays when nothing else is possible.
+const COMP_LO = 57; // A3
+const COMP_HI = 81; // A5
 // A tenth. Wider stops being one hand's shape, and — measured — it is also what
 // keeps the whole vocabulary inside the register band: at a 12th, five of the
 // twelve possible bottom notes have no octave that fits, and those shapes end up
@@ -450,19 +460,23 @@ export function guitarVoicing(chord, variant = 0) {
   const iv = chord.intervals;
   const third = pick(iv, [4, 3, 5]) ?? 4;
   const seventh = pick(iv, [10, 11, 9, 7]) ?? 7;
+  // The guitar owns the register under the piano's floor at A3 — a rhythm
+  // guitar's own range anyway, and the half of the overlap that was costing both
+  // instruments their identity. Ceilings sit at G3/A3 so the two front lines
+  // meet rather than sit on top of each other.
   let midis;
   if (variant === 1) {
     const color = pick(iv, [14, 13, 15, 7, 8, 6]) ?? 7;
     midis = [
-      placeNear((chord.rootPc + third) % 12, 52, 46, 58),
-      placeNear((chord.rootPc + seventh) % 12, 57, 50, 62),
-      placeNear((chord.rootPc + color) % 12, 62, 55, 66),
+      placeNear((chord.rootPc + third) % 12, 49, 44, 54),
+      placeNear((chord.rootPc + seventh) % 12, 53, 47, 57),
+      placeNear((chord.rootPc + color) % 12, 57, 51, 60),
     ];
   } else {
     midis = [
-      placeNear(chord.rootPc, 48, 43, 55),
-      placeNear((chord.rootPc + third) % 12, 55, 50, 62),
-      placeNear((chord.rootPc + seventh) % 12, 58, 50, 64),
+      placeNear(chord.rootPc, 45, 40, 52),
+      placeNear((chord.rootPc + third) % 12, 51, 45, 57),
+      placeNear((chord.rootPc + seventh) % 12, 54, 47, 59),
     ];
   }
   return [...new Set(midis)].sort((a, b) => a - b);
