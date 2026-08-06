@@ -264,8 +264,9 @@ function highlightBar(barIdx) {
     const b = Number(el.dataset.bar);
     const l = Math.floor(b / LS_LINE);
     el.classList.toggle("current", b === barIdx);
-    // stopped: nothing is running, so nothing is dimmed
-    el.classList.toggle("far", line >= 0 && l !== line && l !== next);
+    // Stopped, the whole chart sits back: there is no line to be on, and a
+    // sheet at full contrast reads as though the band were about to come in.
+    el.classList.toggle("far", line < 0 || (l !== line && l !== next));
   });
 }
 
