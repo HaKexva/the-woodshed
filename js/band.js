@@ -2981,6 +2981,15 @@ export class Band {
         // `bpb === 4` gate used to exclude all 29 waltzes on top of every
         // ballad. Anything that would fall before beat 0 in a short bar is
         // simply dropped.
+        //
+        // Nothing here subdivides finer than an 8th any more. Several figures
+        // used to run 8ths into 16ths, and two things were wrong with that: it
+        // is not what a drummer plays behind a swing tune, and Tone applies its
+        // swing at the tick level, so a written 16th was displaced along the
+        // same curve as an 8th and came out as an uneven smear rather than as
+        // 16ths. The triplet figure stays — that subdivision is the idiom's own.
+        // What replaces them is the cross-stick, which is the sound the fills
+        // were short of.
         const lead = bar === totalBars - 1;
         const sparse = slow > 0.45; // under ~87 bpm there is no room for a flurry
         const pool = sparse
@@ -2999,19 +3008,21 @@ export class Band {
           : lead
           ? [
               [[-2, "snare", 30], [-1.5, "snare", 36], [-1, "snare", 42], [-0.5, "snare", 52]],
-              [[-2, "kick", 34], [-1.5, "snare", 34], [-1, "snare", 44], [-0.5, "kick", 46], [-0.25, "snare", 54]],
-              [[-2.5, "snare", 26], [-2, "rim", 34], [-1.5, "snare", 32], [-1, "snare", 40], [-0.75, "snare", 44], [-0.5, "snare", 50]],
-              [[-2, "snare", 40], [-1.25, "snare", 30], [-1, "kick", 42], [-0.5, "snare", 50]],
-              [[-3.5, "snare", 24], [-2.5, "snare", 28], [-1.5, "snare", 34], [-1, "snare", 40], [-0.5, "snare", 48], [-0.25, "kick", 44]],
+              [[-2, "kick", 34], [-1.5, "snare", 34], [-1, "snare", 44], [-0.5, "kick", 46]],
+              [[-2.5, "rim", 26], [-2, "rim", 34], [-1.5, "snare", 32], [-1, "snare", 40], [-0.5, "snare", 50]],
+              [[-2, "snare", 40], [-1.5, "rim", 30], [-1, "kick", 42], [-0.5, "snare", 50]],
+              [[-3.5, "snare", 24], [-2.5, "snare", 28], [-1.5, "snare", 34], [-1, "snare", 40], [-0.5, "snare", 48]],
               [[-1, "snare", 46], [-0.67, "snare", 46], [-0.33, "snare", 52]],
+              [[-2.5, "rim", 28], [-1.5, "rim", 34], [-1, "snare", 40], [-0.5, "kick", 46]],
             ]
           : [
               [[-1.5, "snare", 34], [-1, "snare", 40], [-0.5, "snare", 50]],
-              [[-1, "snare", 38], [-0.75, "snare", 42], [-0.5, "snare", 46], [-0.25, "snare", 52]],
+              [[-1.5, "rim", 30], [-1, "rim", 36], [-0.5, "snare", 46]],
               [[-1, "snare", 44], [-0.5, "snare", 52]],
               [[-1.5, "rim", 30], [-1, "snare", 38], [-0.5, "kick", 44]],
               [[-1, "kick", 40], [-0.5, "snare", 48]],
-              [[-1.5, "snare", 28], [-1.25, "snare", 32], [-0.5, "snare", 46]],
+              [[-2, "rim", 26], [-1.5, "rim", 32], [-1, "snare", 40], [-0.5, "snare", 48]],
+              [[-1, "rim", 34], [-0.5, "rim", 42]],
               [[-0.5, "snare", 44]],
             ];
         if (lead || rand() > 0.22) {
@@ -3029,10 +3040,25 @@ export class Band {
       }
       const density = compMul * comboComp * (twoFeel ? 0.55 : 1);
       const hits = rand() < (0.55 - slow * 0.25) * density ? 1 : rand() < 0.25 * density ? 2 : 0;
+      // `hits` can be 2 while a slow tune offers only one spot, and the second
+      // splice off an empty array then pushed a hit at beat NaN — one bogus
+      // event per chorus per drum below 95 bpm, deduped into a single silent
+      // casualty rather than an error. Stop when the spots run out.
       const spots = slow > 0.3 ? [2] : [0.5, 1.5, 2, 2.5, 3.5];
-      for (let h = 0; h < hits; h++) {
+      for (let h = 0; h < hits && spots.length; h++) {
         const off = spots.splice(Math.floor(rand() * spots.length), 1)[0];
-        push(bar, off, "snare", Math.round(rand() < 0.3 ? rnd(34, 42) : rnd(18, 28)));
+        // Cross-stick rather than a full stroke. The comping was snare-only, so
+        // the kit had one voice for everything it said between the fills; the
+        // click is the other half of that vocabulary, and it is what a drummer
+        // reaches for when the band is sitting back — hence more of it under a
+        // two-feel, where it is most of what you would actually hear.
+        const stick = rand() < (twoFeel ? 0.55 : 0.28);
+        push(
+          bar,
+          off,
+          stick ? "rim" : "snare",
+          Math.round(stick ? rnd(28, 40) : rand() < 0.3 ? rnd(34, 42) : rnd(18, 28))
+        );
       }
     }
     // mono synths throw on same-tick retriggers — keep the louder hit
