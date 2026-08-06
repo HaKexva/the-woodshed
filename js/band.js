@@ -2414,9 +2414,19 @@ export class Band {
     // shape the next bar then plays.
     const voicings = voiceComp(chords, rand, { colour });
 
+    // Where the form ends, so the last bar can push into the top of the next
+    // chorus instead of stopping dead. `chords[i + 1]` is undefined on the last
+    // chord, which is why every chorus boundary used to be a hard seam: the bass
+    // walked through it on the wrapped `c.next` that _flatten already provides
+    // while the comp restarted cold.
+    const last = chords[chords.length - 1];
+    const totalBeats = last.startBeat + last.beats;
+
     for (let i = 0; i < chords.length; i++) {
       const c = chords[i];
-      const next = chords[i + 1];
+      const wraps = i === chords.length - 1;
+      const next = c.next;
+      const nextStart = wraps ? totalBeats : chords[i + 1].startBeat;
       const midis = voicings[i];
       const swung = !straight && style !== "ballad" && style !== "funk";
 
@@ -2428,8 +2438,12 @@ export class Band {
       // resolves *onto* the beat, so it leaves the next downbeat intact;
       // a true anticipation replaces it.
       const pushes = swung && next && c.beats >= 2 && rand() < 0.35;
-      const approach = pushes && rand() < 0.3;
-      const pushBeat = pushes ? next.startBeat - 0.5 : null;
+      // On the wrap the push announces a chord the *next* chorus will state on
+      // its own downbeat, and nothing here can suppress that downbeat — so make
+      // it the approach shape, which resolves onto the beat and is meant to be
+      // landed on rather than replaced.
+      const approach = pushes && (wraps || rand() < 0.3);
+      const pushBeat = pushes ? nextStart - 0.5 : null;
 
       let hits;
       if (style === "ballad") {
@@ -2481,7 +2495,7 @@ export class Band {
       }
 
       if (pushBeat !== null) {
-        const target = voicings[i + 1];
+        const target = voicings[(i + 1) % voicings.length];
         events.push({
           beat: pushBeat,
           dur: approach ? 0.45 : 0.9,
@@ -2567,9 +2581,12 @@ export class Band {
         });
       }
 
-      // swing: occasional push — anticipate next bar's chord on the & of 4
-      if (!straight && style !== "funk" && bar < totalBars - 1 && rand() < PUSH) {
-        const next = chordAt((bar + 1) * bpb);
+      // swing: occasional push — anticipate next bar's chord on the & of 4.
+      // The last bar pushes into the top of the form rather than being skipped;
+      // `chordAt` wraps to bar 0 there, which is the chord the next chorus opens
+      // on, so the seam gets the same gesture every other barline gets.
+      if (!straight && style !== "funk" && rand() < PUSH) {
+        const next = chordAt(bar === totalBars - 1 ? 0 : (bar + 1) * bpb);
         events.push({
           beat: bar * bpb + bpb - 0.5,
           dur: 0.3,
