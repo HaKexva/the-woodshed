@@ -246,10 +246,27 @@ function renderLeadsheet(song) {
       .join("");
     grid.appendChild(cell);
   });
+  highlightBar(lastBar); // a rebuild mid-tune must not lose where the band is
 }
 
+// The chart is 32 bars of equal weight, and you only ever read two lines of it:
+// the one you are on and the one coming. The rest drops back rather than going
+// away — it is still there to glance at, it just stops competing.
+const LS_LINE = 4; // bars per line — matches .leadsheet's grid-template-columns
+
 function highlightBar(barIdx) {
-  $$(".bar").forEach((el) => el.classList.toggle("current", Number(el.dataset.bar) === barIdx));
+  const cells = $$(".bar");
+  const lines = Math.ceil(cells.length / LS_LINE);
+  const line = barIdx >= 0 ? Math.floor(barIdx / LS_LINE) : -1;
+  // the form loops, so the line after the last one is the first
+  const next = line < 0 ? -1 : (line + 1) % lines;
+  cells.forEach((el) => {
+    const b = Number(el.dataset.bar);
+    const l = Math.floor(b / LS_LINE);
+    el.classList.toggle("current", b === barIdx);
+    // stopped: nothing is running, so nothing is dimmed
+    el.classList.toggle("far", line >= 0 && l !== line && l !== next);
+  });
 }
 
 function resetChordDisplay() {
@@ -469,6 +486,7 @@ function armPedal(sel, on) {
 function renderRig() {
   armPedal("#pedal-ramp", Number($("#tempo-ramp").value) > 0);
   armPedal("#pedal-count", state.stopAfter > 0);
+  armPedal("#pedal-reading", readingKey !== "C");
 
   const yours = state.trading && state.yourFour;
   $("#trade-v").textContent = t(state.trading ? "tradeFours" : "rampOff");
@@ -476,11 +494,6 @@ function renderRig() {
   $("#trade").classList.toggle("yours", yours);
   $("#trade").setAttribute("aria-pressed", String(state.trading));
   armPedal("#trade", state.trading);
-
-  const hidden = document.body.classList.contains("chart-hidden");
-  $("#chart-v").textContent = t(hidden ? "chartHidden" : "chartShown");
-  $("#chart-hide").setAttribute("aria-pressed", String(hidden));
-  armPedal("#chart-hide", hidden);
 
   renderChorus();
 }
@@ -725,11 +738,6 @@ $("#stop-after").addEventListener("change", (e) => {
   renderRig();
 });
 
-$("#chart-hide").addEventListener("click", () => {
-  document.body.classList.toggle("chart-hidden");
-  renderRig();
-});
-
 $("#take-seed").addEventListener("change", (e) => {
   const v = e.target.value.trim();
   e.target.value = v ? band.newTake(v) : band.newTake();
@@ -812,6 +820,7 @@ $("#reading-key").addEventListener("change", (e) => {
   if (lastChord) handleChord(lastChord);
   if (soloLine) renderSoloLine(soloLine.events, soloLine);
   renderSystemView(lastBar);
+  renderRig();
 });
 
 $$(".mute[data-inst]").forEach((b) =>

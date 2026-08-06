@@ -6,6 +6,7 @@
   --ink-3: #1c232b;
   --cream: #f2e7d3;
   --cream-60: rgba(242, 231, 211, 0.6);
+  --cream-35: rgba(242, 231, 211, 0.35);
   --cream-25: rgba(242, 231, 211, 0.25);
   --cream-10: rgba(242, 231, 211, 0.1);
   --amber: #f08a24;
@@ -663,6 +664,9 @@ body {
 }
 
 .bar.current { background: var(--amber); color: var(--ink); }
+
+/* everything outside the running line and the one after it */
+.bar.far { color: var(--cream-35); }
 
 .bar-chord { white-space: nowrap; }
 
@@ -1597,7 +1601,11 @@ select.pedal-v {
 }
 
 select.pedal-v:focus { outline: none; }
-select.pedal-v option { background: var(--ink-2); font-family: var(--body); }
+select.pedal-v option { background: var(--ink-2); font-family: var(--body); text-transform: none; }
+
+/* the pedals speak lowercase, but note names are note names — B♭ is not b♭ */
+#reading-key,
+#reading-key option { text-transform: none; }
 
 .pedal-sub {
   font-size: 0.6rem;
@@ -1638,11 +1646,6 @@ select.pedal-v option { background: var(--ink-2); font-family: var(--body); }
   text-transform: uppercase;
   color: var(--cream-25);
 }
-
-/* chart hidden: the map goes, the sounding chord stays. Practising without the
-   page in front of you is the drill; being told nothing at all is not. */
-body.chart-hidden #leadsheet,
-body.chart-hidden #system-view { display: none; }
 
 .mutes { display: flex; gap: 0.5rem; }
 

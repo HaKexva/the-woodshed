@@ -64,8 +64,13 @@ arrived with its count derived rather than published, and why item 5 (section
 loop) is not there — that one needs `loopStart` / `loopEnd`, and there is nowhere
 UI-side to put it. The row has a slot waiting for it.
 
-Reading transposition stayed under the song title rather than moving into the
-rig. It changes what is written, never what sounds, so it belongs with the chart.
+Reading transposition (item 4) moved into the rig from under the song title. It
+is still the odd one out — it changes what is written, never what sounds — but a
+player looking for a practice control now has one place to look.
+
+The lead sheet also dims every bar outside the line being played and the one
+after it, wrapping at the end of the form. Not from either review; it came out of
+using the thing.
 
 Two of those changed shape along the way. Item 12 is now the natural home for
 anything per-chorus, since the bass feel and the comp colour both already work

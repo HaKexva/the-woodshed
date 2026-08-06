@@ -74,17 +74,6 @@
             <span id="delete-tune-label" data-i18n="deleteTune">delete</span>
           </button>
           <p id="song-detail"></p>
-          <!-- reading transposition belongs with the chart, not with the band:
-               it changes what is written, never what sounds -->
-          <label class="reading-ctl">
-            <span class="ctl-label" data-i18n="reading">reading</span>
-            <select id="reading-key" aria-label="reading transposition">
-              <option value="C" data-i18n="readC">concert</option>
-              <option value="Bb">B♭</option>
-              <option value="Eb">E♭</option>
-              <option value="F">F</option>
-            </select>
-          </label>
         </div>
         <div class="chord-card">
           <span id="chord-now" class="chord-now">—</span>
@@ -242,6 +231,20 @@
         <span class="pedal-sub" id="trade-sub" data-i18n="tradeSub">fours</span>
       </button>
 
+      <!-- Reading changes what is written, never what sounds — the one pedal
+           here that does not touch the band. It sits with them anyway because
+           it is a practice control, and this is where you look for those. -->
+      <label class="pedal" id="pedal-reading">
+        <span class="pedal-k" data-i18n="reading">reading</span>
+        <select id="reading-key" class="pedal-v" aria-label="reading transposition">
+          <option value="C" data-i18n="readC">concert</option>
+          <option value="Bb">B♭</option>
+          <option value="Eb">E♭</option>
+          <option value="F">F</option>
+        </select>
+        <span class="pedal-sub" data-i18n="readingSub">what you read</span>
+      </label>
+
       <label class="pedal" id="pedal-count">
         <span class="pedal-k" data-i18n="countK">choruses</span>
         <select id="stop-after" class="pedal-v" aria-label="stop after n choruses">
@@ -253,12 +256,6 @@
         </select>
         <span class="pedal-sub" data-i18n="countSub">then stop</span>
       </label>
-
-      <button type="button" class="pedal pedal-btn" id="chart-hide" aria-pressed="false">
-        <span class="pedal-k" data-i18n="chartK">chart</span>
-        <span class="pedal-v" id="chart-v" data-i18n="chartShown">shown</span>
-        <span class="pedal-sub" data-i18n="chartSub">hide to test</span>
-      </button>
 
       <p class="rig-chorus"><b id="chorus-n">—</b><span data-i18n="chorusK">chorus</span></p>
     </div>
