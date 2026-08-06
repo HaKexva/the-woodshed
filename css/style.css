@@ -372,6 +372,8 @@ body {
 
 .now-head p { margin-top: 0.35rem; color: var(--cream-60); font-size: 0.85rem; }
 
+.now-head .reading-ctl { margin-top: 0.55rem; }
+
 .edit-preview {
   display: inline-flex;
   align-items: center;
@@ -1424,7 +1426,7 @@ body.modal-open {
   width: 2.6rem;
 }
 
-.tempo-ctl { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+.tempo-ctl { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
 
 .ctl-label {
   font-size: 0.66rem;
@@ -1434,14 +1436,36 @@ body.modal-open {
   white-space: nowrap;
 }
 
-.tempo-readout { font-size: 0.82rem; color: var(--cream-60); width: 4.4rem; white-space: nowrap; }
+.tempo-readout { font-size: 0.82rem; color: var(--cream-60); width: 3.9rem; white-space: nowrap; }
+
+/* reading transposition — a horn player sets it once, so it sits quietly beside
+   the mutes rather than taking a row of its own */
+.reading-ctl { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+
+.reading-ctl select {
+  font-family: var(--body);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--ink-3);
+  color: var(--cream);
+  border: 2px solid var(--cream-25);
+  padding: 0.28rem 0.4rem;
+  cursor: pointer;
+}
+
+.reading-ctl select:focus-visible { outline: 2px solid var(--flame); outline-offset: 2px; }
 
 #tempo-val { color: var(--cream); font-weight: 600; }
 
+/* The two sliders used to take a third of the transport between them, and the
+   row now has to hold the reading key and the comp colour as well. A tempo
+   slider does not need to be long to be usable — the readout beside it is what
+   you actually read. */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
-  width: clamp(78px, 11vw, 150px);
+  width: clamp(56px, 6.5vw, 96px);
   min-width: 0;
   height: 3px;
   background: var(--cream-25);
@@ -1592,6 +1616,7 @@ input[type="range"]::-moz-range-thumb {
   .editor textarea,
   .song-search,
   .take-seed input,
+  .reading-ctl select,
   .wood-opt select { font-size: 16px; }
 
   .layout { grid-template-columns: 1fr; }

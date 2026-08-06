@@ -3,7 +3,15 @@
 import { SONGS } from "./songs.js";
 import { loadMine, saveMine, removeMine, exportMine, importMine, randomTitle } from "./mytunes.js";
 import { Band, SOLO_STYLES } from "./band.js";
-import { parseChord, parseWarnings, soloScale, flatName } from "./theory.js";
+import {
+  parseChord,
+  parseWarnings,
+  soloScale,
+  flatName,
+  transposeSymbol,
+  transposeKey,
+  READING_KEYS,
+} from "./theory.js";
 import { classify, chordAt } from "./solo-metrics.js";
 import { t, getLang, setLang, applyStatic } from "./i18n.js";
 
@@ -29,6 +37,16 @@ function letterOf(title) {
   const ch = title.trim().charAt(0).toUpperCase();
   return ch >= "A" && ch <= "Z" ? ch : "#";
 }
+
+// Reading transposition. The band never moves — this rewrites what is *written*
+// so a tenor player reads D over the concert C the trio is playing, instead of
+// transposing 32 bars in their head while trying to hear the changes. Set once
+// and remembered, because it is a property of the instrument in your hands.
+const savedReading = localStorage.getItem("woodshed-reading");
+let readingKey = savedReading in READING_KEYS ? savedReading : "C";
+const shift = () => READING_KEYS[readingKey].shift;
+/** A chord symbol as this instrument should read it. */
+const written = (symbol) => transposeSymbol(symbol, shift());
 
 const state = {
   mode: "session", // session | inspire
@@ -159,7 +177,8 @@ function selectSong(i) {
   updateListView();
   state.currentSong = song;
   $("#song-title").textContent = song.title;
-  $("#song-detail").textContent = `${song.composer} — ${song.key} · ${song.form} · ${song.style}`;
+  $("#song-detail").textContent =
+    `${song.composer} — ${transposeKey(song.key, shift())} · ${song.form} · ${song.style}`;
   $("#tempo").value = song.bpm;
   $("#tempo-val").textContent = song.bpm;
   band.bpmOverride = null;
@@ -191,7 +210,7 @@ function renderLeadsheet(song) {
     cell.className = "bar";
     cell.dataset.bar = i;
     cell.innerHTML = bar
-      .map((c) => `<span class="bar-chord" data-beat="${c.beats}">${c.chord}</span>`)
+      .map((c) => `<span class="bar-chord" data-beat="${c.beats}">${written(c.chord)}</span>`)
       .join("");
     grid.appendChild(cell);
   });
@@ -202,6 +221,8 @@ function highlightBar(barIdx) {
 }
 
 function resetChordDisplay() {
+  lastChord = null;
+  lastBar = -1;
   // clear any shrink left over from a long symbol before the dash goes back
   $("#chord-now").style.fontSize = "";
   $("#chord-now").textContent = "—";
@@ -232,7 +253,7 @@ function renderSystemView(curBar) {
         continue;
       }
       const cls = `sys-cell${bar.length > 1 ? " multi" : ""}${b === curBar ? " on" : ""}`;
-      html += `<span class="${cls}">${bar.map((x) => x.chord).join(" ")}</span>`;
+      html += `<span class="${cls}">${bar.map((x) => written(x.chord)).join(" ")}</span>`;
     }
     return html;
   };
@@ -248,7 +269,9 @@ function renderSystemView(curBar) {
 }
 
 function renderSoloStrip(info) {
-  const { label, notes, pcs } = soloScale(info);
+  // parse the *written* symbol so the scale is spelled in the reading key —
+  // "D dorian → D E F G A B C D" for a tenor over the trio's C minor
+  const { label, notes, pcs } = soloScale(shift() ? parseChord(written(info.symbol)) : info);
   $("#solo-scale").textContent = label;
   $("#solo-notes").innerHTML = notes
     .map((n, i) => `<span class="solo-note${i === 0 || i === notes.length - 1 ? " root" : ""}" data-pc="${pcs[i]}">${n}</span>`)
@@ -270,14 +293,16 @@ function renderSoloLine(events, ctx) {
   const html = [];
   for (let bar = 0; bar < bars; bar++) {
     const inBar = events.filter((e) => e.beat >= bar * ctx.bpb && e.beat < (bar + 1) * ctx.bpb);
-    const symbols = ctx.chords.filter((c) => c.bar === bar).map((c) => c.symbol).join(" ");
+    const symbols = ctx.chords.filter((c) => c.bar === bar).map((c) => written(c.symbol)).join(" ");
     const notes = inBar.length
       ? inBar
           .map((e) => {
             const c = classify(e.midi, chordAt(ctx.chords, e.beat, ctx.totalBeats));
             const strong = Math.abs(e.beat - Math.round(e.beat)) < 0.02 ? " downbeat" : "";
             const held = e.dur >= 1 ? " held" : "";
-            return `<span class="n ${c.role}${strong}${held}" data-beat="${e.beat.toFixed(3)}" title="${e.atom ?? ""}">${flatName(e.midi % 12)}<i>${c.deg}</i></span>`;
+            // the degree is chord-relative and so survives transposition; only
+            // the note name has to be rewritten into the reading key
+            return `<span class="n ${c.role}${strong}${held}" data-beat="${e.beat.toFixed(3)}" title="${e.atom ?? ""}">${flatName(e.midi + shift())}<i>${c.deg}</i></span>`;
           })
           .join("")
       : `<span class="rest">·</span>`;
@@ -375,10 +400,16 @@ function setStatus(msg) {
 
 // ------------------------------------------------------------------ band events
 
+// what is on screen right now, so a reading-key change can repaint it without
+// waiting for the next chord to come round
+let lastChord = null;
+let lastBar = -1;
+
 function handleBeat(bar, beatInBar) {
   $$(".beat-light").forEach((el, i) => el.classList.toggle("on", i === beatInBar));
   if (bar < 0) return; // count-in: pulse the lights, touch nothing else
   if (beatInBar === 0) {
+    lastBar = bar;
     highlightBar(bar);
     renderSystemView(bar);
     if (state.mode === "inspire") markLineBar(bar);
@@ -434,9 +465,10 @@ addEventListener("resize", () => {
 });
 
 function handleChord(chord) {
-  $("#chord-next").textContent = t("next", { chord: chord.next.symbol });
+  lastChord = chord;
+  $("#chord-next").textContent = t("next", { chord: written(chord.next.symbol) });
   const el = $("#chord-now");
-  setChordText(el, chord.symbol);
+  setChordText(el, written(chord.symbol));
   el.classList.remove("pop");
   void el.offsetWidth; // restart animation
   el.classList.add("pop");
@@ -610,6 +642,37 @@ document.addEventListener("click", (e) => {
 });
 
 $("#bass-boost").addEventListener("change", (e) => band.setBassBoost(e.target.checked));
+
+// Reading transposition. Nothing about the band changes — every surface that
+// prints a chord symbol simply redraws in the new key. The chord card and the
+// scale strip are driven by the band's chord callback, so they only refresh on
+// the next chord; repaint them here from the last one so the change is visible
+// the moment you make it rather than a bar later.
+// how much colour the comping piano reaches for — remembered, like the reading key
+const savedComp = localStorage.getItem("woodshed-comp");
+if (savedComp) {
+  band.setCompColour(savedComp);
+  $("#comp-colour").value = savedComp;
+}
+$("#comp-colour").addEventListener("change", (e) => {
+  band.setCompColour(e.target.value);
+  localStorage.setItem("woodshed-comp", e.target.value);
+});
+
+$("#reading-key").value = readingKey;
+$("#reading-key").addEventListener("change", (e) => {
+  readingKey = READING_KEYS[e.target.value] ? e.target.value : "C";
+  localStorage.setItem("woodshed-reading", readingKey);
+  const song = state.currentSong;
+  if (song) {
+    $("#song-detail").textContent =
+      `${song.composer} — ${transposeKey(song.key, shift())} · ${song.form} · ${song.style}`;
+    renderLeadsheet(song);
+  }
+  if (lastChord) handleChord(lastChord);
+  if (soloLine) renderSoloLine(soloLine.events, soloLine);
+  renderSystemView(lastBar);
+});
 
 $$(".mute[data-inst]").forEach((b) =>
   b.addEventListener("click", () => {
