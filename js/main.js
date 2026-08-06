@@ -680,7 +680,7 @@ $("#bass-boost").addEventListener("change", (e) => band.setBassBoost(e.target.ch
 // is the default and the fallback: a value left in storage from an older build,
 // or anything the select does not offer, resolves back to it rather than
 // quietly leaving the band somewhere nobody chose.
-const COMP_LEVELS = ["plain", "warm", "rich"];
+const COMP_LEVELS = ["plain", "warm"];
 const savedComp = localStorage.getItem("woodshed-comp");
 const compLevel = COMP_LEVELS.includes(savedComp) ? savedComp : "warm";
 band.setCompColour(compLevel);
