@@ -1003,11 +1003,21 @@ export class Band {
       events.filter((e) => !busyBars.has(Math.floor(e.beat / bpb)) || rand() < 0.55)
         .map((e) => (busyBars.has(Math.floor(e.beat / bpb)) ? { ...e, vel: Math.max(20, e.vel - 8) } : e));
 
+    // Bass feel for this chorus. A trio plays the head in two and opens up to
+    // four for the solos; nothing here knows which chorus is the head, so the
+    // first time through stands in for it, and the quiet chorus of the wave
+    // below drops back — which is what makes the return to four read as a
+    // decision rather than a setting. Only the swing family walks in the first
+    // place; the other styles own their own bass line and ignore this.
+    const walking = !straight && style !== "ballad";
+    const chorus = this._chorus ?? 0;
+    const bassFeel = walking && (!chorus || (chorus % 4 === 3 && rand() < 0.6)) ? "two" : "four";
+
     const ev = {
       piano: duck(this._pianoEvents(chords, style, straight, bpb)),
       guitar: duck(this._guitarEvents(chords, song, style, straight, bpb)),
-      bass: this._bassEvents(chords, totalBeats, style, straight, bpb),
-      drums: this._drumEvents(song, style, straight, bpb, { phraseEnds }),
+      bass: this._bassEvents(chords, totalBeats, style, straight, bpb, bassFeel),
+      drums: this._drumEvents(song, style, straight, bpb, { phraseEnds, bassFeel }),
       meta: [],
     };
 
@@ -2550,8 +2560,8 @@ export class Band {
   }
 
   /** Walking/riff line, then one sustain pass over the top of it. */
-  _bassEvents(chords, totalBeats, style, straight, bpb) {
-    const events = this._bassLine(chords, totalBeats, style, straight, bpb);
+  _bassEvents(chords, totalBeats, style, straight, bpb, feel = "four") {
+    const events = this._bassLine(chords, totalBeats, style, straight, bpb, feel);
 
     // Note length, every style alike. Short plucked notes leave audible holes
     // between the beats, which is what makes a sampled bass read as *plucked*
@@ -2573,7 +2583,7 @@ export class Band {
     return events;
   }
 
-  _bassLine(chords, totalBeats, style, straight, bpb) {
+  _bassLine(chords, totalBeats, style, straight, bpb, feel = "four") {
     const events = [];
     const chordAt = (beat) => {
       let cur = chords[0];
@@ -2713,6 +2723,26 @@ export class Band {
       // approach on its own target — come at it from the other side instead
       if (approach === nextTarget) approach = clamp(nextTarget + toward);
 
+      // IN TWO — half notes rather than quarters. The bass walked in four from
+      // bar one of chorus one to the end, which is the one thing a rhythm
+      // section never does: a trio plays the head in two and opens up for the
+      // solos, and the opening up is most of what makes a chorus feel like it
+      // started. Beat 1 takes the same target the walk would have taken, so the
+      // harmony lands identically; beat 3 takes the fifth while the chord holds,
+      // and the approach note when the chord is about to change, so the line
+      // still arrives at the barline the way it does in four.
+      if (feel === "two") {
+        emit(0, target);
+        if (c.beats >= 4) {
+          const changing = c.next.symbol !== c.symbol;
+          const fifth = placeNear(bassPcs(c.info).fifth, target, BASS_LO, BASS_HI);
+          emit(2, changing ? approach : fifth);
+        }
+        dir = Math.sign(approach - target) || dir;
+        target = nextTarget;
+        continue;
+      }
+
       // walk the inner beats along the scale, spacing them evenly between
       // target and approach so each move is a step or two rather than a jump
       const ladder = ladderFor(c.info);
@@ -2747,9 +2777,13 @@ export class Band {
       target = nextTarget;
     }
 
-    // Second pass: 8th-note skips between quarters. Done after the line exists
-    // so each skip can genuinely pass between its neighbours rather than guess
-    // at a note that hasn't been chosen yet. Densest on the way into a change.
+    // Second pass: 8th-note skips between the notes already placed. Done after
+    // the line exists so each skip can genuinely pass between its neighbours
+    // rather than guess at a note that hasn't been chosen yet. Densest on the
+    // way into a change. The skip sits half a beat *before the note it leads
+    // to*, not half a beat after the one it follows — the same position when the
+    // line is in four and its neighbours are a beat apart, and the difference
+    // between a pickup and a note left hanging when the line is in two.
     const quarters = [...events];
     for (let i = 0; i < quarters.length - 1; i++) {
       const cur = quarters[i];
@@ -2761,7 +2795,7 @@ export class Band {
       // fill a leap from the middle; step through a close interval chromatically
       const mid = Math.abs(gap) >= 3 ? cur.midi + dir * Math.round(Math.abs(gap) / 2) : nxt.midi - dir;
       if (mid === cur.midi || mid === nxt.midi) continue;
-      events.push({ beat: cur.beat + 0.5, midi: clamp(mid), dur: 0.28, vel: Math.max(60, cur.vel - 18) });
+      events.push({ beat: nxt.beat - 0.5, midi: clamp(mid), dur: 0.28, vel: Math.max(60, cur.vel - 18) });
     }
     events.sort((a, b) => a.beat - b.beat);
     return events;
@@ -2770,6 +2804,7 @@ export class Band {
   _drumEvents(song, style, straight, bpb, opts = {}) {
     const events = [];
     const totalBars = song.progression.length;
+    const twoFeel = opts.bassFeel === "two"; // what the bass is doing this chorus
     const push = (bar, off, drum, vel, extra) => events.push({ beat: bar * bpb + off, drum, vel, ...extra });
     // where the soloist ends phrases, the drummer answers
     const endsByBar = new Map();
@@ -2919,15 +2954,20 @@ export class Band {
       // swing family (swing / blues / modal)
       const compMul = { blues: 1.2, modal: 0.65 }[style] ?? 1;
       const comboComp = [1, 1.5, 0.7][combo] ?? 1;
-      const kickThresh = 0.65 + slow * 0.25 + (combo === 1 ? 0.15 : 0) + (style === "modal" ? 0.1 : 0);
+      // under a two-feel the drummer sits back: fewer feathered kicks, fewer
+      // comping figures, and a plainer cymbal — so that opening up to four
+      // reads as a lift rather than as the bass changing its mind
+      const kickThresh =
+        0.65 + slow * 0.25 + (combo === 1 ? 0.15 : 0) + (style === "modal" ? 0.1 : 0) + (twoFeel ? 0.18 : 0);
       if (bpb === 3) {
         for (const [off, vel] of [[0, 48], [1, 38], [2, 42]]) push(bar, off, "ride", vel);
         push(bar, 1, "hat", 46);
       } else {
         // The old `slow > 0.3` gate forced plain quarters below 95 bpm, which is
         // backwards: a slow tune is where a drummer puts more detail into the
-        // ride, not less.
-        const pattern = pickRide();
+        // ride, not less. A two-feel chorus is the one place the plain figure
+        // genuinely belongs.
+        const pattern = twoFeel && rand() < 0.45 ? RIDE_PLAIN : pickRide();
         for (const [off, vel] of pattern) push(bar, off, "ride", vel);
         push(bar, 1, "hat", 50);
         push(bar, 3, "hat", 50);
@@ -2987,7 +3027,8 @@ export class Band {
           continue;
         }
       }
-      const hits = rand() < (0.55 - slow * 0.25) * compMul * comboComp ? 1 : rand() < 0.25 * comboComp ? 2 : 0;
+      const density = compMul * comboComp * (twoFeel ? 0.55 : 1);
+      const hits = rand() < (0.55 - slow * 0.25) * density ? 1 : rand() < 0.25 * density ? 2 : 0;
       const spots = slow > 0.3 ? [2] : [0.5, 1.5, 2, 2.5, 3.5];
       for (let h = 0; h < hits; h++) {
         const off = spots.splice(Math.floor(rand() * spots.length), 1)[0];
