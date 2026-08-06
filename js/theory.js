@@ -460,24 +460,24 @@ export function guitarVoicing(chord, variant = 0) {
   const iv = chord.intervals;
   const third = pick(iv, [4, 3, 5]) ?? 4;
   const seventh = pick(iv, [10, 11, 9, 7]) ?? 7;
-  // The guitar owns the register under the piano's floor at A3, which is a
-  // rhythm guitar's own range anyway. The ceiling comes down rather than the
-  // floor going out from under it: dropping the floor to E2 put the guitar
-  // below the bass's own top note at E3 and the two muddied each other, which
-  // is a worse problem than the one it solved.
+  // Left where it has always been. Moving it to make room for the piano was
+  // tried twice — floor down to E2, then ceiling down to G3 — and both read as
+  // wrong on the instrument: this range is where the sampled guitar was
+  // recorded and where its voicings were tuned. The piano moved its own floor
+  // up to A3 instead, which is the half of that split worth keeping.
   let midis;
   if (variant === 1) {
     const color = pick(iv, [14, 13, 15, 7, 8, 6]) ?? 7;
     midis = [
-      placeNear((chord.rootPc + third) % 12, 50, 46, 56),
-      placeNear((chord.rootPc + seventh) % 12, 54, 50, 58),
-      placeNear((chord.rootPc + color) % 12, 58, 53, 61),
+      placeNear((chord.rootPc + third) % 12, 52, 46, 58),
+      placeNear((chord.rootPc + seventh) % 12, 57, 50, 62),
+      placeNear((chord.rootPc + color) % 12, 62, 55, 66),
     ];
   } else {
     midis = [
-      placeNear(chord.rootPc, 48, 45, 55),
-      placeNear((chord.rootPc + third) % 12, 53, 49, 58),
-      placeNear((chord.rootPc + seventh) % 12, 56, 51, 60),
+      placeNear(chord.rootPc, 48, 43, 55),
+      placeNear((chord.rootPc + third) % 12, 55, 50, 62),
+      placeNear((chord.rootPc + seventh) % 12, 58, 50, 64),
     ];
   }
   return [...new Set(midis)].sort((a, b) => a - b);

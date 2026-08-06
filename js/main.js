@@ -648,12 +648,15 @@ $("#bass-boost").addEventListener("change", (e) => band.setBassBoost(e.target.ch
 // scale strip are driven by the band's chord callback, so they only refresh on
 // the next chord; repaint them here from the last one so the change is visible
 // the moment you make it rather than a bar later.
-// how much colour the comping piano reaches for — remembered, like the reading key
+// How much the rhythm section reaches — remembered, like the reading key. Warm
+// is the default and the fallback: a value left in storage from an older build,
+// or anything the select does not offer, resolves back to it rather than
+// quietly leaving the band somewhere nobody chose.
+const COMP_LEVELS = ["plain", "warm", "rich"];
 const savedComp = localStorage.getItem("woodshed-comp");
-if (savedComp) {
-  band.setCompColour(savedComp);
-  $("#comp-colour").value = savedComp;
-}
+const compLevel = COMP_LEVELS.includes(savedComp) ? savedComp : "warm";
+band.setCompColour(compLevel);
+$("#comp-colour").value = compLevel;
 $("#comp-colour").addEventListener("change", (e) => {
   band.setCompColour(e.target.value);
   localStorage.setItem("woodshed-comp", e.target.value);

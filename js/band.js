@@ -2592,15 +2592,11 @@ export class Band {
     const bluesPool = [[1, 3], [1, 3], [0, 1, 2, 3], [1, 2.5, 3], [0.5, 1, 3]];
     // modal lays out or holds — the guitar is texture here, not time
     const modalPool = [[0], [1.5], [2.5], [], [], [0, 2.5]];
-    // Freddie Green quarters are the sound and stay the default, but a bar of
-    // four identical chops at one fixed length is not what a rhythm guitarist
-    // plays — measured, 96.6% of the guitar's attacks were on the quarter with a
-    // 0.42-beat duration every time. Quarters still win most bars; behind them
-    // sit half notes, a hole on beat 3, and a bar that pushes its own & of 4.
-    const swingPool = [
-      [0, 1, 2, 3], [0, 1, 2, 3], [0, 1, 2, 3], [0, 1, 2, 3], [0, 1, 2, 3],
-      [0, 2], [0, 1, 3], [0, 1, 2, 3, 3.5],
-    ];
+    // Freddie Green quarters, and nothing behind them. A pool of half notes, a
+    // hole on beat 3 and a pushed & of 4 was tried here and reverted: on the
+    // instrument it read as a guitarist losing the time rather than varying it,
+    // and the part's whole job is to be the time. The variation this instrument
+    // wants is in the voicings, not the rhythm.
 
     for (let bar = 0; bar < totalBars; bar++) {
       const variant = rand() < VARIANT ? 1 : 0;
@@ -2612,32 +2608,28 @@ export class Band {
       else if (style === "modal") offsets = choice(modalPool);
       else if (style === "blues") offsets = choice(bluesPool);
       else if (rand() < BREATHE) offsets = [1, 3]; // breathe: comp 2 & 4 only
-      else offsets = bpb === 4 ? choice(swingPool) : [...Array(bpb).keys()];
+      else offsets = [...Array(bpb).keys()]; // Freddie Green quarters
 
-      // modal holds its voicings; latin's guajeo is short and percussive
-      const hold = style === "modal" ? 2.2 : style === "latin" ? 0.5 : straight ? 0.6 : 0.42;
+      // Modal holds its voicings; latin's guajeo is short and percussive; the
+      // swing chop is shorter than either. Freddie Green is a damped click of a
+      // chord, not a strum that rings — at 0.42 of a beat four of them a bar
+      // filled the space between the ride and the bass, and the guitar was the
+      // loudest thing in a band it is supposed to sit under.
+      const hold = style === "modal" ? 2.2 : style === "latin" ? 0.5 : straight ? 0.6 : 0.28;
 
-      offsets.forEach((off, i) => {
+      for (const off of offsets) {
         const beat = bar * bpb + off;
         const c = chordAt(beat);
         const accent = !straight && off % 2 === 1; // lean on 2 & 4
         const lean =
           style === "blues" && (off === 1 || off === 3) ? 8 : style === "modal" ? -8 : 0;
-        // A chord with real room in front of it rings into that room, so the
-        // half-note bars are audible as half notes. A quarter does NOT: the
-        // Freddie Green chop is short on purpose, and stretching it to fill its
-        // beat — which is what a plain fill-the-gap rule does — turns four
-        // chops a bar into a wash and puts the guitar over the whole band.
-        const gap = (i + 1 < offsets.length ? offsets[i + 1] : bpb) - off;
-        const dur =
-          gap >= 1.5 ? Math.min(hold * 3, gap * 0.7) * rnd(0.92, 1.08) : hold * rnd(0.88, 1.12);
         events.push({
           beat,
-          dur,
+          dur: hold,
           midis: guitarVoicing(c.info, variant),
           vel: Math.max(18, Math.round(rnd(30, 38)) + (accent ? 6 : 0) + (style === "funk" ? 10 : 0) + lean),
         });
-      });
+      }
 
       // swing: occasional push — anticipate next bar's chord on the & of 4.
       // The last bar pushes into the top of the form rather than being skipped;
