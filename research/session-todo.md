@@ -29,7 +29,7 @@ project).
 | 15 | `[B]` | **The drummer converses with the comp.** Snare comping was 0–2 random spots a bar related to nothing. The comp is now built before the drums so its onsets can be passed in, and given the choice the drummer reinforces one or answers in the hole after it: hits landing on the piano go from 47.8% by chance to 70.7% | S | **done** |
 | 16 | `[P]` | **Two-bar count-in**, or one bar above ~200 bpm. Currently one bar of undifferentiated hi-hat clicks | XS | |
 | 17 | `[P]` | **Skip solo generation when `!soloOn`.** The largest generator in the file runs on the loop-wrap critical path for a line nobody will hear (band.js:982, check at 1229). Delete the write-only `_soloEventsCache` (band.js:987) while there | XS | |
-| 18 | `[B]`/`[P]` | **Decouple comping feel from tune style** — a session-mode feel picker (swing / two-feel / bossa / latin / shuffle / even-8ths / ballad). 82.6% of tunes are tagged `swing`, so the blues branch serves 1 tune and modal serves 2. Fixes the dead branches *and* is a practice feature | M | |
+| 18 | `[B]`/`[P]` | **Decouple comping feel from tune style.** A tune’s `style` was doing two jobs — saying what the piece is, and telling five generators how to play — so 82.6% of the book being tagged `swing` left the blues vocabulary serving one tune and modal two. `band.feel` and `band.straight` are the second job split out, with a picker: as written, or any of the seven. Transport swing follows, so switching to bossa mid-tune actually stops the eighths swinging. All 447 tunes can now reach every branch; `auto` resolves exactly as the old code did | M | **done** |
 | 19 | `[B]` | ~~**Give the guitar something other than quarters**~~ — **reverted.** Half-note bars, holes on beat 3 and pushed &-of-4 bars all read as a guitarist losing the time rather than varying it. The rhythm was never the problem — see [guitar-comping.md](guitar-comping.md). What the part actually wanted became item 27 | S | **reverted** |
 | 20 | `[B]` | **Latin bass tumbao** — the root anticipated on the & of 4 and tied over, weight on the & of 2 and beat 4. Downbeat on a full-bar chord 100% → 26%, harmonic changes anticipated 0% → 74%. The 23 latin tunes had been walking a bossa line under a clave section | S | **done** |
 | 21 | `[P]` | **Sounding transposition** and per-repeat key stepping (1 or 5 semitones cycles all twelve keys; 3 visits only four) | S | |
@@ -42,7 +42,7 @@ project).
 
 ## Where it stands
 
-**Done: 1, 2, 3, 4, 6, 7, 8, 9, 11, 12, 13, 14, 15, 20, 22, 27.** Between them
+**Done: 1, 2, 3, 4, 6, 7, 8, 9, 11, 12, 13, 14, 15, 18, 20, 22, 27.** Between them
 they cover what a player names first — the comp repeating itself, the cymbal not
 swinging, the bass never changing gear, the guitar sitting on the band, every
 chorus sounding like the last one, having to transpose the whole chart in your
@@ -54,8 +54,8 @@ plain / warm control that reaches all four instruments.
 part wanted was voice leading and ghosting, which became item 27.
 **Dropped: 1b.**
 
-**Still open, cheapest first:** 16, 17 (XS) · 5, 10, 21, 23 (S) · 18, 24, 25 (M)
-· 26 (L).
+**Still open, cheapest first:** 16, 17 (XS) · 5, 10, 21, 23 (S) · 24, 25 (M) ·
+26 (L).
 
 Items 1, 6 and 7 shipped together as **the rig** — a row across the top of the
 transport holding the practice controls, readable in the off state so you can see
@@ -76,7 +76,7 @@ using the thing.
 Item 23 is worth more than its position suggests: without a seeded band every
 measurement here is an average over many takes rather than an A/B, and that is
 the whole reason the guitar took three attempts. What is left is now mostly
-`[P]` — the practice-room side — plus 18 and 24 on the band.
+`[P]` — the practice-room side — plus 24 on the band.
 
 ## Reproducing the measurements
 
