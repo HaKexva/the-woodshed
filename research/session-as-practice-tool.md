@@ -32,7 +32,7 @@ in the moment, per chord, in note names rather than theory. iReal Pro shipped it
 Chord Scales view years after launch and draws it on a staff; this is more
 readable and it is free.
 
-**428 tunes with cited sources.** The changes are the expensive part of building
+**447 tunes with cited sources.** The changes are the expensive part of building
 this kind of tool and they are done, corroborated across two independent corpora
 per tune, with the sources shown in-app.
 
@@ -147,8 +147,8 @@ visual cue for whose four it is.
 
 ### 8. Limited style variety to practise against
 
-82.5% of the songbook is tagged `swing` and there is no way to change a tune's
-feel. A player working on bossa phrasing has 4 tunes; latin, 23; funk, 6. Playing
+82.6% of the songbook is tagged `swing` and there is no way to change a tune's
+feel. A player working on bossa phrasing has 4 tunes; latin, 23; funk, 7. Playing
 a standard as a bossa — an ordinary thing to want in a practice room — is not
 possible. See the style-decoupling item in the backing-band audit; it is the same
 fix from the other side.

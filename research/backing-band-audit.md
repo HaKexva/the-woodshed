@@ -2,14 +2,18 @@
 
 A read of the four rhythm-section generators — `_pianoEvents`, `_guitarEvents`,
 `_bassEvents`/`_bassLine`, `_drumEvents` — asking where a player would hear the
-machine, and measuring rather than guessing. Line numbers are from the
-`worktree-session-review` branch (band.js at 2,990 lines).
+machine, and measuring rather than guessing.
 
-Every number below came from running the generators headless in Node with Tone
-and smplr stubbed out; the event builders don't touch `this` except for
-`_bassEvents` (calls `_bassLine`) and `_drumEvents` (reads `rideOn` and the
-transport bpm). Measurements are on *Autumn Leaves* — 4/4, swing, 32 bars, 120
-bpm — unless stated, over 8–30 regenerated choruses.
+Line numbers describe the code **as audited**, at commit `6d76258`, before
+anything here was applied — so `pianoVoicing` at theory.js:152 is the function
+this document argues against, and it no longer exists. Only the applied section
+at the end describes what is in the tree now.
+
+Every number came from running the generators headless in Node with Tone and
+smplr stubbed out; the event builders don't touch `this` except for `_bassEvents`
+(calls `_bassLine`) and `_drumEvents` (reads `rideOn` and the transport bpm).
+Songbook-wide figures are over all 447 tunes; the rest are on *Autumn Leaves* —
+4/4, swing, 32 bars, 120 bpm — over 8–30 regenerated choruses.
 
 ## The one-sentence version
 
@@ -32,15 +36,15 @@ Both functions are pure and deterministic: `pick()` walks a fixed interval
 preference list and `placeNear()` puts each tone near a fixed centre (62/66 for
 piano, 52/57/62 for guitar). 200 calls to `pianoVoicing(Dm7)` return one string.
 
-Consequences, measured across the songbook's 483 distinct chord symbols:
+Consequences, measured across the songbook's 502 distinct chord symbols:
 
-- **84 chords (17%) voice as two notes.** Any chord without a 7th — plain
+- **85 chords (17%) voice as two notes.** Any chord without a 7th — plain
   triads, `sus2`, `aug` — loses the `seventh` pick and comps as a dyad.
 - **12 chords voice a semitone in close position**, all of them `#9` chords:
   `Eb7#9 → [61,66,67]` puts the ♯9 and the 3rd adjacent in the middle of the
   voicing. `Cm9 → [58,62,63]` puts the 9th *below* the ♭3. The `center = t >= 12
   ? 66 : 62` rule doesn't guarantee an extension lands above the guide tones.
-- **The top voice is frozen.** Mean distinct-top-notes ÷ chords across all 428
+- **The top voice is frozen.** Mean distinct-top-notes ÷ chords across all 447
   tunes: **0.19**. *Autumn Leaves* has 5 distinct top notes across 35 chords;
   *Impressions* and *So What* have **2 across 32**. That top line is the melodic
   content of the comp, and it is byte-identical every chorus.
@@ -154,17 +158,17 @@ comp restarts cold.
 
 | style | tunes | share |
 |---|---|---|
-| swing | 353 | 82.5% |
-| ballad | 39 | 9.1% |
-| latin | 23 | 5.4% |
-| funk | 6 | 1.4% |
+| swing | 369 | 82.6% |
+| ballad | 41 | 9.2% |
+| latin | 23 | 5.1% |
+| funk | 7 | 1.6% |
 | bossa | 4 | 0.9% |
-| modal | 2 | 0.5% |
+| modal | 2 | 0.4% |
 | blues | **1** | 0.2% |
 
 The carefully written blues comping (6 piano patterns, 5 guitar patterns, a
-backbeat lean) serves **one tune**. There are 19 twelve-bar tunes in the
-songbook; 18 of them are tagged `swing`. The modal branch serves two.
+backbeat lean) serves **one tune**. There are 21 twelve-bar tunes in the
+songbook; 20 of them are tagged `swing`. The modal branch serves two.
 
 Two branches are missing outright:
 
@@ -176,7 +180,7 @@ Two branches are missing outright:
 - **There is no two-feel anywhere.** The bass walks quarters from bar 1 of chorus
   1 to the end. A jazz trio plays in 2 on the head and the first solo chorus and
   opens up to 4 after. This is the largest single style variation missing, and it
-  applies to 356 of 428 tunes.
+  applies to 372 of 447 tunes.
 
 ### Odd meters
 
@@ -204,7 +208,7 @@ replaced by two functions in theory.js:
 
 - `pianoVoicings(chord)` builds every three- and four-note combination of the
   chord's colour tones that keeps a guide tone, in every inversion that stays
-  inside a tenth — 18.5 shapes per chord on average, against one. Each is an
+  inside a tenth — 18.6 shapes per chord on average, against one. Each is an
   *ordered stack*: `rising()` lifts each voice to its nearest instance more than
   a semitone above the one below, which makes the clusters structurally
   impossible rather than merely unlikely. The ninth a bare symbol leaves out is
@@ -224,17 +228,22 @@ anticipation/landing pairs and 141 chromatic approaches.
 
 Measured before → after:
 
+Both columns measured against the same songbook (447 tunes, 502 distinct chord
+symbols), the old function reconstructed from its last commit:
+
 | | before | after |
 |---|---|---|
-| shapes per chord | 1 | 18.5 |
-| mean distinct top notes ÷ chords, 428 tunes | 0.190 | **0.345** |
-| *So What* top notes over 32 chords | 2 | 7.4 |
-| *Autumn Leaves* top notes over 35 chords | 5 | 11.2 |
-| *Autumn Leaves* top-voice motion | 2.48 st, 3.4% > a fourth | **1.57 st, 3.5%** |
-| *26-2* top-voice motion | 2.77 st, 19.3% > a fourth | **1.68 st, 0.4%** |
+| shapes per chord | 1 | 18.6 |
+| mean distinct top notes ÷ chords, 447 tunes | 0.186 | **0.343** |
+| *So What* top notes over 32 chords | 2 | 7.6 |
+| *Impressions* top notes over 32 chords | 2 | 7.4 |
+| *Autumn Leaves* top notes over 35 chords | 5 | 11.3 |
+| *26-2* top notes over 58 chords | 8 | 15.1 |
+| *Autumn Leaves* top-voice motion | 2.48 st, 3.4% > a fourth | **1.60 st, 3.3%** |
+| *26-2* top-voice motion | 2.77 st, 19.3% > a fourth | **1.69 st, 0.5%** |
 | distinct top lines over 6 choruses | 1 | 6 |
 | chords voicing a semitone in close position | 12 | **0** |
-| chords comping as two notes | 84 | **0** |
+| chords comping as two notes | 85 | **0** |
 | piano pitches doubled by the guitar | 46.7% | 30–35% |
 | piano onset histogram | 7 positions, 2.70 bits | unchanged |
 
@@ -297,8 +306,8 @@ Note that in session mode `phraseEnds` is empty: it is only populated when
 
 ### 10. Decouple comping style from tune style
 
-82.5% of tunes are tagged `swing`, so most of the style vocabulary is unreachable.
-Rather than re-tagging 428 songs, let the player choose the feel in session mode
+82.6% of tunes are tagged `swing`, so most of the style vocabulary is unreachable.
+Rather than re-tagging 447 songs, let the player choose the feel in session mode
 — swing / two-feel / bossa / latin / shuffle / even-8ths / ballad. That fixes the
 dead-branch problem *and* is a practice feature: playing a standard as a bossa is
 a normal thing to want.
