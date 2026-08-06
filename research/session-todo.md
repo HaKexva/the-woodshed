@@ -23,17 +23,17 @@ project).
 | 9 | `[B]` | **Separate the piano and guitar registers.** Only the piano moved in the end: its floor went F♯3 → A3, taking the overlap from 46.7% to about 25%. Moving the guitar as well was tried twice — floor to E2, ceiling to G3 — and both take it out of the range its voicings were built for, so it stays at 43–65 | XS | **done** |
 | 10 | `[P]` | **Let the band lay out for a human.** `duck()` (band.js:1002) and the drummer's phrase-end answers (band.js:993) are gated on `soloOn`, so the one part of the engine that models a band listening to a soloist is off whenever there is a real one | S | |
 | 11 | `[B]` | **Make the bass skip.** Was 92.5% stepwise against a 60–70% norm. A full bar now sometimes walks a chord-tone ladder — one rung is a third, not a second — and arrives by leap, the fifth falling a fourth to the next root. Step 92.5% → 73.6% | S | **done** |
-| 12 | `[B]` | **Replace `bwave` and `role` with a per-chorus arrangement plan** — who comps, bass feel, drum intensity, which *whole bars* are empty. Measured, `bwave` keeps 94.6–100% of events and moves velocity ±3.6; `role` implements laying out as keeping a random 55% of events, which sounds like dropout | M | |
+| 12 | `[B]` | **A per-chorus arrangement plan**, replacing `bwave` and `role`. `_arrangement()` decides who carries the comp, which whole phrase each of them sits out, how hard the section is leaning and whether the bass is in two — before a note exists. Lay-outs come from the form model, so they are always a contiguous phrase. Piano 1.56–1.98 attacks/bar across the arc against 1.9 flat, velocity 53–65 against a range of 3.6, and 2–5 silent bars where there were none | M | **done** |
 | 13 | `[B]` | **Form model** — `formSections()`, with optional `sections: [{ label, bars }]` in the song schema and a derived default: a twelve-bar form turns over in fours, everything else takes 8-bar blocks. 138 tunes (31%) had their fill positions corrected; Blue Monk fills at 4/8/12 rather than 8/12 | M | **done** |
 | 14 | `[B]` | **Cross the barline at the top of the form.** Both parts now push over the loop point — piano on half of choruses, guitar on an eighth — using the wrapped `c.next` the bass always had. The wrap push is the chromatic approach, which resolves onto the next downbeat instead of replacing it | XS | **done** |
-| 15 | `[B]` | **Let the drummer converse with the comp.** Snare comping is 0–2 random spots a bar related to nothing. `_drumEvents` already takes an `opts` object — pass the piano's onsets and answer or reinforce some of the time | S | |
+| 15 | `[B]` | **The drummer converses with the comp.** Snare comping was 0–2 random spots a bar related to nothing. The comp is now built before the drums so its onsets can be passed in, and given the choice the drummer reinforces one or answers in the hole after it: hits landing on the piano go from 47.8% by chance to 70.7% | S | **done** |
 | 16 | `[P]` | **Two-bar count-in**, or one bar above ~200 bpm. Currently one bar of undifferentiated hi-hat clicks | XS | |
 | 17 | `[P]` | **Skip solo generation when `!soloOn`.** The largest generator in the file runs on the loop-wrap critical path for a line nobody will hear (band.js:982, check at 1229). Delete the write-only `_soloEventsCache` (band.js:987) while there | XS | |
 | 18 | `[B]`/`[P]` | **Decouple comping feel from tune style** — a session-mode feel picker (swing / two-feel / bossa / latin / shuffle / even-8ths / ballad). 82.6% of tunes are tagged `swing`, so the blues branch serves 1 tune and modal serves 2. Fixes the dead branches *and* is a practice feature | M | |
 | 19 | `[B]` | ~~**Give the guitar something other than quarters**~~ — **reverted.** Half-note bars, holes on beat 3 and pushed &-of-4 bars all read as a guitarist losing the time rather than varying it. The rhythm was never the problem — see [guitar-comping.md](guitar-comping.md). What the part actually wanted became item 27 | S | **reverted** |
 | 20 | `[B]` | **Latin bass tumbao** — the root anticipated on the & of 4 and tied over, weight on the & of 2 and beat 4. Downbeat on a full-bar chord 100% → 26%, harmonic changes anticipated 0% → 74%. The 23 latin tunes had been walking a bossa line under a clave section | S | **done** |
 | 21 | `[P]` | **Sounding transposition** and per-repeat key stepping (1 or 5 semitones cycles all twelve keys; 3 visits only four) | S | |
-| 22 | `[B]` | **Odd meters** — a jazz-waltz ride (1, 2&, 3&) and comping pool for the 29 waltzes; rewrite `ridePool` and `patterns4` as `bpb`-relative offsets so 5/4 stops losing its fifth beat | S | |
+| 22 | `[B]` | **Odd meters.** Every ride figure was absolute offsets stopping at 3.5, so a waltz got 4/4's figure minus a beat and Take Five lost its fifth beat from the ride, the comp and the hi-hat alike. A waltz pool riding in threes with the skip on 2 and 3, a 5/4 pool grouped 3+2, and a generated figure for anything else. The piano fills any bar longer than four beats; the bass accents 1 and 4 in five | S | **done** |
 | 23 | `[B]` | **Seed the band, not just the solo.** `role`, `bwave` and every pattern pick are bare `Math.random()`; only the soloist runs inside `withSeed` (band.js:1276). Prerequisite for A/B-ing any change above | S | |
 | 24 | `[B]` | **Get `_buildParts` off the loop point** — build the next chorus during the current one and swap at the boundary, instead of regenerating several hundred events 0.1 bar before the wrap | M | |
 | 25 | `[P]` | **Limitation modes** — chord-tones-only, guide-tones-only, rhythm-only, first-four-bars-only. A rule stated before you play plus a critique after; both are UI, and the guide-tone thread is already computed | M | |
@@ -42,19 +42,20 @@ project).
 
 ## Where it stands
 
-**Done: 1, 2, 3, 4, 6, 7, 8, 9, 11, 13, 14, 20, 27.** Between them they cover what a
-player names first — the comp repeating itself, the cymbal not swinging, the bass
-never changing gear, the guitar sitting on the band, and having to transpose the
-whole chart in your head. The comp colour that came out of item 2 grew past the
-piano into a band-wide plain / warm control that reaches all four
-instruments.
+**Done: 1, 2, 3, 4, 6, 7, 8, 9, 11, 12, 13, 14, 15, 20, 22, 27.** Between them
+they cover what a player names first — the comp repeating itself, the cymbal not
+swinging, the bass never changing gear, the guitar sitting on the band, every
+chorus sounding like the last one, having to transpose the whole chart in your
+head, and the practice controls being invisible to anyone in session mode. The
+comp colour that came out of item 2 grew past the piano into a band-wide
+plain / warm control that reaches all four instruments.
 
 **Tried and reverted: 19.** The guitar's rhythm was never the problem; what the
 part wanted was voice leading and ghosting, which became item 27.
 **Dropped: 1b.**
 
-**Still open, cheapest first:** 16, 17 (XS) · 5, 10, 15, 21, 22, 23 (S) ·
-12, 18, 24, 25 (M) · 26 (L).
+**Still open, cheapest first:** 16, 17 (XS) · 5, 10, 21, 23 (S) · 18, 24, 25 (M)
+· 26 (L).
 
 Items 1, 6 and 7 shipped together as **the rig** — a row across the top of the
 transport holding the practice controls, readable in the off state so you can see
@@ -72,11 +73,10 @@ The lead sheet also dims every bar outside the line being played and the one
 after it, wrapping at the end of the form. Not from either review; it came out of
 using the thing.
 
-Two of those changed shape along the way. Item 12 is now the natural home for
-anything per-chorus, since the bass feel and the comp colour both already work
-that way. And item 23 is worth more than its position suggests: without a seeded
-band every measurement here is an average over many takes rather than an A/B, and
-that is the whole reason the guitar took three attempts.
+Item 23 is worth more than its position suggests: without a seeded band every
+measurement here is an average over many takes rather than an A/B, and that is
+the whole reason the guitar took three attempts. What is left is now mostly
+`[P]` — the practice-room side — plus 18 and 24 on the band.
 
 ## Reproducing the measurements
 
