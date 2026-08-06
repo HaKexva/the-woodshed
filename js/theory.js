@@ -460,23 +460,24 @@ export function guitarVoicing(chord, variant = 0) {
   const iv = chord.intervals;
   const third = pick(iv, [4, 3, 5]) ?? 4;
   const seventh = pick(iv, [10, 11, 9, 7]) ?? 7;
-  // The guitar owns the register under the piano's floor at A3 — a rhythm
-  // guitar's own range anyway, and the half of the overlap that was costing both
-  // instruments their identity. Ceilings sit at G3/A3 so the two front lines
-  // meet rather than sit on top of each other.
+  // The guitar owns the register under the piano's floor at A3, which is a
+  // rhythm guitar's own range anyway. The ceiling comes down rather than the
+  // floor going out from under it: dropping the floor to E2 put the guitar
+  // below the bass's own top note at E3 and the two muddied each other, which
+  // is a worse problem than the one it solved.
   let midis;
   if (variant === 1) {
     const color = pick(iv, [14, 13, 15, 7, 8, 6]) ?? 7;
     midis = [
-      placeNear((chord.rootPc + third) % 12, 49, 44, 54),
-      placeNear((chord.rootPc + seventh) % 12, 53, 47, 57),
-      placeNear((chord.rootPc + color) % 12, 57, 51, 60),
+      placeNear((chord.rootPc + third) % 12, 50, 46, 56),
+      placeNear((chord.rootPc + seventh) % 12, 54, 50, 58),
+      placeNear((chord.rootPc + color) % 12, 58, 53, 61),
     ];
   } else {
     midis = [
-      placeNear(chord.rootPc, 45, 40, 52),
-      placeNear((chord.rootPc + third) % 12, 51, 45, 57),
-      placeNear((chord.rootPc + seventh) % 12, 54, 47, 59),
+      placeNear(chord.rootPc, 48, 45, 55),
+      placeNear((chord.rootPc + third) % 12, 53, 49, 58),
+      placeNear((chord.rootPc + seventh) % 12, 56, 51, 60),
     ];
   }
   return [...new Set(midis)].sort((a, b) => a - b);
