@@ -148,20 +148,183 @@ function pick(iv, wanted) {
   return null;
 }
 
-/** Guide-tone piano voicing: 3rd + 7th (or 6th) + one color tone, around middle C. */
-export function pianoVoicing(chord) {
-  const iv = chord.intervals;
-  const third = pick(iv, [4, 3, 5, 2]) ?? 4;
-  const seventh = pick(iv, [10, 11, 9]);
-  const color = pick(iv, [14, 13, 15, 18, 21, 20, 17, 8, 7, 6]);
+// ------------------------------------------------------------ comp voicings
+//
+// The comping piano used to get one shape per chord symbol: three tones each
+// placed independently near a fixed centre. It was deterministic, so every Dm7
+// anywhere in the songbook sounded the same three notes in every chorus of every
+// take — measured across all 428 tunes, the top voice averaged 0.19 distinct
+// notes per chord, and "So What" got two top notes across thirty-two chords.
+// Placing each tone on its own also let extensions land under the guide tones:
+// twelve chords, all of them #9s, voiced a semitone in close position.
+//
+// So: build the real shapes per chord as *ordered stacks* — around eighteen of
+// them, which makes the clusters structurally impossible — then choose between
+// them by voice leading from the chord before. The choice is weighted-random
+// rather than nearest-wins, because always taking the smoothest option is its
+// own kind of frozen: a comper revoices a chord that sits still.
 
-  const tones = [third, seventh, color].filter((t) => t !== null);
-  const midis = tones.map((t, i) => {
-    const pc = (chord.rootPc + t) % 12;
-    const center = t >= 12 ? 66 : 62;
-    return placeNear(pc, center + i, 55, 74);
-  });
-  return [...new Set(midis)].sort((a, b) => a - b);
+const COMP_LO = 54; // F#3
+const COMP_HI = 79; // G5
+// A tenth. Wider stops being one hand's shape, and — measured — it is also what
+// keeps the whole vocabulary inside the register band: at a 12th, five of the
+// twelve possible bottom notes have no octave that fits, and those shapes end up
+// a couple of semitones above or below the band whichever way they are placed.
+const COMP_SPAN = 16;
+
+/**
+ * Stack these tones upward, each one at its nearest instance strictly more than
+ * a semitone above the voice below. That gap rule is the whole reason the
+ * clusters can't come back: a ninth and a minor third are a semitone apart, so
+ * where the old code let them sit next to each other this pushes the upper one
+ * an octave clear.
+ */
+function rising(ivs) {
+  const out = [ivs[0]];
+  for (let i = 1; i < ivs.length; i++) {
+    let v = ivs[i];
+    while (v <= out[out.length - 1] + 1) v += 12;
+    out.push(v);
+  }
+  return out;
+}
+
+const voicingCache = new Map();
+
+/**
+ * The shapes a pianist would reach for on this chord, as interval stacks from
+ * the root: every three- and four-note combination of the chord's colour tones
+ * that keeps a guide tone, in every inversion that stays inside a tenth.
+ * Rotating the set is what produces different notes on top, which is the line
+ * the ear actually follows.
+ */
+export function pianoVoicings(chord) {
+  if (voicingCache.has(chord.symbol)) return voicingCache.get(chord.symbol);
+
+  const iv = chord.intervals;
+  const third = pick(iv, [4, 3, 5, 2]) ?? 4; // 5/2 = the suspended chords
+  const fifth = pick(iv, [7, 6, 8]) ?? 7;
+  const seventh = pick(iv, [10, 11, 9]); // 9 = a 6th chord's 6th
+  // A comping pianist supplies the ninth a bare symbol leaves out — but only
+  // where the chord scale has one to give. An altered or suspended ninth comes
+  // from the symbol and is never overridden, and a chord whose scale has no
+  // natural second (locrian on m7b5, altered on 7b13) simply goes without,
+  // rather than comping a note the solo-notes strip is telling you not to play.
+  const ninth =
+    pick(iv, [14, 13, 15]) ??
+    (seventh !== null && soloScaleSteps(chord).includes(2) ? 14 : null);
+  const thirteenth = pick(iv, [21, 20]);
+  const suspended = third === 5 || third === 2;
+  const minorish = third === 3;
+
+  const pool = [...new Set([third, fifth, seventh, ninth, thirteenth].filter((t) => t !== null))];
+  // an eleventh over a major third is an avoid note; over a minor or suspended
+  // chord it is the "So What" sound
+  if (minorish || suspended) pool.push(pick(iv, [17, 18]) ?? 5);
+  if (seventh === null) pool.push(0); // triads need the root to make three voices
+
+  const seen = new Set();
+  const out = [];
+  const offer = (ivs) => {
+    const v = rising(ivs);
+    if (v[v.length - 1] - v[0] > COMP_SPAN) return;
+    const key = v.join();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(v);
+  };
+
+  for (let mask = 1; mask < 1 << pool.length; mask++) {
+    const set = pool.filter((_, i) => mask & (1 << i));
+    if (set.length < 3 || set.length > 4) continue;
+    if (!set.includes(third) && !set.includes(seventh)) continue; // keep a guide tone
+    for (let r = 0; r < set.length; r++) offer([...set.slice(r), ...set.slice(0, r)]);
+  }
+  // rooted shells, for the bars where the comp wants to state the chord plainly
+  if (seventh !== null) {
+    offer([0, seventh, third]);
+    offer([0, third, seventh]);
+  }
+
+  const cands = out.length ? out : [rising([third, fifth, seventh ?? 0])];
+  voicingCache.set(chord.symbol, cands);
+  return cands;
+}
+
+/** Put one interval stack on the keyboard, centred as near `anchor` as the
+ *  register band allows. */
+function place(chord, ivs, anchor) {
+  const bottomPc = (((chord.rootPc + ivs[0]) % 12) + 12) % 12;
+  let best = null;
+  for (let m = bottomPc; m < 120; m += 12) {
+    const notes = ivs.map((v) => m + (v - ivs[0]));
+    const outside =
+      Math.max(0, notes[notes.length - 1] - COMP_HI) + Math.max(0, COMP_LO - notes[0]);
+    const centre = notes.reduce((a, b) => a + b, 0) / notes.length;
+    // a semitone outside the band costs a full octave of anchor distance, so
+    // leaving it only ever happens to a shape too wide to fit anywhere
+    const cost = 12 * outside + Math.abs(centre - anchor);
+    if (!best || cost < best.cost) best = { notes, cost };
+  }
+  return best.notes;
+}
+
+/** How far the hand travels from one voicing to the next, both directions. */
+function motion(prev, next) {
+  if (!prev) return 0;
+  const near = (m, set) => Math.min(...set.map((x) => Math.abs(x - m)));
+  const fwd = next.reduce((s, m) => s + near(m, prev), 0) / next.length;
+  const back = prev.reduce((s, m) => s + near(m, next), 0) / prev.length;
+  return (fwd + back) / 2;
+}
+
+/**
+ * Voicings for a whole form, voice-led chord to chord. `rand` is the caller's
+ * RNG so a seeded take gets a reproducible comp; the pass is per chorus, so the
+ * same tune is voiced a different way each time round while staying joined up
+ * inside any one chorus.
+ */
+export function voiceComp(chords, rand = Math.random) {
+  const WEIGHTS = [0.45, 0.28, 0.17, 0.1];
+  const mean = (v) => v.reduce((a, b) => a + b, 0) / v.length;
+  const out = [];
+  const recentTops = [];
+  let prev = null;
+
+  for (const c of chords) {
+    const anchor = prev ? mean(prev) : 65;
+    const scored = pianoVoicings(c.info)
+      .map((ivs) => place(c.info, ivs, anchor))
+      .map((v) => {
+        const top = v[v.length - 1];
+        return {
+          v,
+          // voice leading, then the top voice again on its own because it is the
+          // line the ear follows, then a shove away from a top note just used —
+          // that last term is what keeps a chord that sits still from sitting
+          // still, and it is the only reason "So What" gets a moving comp
+          s:
+            motion(prev, v) +
+            0.5 * (prev ? Math.abs(top - prev[prev.length - 1]) : 0) +
+            (recentTops.includes(top) ? 1.6 : 0) +
+            (recentTops.some((t) => (t - top) % 12 === 0) ? 0.8 : 0) +
+            0.12 * Math.abs(mean(v) - 65),
+        };
+      })
+      .sort((a, b) => a.s - b.s);
+
+    const n = Math.min(WEIGHTS.length, scored.length);
+    let r = rand() * WEIGHTS.slice(0, n).reduce((a, b) => a + b, 0);
+    let i = 0;
+    while (i < n - 1 && (r -= WEIGHTS[i]) > 0) i++;
+
+    const chosen = scored[i].v;
+    out.push(chosen);
+    prev = chosen;
+    recentTops.push(chosen[chosen.length - 1]);
+    if (recentTops.length > 3) recentTops.shift();
+  }
+  return out;
 }
 
 /**

@@ -4,7 +4,7 @@
 
 import * as Tone from "https://cdn.jsdelivr.net/npm/tone@15.1.22/+esm";
 import { Soundfont, SplendidGrandPiano, Sampler } from "https://cdn.jsdelivr.net/npm/smplr@1.0.0/+esm";
-import { parseChord, pianoVoicing, guitarVoicing, bassPcs, placeNear, soloScaleSteps } from "./theory.js";
+import { parseChord, voiceComp, guitarVoicing, bassPcs, placeNear, soloScaleSteps } from "./theory.js";
 import { WJD } from "./solo-vocab.js";
 
 const BASS_LO = 30; // F#1
@@ -2381,10 +2381,16 @@ export class Band {
     let anticipated = false;
     let resolving = false;
 
+    // Voice leading is decided for the whole form before any event exists, the
+    // way the soloist's guide-tone thread is: a chord's shape depends on the one
+    // before it, and the anticipation at the end of a bar has to be the *same*
+    // shape the next bar then plays.
+    const voicings = voiceComp(chords, rand);
+
     for (let i = 0; i < chords.length; i++) {
       const c = chords[i];
       const next = chords[i + 1];
-      const midis = pianoVoicing(c.info);
+      const midis = voicings[i];
       const swung = !straight && style !== "ballad" && style !== "funk";
 
       // The push: the next chord lands half a beat early, over the barline.
@@ -2448,7 +2454,7 @@ export class Band {
       }
 
       if (pushBeat !== null) {
-        const target = pianoVoicing(next.info);
+        const target = voicings[i + 1];
         events.push({
           beat: pushBeat,
           dur: approach ? 0.45 : 0.9,
