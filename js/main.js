@@ -187,6 +187,9 @@ function selectSong(i) {
   $("#tempo-val").textContent = song.bpm;
   band.bpmOverride = null;
   band.loadSong(song);
+  // a feel is chosen for the tune you are on, so it does not follow you to the next
+  band.setFeel(null);
+  $("#band-feel").value = "auto";
   renderLeadsheet(song);
   renderSources(song);
   resetChordDisplay();
@@ -807,6 +810,12 @@ $("#comp-colour").addEventListener("change", (e) => {
   band.setCompColour(e.target.value);
   localStorage.setItem("woodshed-comp", e.target.value);
 });
+
+// How the band plays this tune, as opposed to what the tune is. Deliberately not
+// remembered: a feel belongs to the tune in front of you, and coming back
+// tomorrow to find every standard playing as a bossa would be a bug. It resets
+// with the song for the same reason.
+$("#band-feel").addEventListener("change", (e) => band.setFeel(e.target.value));
 
 $("#reading-key").value = readingKey;
 $("#reading-key").addEventListener("change", (e) => {

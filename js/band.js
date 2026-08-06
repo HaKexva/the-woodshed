@@ -274,13 +274,15 @@ export class Band {
     // are. Warm is the default because the point of a rhythm section is to state
     // the tune under whoever is playing over it, not to be interesting on its own.
     this.compColour = COMP_COLOUR.warm;
+    // null follows the tune's own style; set it to play any tune in any feel
+    this.feelOverride = null;
   }
 
   /** "plain" | "warm" — how much the rhythm section reaches. */
   setCompColour(name) {
     if (!(name in COMP_COLOUR)) return;
     this.compColour = COMP_COLOUR[name];
-    if (this.playing && this._songCtx) this._buildParts(this.song, this._lastFeel);
+    if (this.playing && this._songCtx) this._buildParts(this.song);
   }
 
   /** Push the bass forward for walking-line practice — level in _gainFor,
@@ -679,7 +681,7 @@ export class Band {
 
   setRide(on) {
     this.rideOn = on;
-    if (this.playing && this._songCtx) this._buildParts(this.song, this._lastFeel);
+    if (this.playing && this._songCtx) this._buildParts(this.song);
   }
 
   /** Toggle one polish element ("pan","eq","comp","reverb","sat","vel",
@@ -949,7 +951,6 @@ export class Band {
 
     const t = Tone.getTransport();
     const song = this.song;
-    const feel = song.feel ?? (["bossa", "latin", "funk"].includes(song.style) ? "straight" : "swing");
 
     t.stop();
     t.cancel(0);
@@ -957,19 +958,15 @@ export class Band {
     const bpmNow = this.bpmOverride ?? song.bpm;
     t.bpm.value = bpmNow;
     t.timeSignature = song.timeSignature ?? 4;
-    // swing ratio follows tempo, iReal-style: rounder when slow, flatter fast
-    const swingAmt = song.style === "ballad" ? 0.45 : bpmNow < 110 ? 0.58 : bpmNow < 170 ? 0.55 : 0.48;
-    t.swing = feel === "swing" ? swingAmt : 0;
-    t.swingSubdivision = "8n";
+    this._applySwing();
     // bar 0 is a count-in; the form loops over bars 1..n
     t.loop = true;
     t.loopStart = "1m";
     t.loopEnd = `${song.progression.length + 1}m`;
 
     this._chorus = 0;
-    this._lastFeel = feel;
-    this._applyStyleBass(song.style);
-    this._buildParts(song, feel);
+    this._applyStyleBass(this.feel);
+    this._buildParts(song);
     // every chorus is a fresh take: just before each loop wrap, re-roll the
     // band's patterns and the solo (which builds as choruses stack up)
     t.scheduleRepeat(
@@ -980,7 +977,7 @@ export class Band {
           this.setBpm(Math.round(next));
           this.cb.onTempo?.(Math.round(next));
         }
-        this._buildParts(song, feel);
+        this._buildParts(song);
       },
       `${song.progression.length}m`,
       `${song.progression.length + 0.9}m`
@@ -1030,15 +1027,59 @@ export class Band {
 
   // ---------------------------------------------------------------- events
 
-  _buildParts(song, feel) {
+  /**
+   * The feel the band is comping in. A tune's `style` was doing two jobs at
+   * once — saying what the piece is, and telling five generators how to play —
+   * so 82.6% of the songbook being tagged `swing` left the blues vocabulary
+   * serving one tune and modal serving two. This is the second job, split out:
+   * the tune's own style until somebody asks for something else.
+   */
+  get feel() {
+    return this.feelOverride ?? this.song?.style ?? "swing";
+  }
+
+  /** Whether that feel plays even eighths rather than swung ones. */
+  get straight() {
+    // a song may still declare its own feel; only an explicit override beats it
+    if (!this.feelOverride && this.song?.feel) return this.song.feel !== "swing";
+    return ["bossa", "latin", "funk"].includes(this.feel);
+  }
+
+  /** Transport swing follows the feel, so switching to bossa mid-tune actually
+   *  stops the eighths swinging rather than only changing the patterns. */
+  _applySwing() {
+    if (!this.ctx) return;
+    const t = Tone.getTransport();
+    const bpm = t.bpm.value;
+    // swing ratio follows tempo, iReal-style: rounder when slow, flatter fast
+    const amt = this.feel === "ballad" ? 0.45 : bpm < 110 ? 0.58 : bpm < 170 ? 0.55 : 0.48;
+    t.swing = this.straight ? 0 : amt;
+    t.swingSubdivision = "8n";
+  }
+
+  /**
+   * Play any tune in any feel. `null` follows the tune's own style — which is
+   * the default and what every tune did before there was a choice.
+   */
+  setFeel(name) {
+    const next = name && name !== "auto" ? name : null;
+    if (next === this.feelOverride) return;
+    this.feelOverride = next;
+    if (!this.playing) return;
+    this._applySwing();
+    this._applyStyleBass(this.feel);
+    this._buildParts(this.song);
+  }
+
+  _buildParts(song) {
     this.parts.forEach((p) => p.dispose());
     this.parts = [];
 
     const bpb = song.timeSignature ?? 4;
     const chords = this._flatten(song, bpb);
     const totalBeats = song.progression.length * bpb;
-    const straight = feel !== "swing";
-    const style = song.style;
+    const straight = this.straight;
+    const style = this.feel;
 
     // the soloist goes first so the band can listen to it
     this._songCtx = { chords, totalBeats, style, bpb };
