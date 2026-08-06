@@ -13,6 +13,7 @@ Session-mode review. Code line numbers in the solo documents refer to commit
 |---|---|
 | [session-todo.md](session-todo.md) | Everything the session review turned up, as one ranked work list with status |
 | [backing-band-audit.md](backing-band-audit.md) | What the four rhythm-section generators play, measured — where the variety is real and where it is a constant |
+| [guitar-comping.md](guitar-comping.md) | What Freddie Green actually played, against what our guitar plays — and why two attempts to fix it by ear missed |
 | [session-as-practice-tool.md](session-as-practice-tool.md) | Whether session mode is a good practice room for a player whose instrument is not the browser |
 | [solo-engine-audit.md](solo-engine-audit.md) | What the solo generator actually implements, where it sounds mechanical, and why |
 | [solo-baseline-measurements.md](solo-baseline-measurements.md) | Measured statistics of the generated line, against published human baselines |
