@@ -1,0 +1,51 @@
+# Publishes the site to GitHub Pages.
+#
+# This replaces the workflow GitHub generated on its own while Pages was set to
+# "deploy from a branch". That one ran the repo through Jekyll first, which this
+# site has no use for — it is hand-written HTML, CSS and ES modules, served as
+# they are — and it left deployments queued behind a shared concurrency group
+# that could wedge and take every later deploy down with it.
+name: Deploy to Pages
+
+on:
+  push:
+    branches: [main]
+  # so a failed deploy can be retried without an empty commit
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one that is already running: a
+# half-published site is worse than a late one. The group is deliberately not
+# named "pages" — that is the name the old generated workflow used, and runs of
+# it are still stuck holding it.
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      # the repo root is the site: index.html at the top, with css/, js/ and
+      # samples/ beside it. .git and .github are excluded by the action.
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy
+        id: deploy
+        uses: actions/deploy-pages@v4
