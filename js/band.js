@@ -276,7 +276,7 @@ export class Band {
     this.compColour = COMP_COLOUR.warm;
   }
 
-  /** "plain" | "warm" | "rich" — how much the rhythm section reaches. */
+  /** "plain" | "warm" — how much the rhythm section reaches. */
   setCompColour(name) {
     if (!(name in COMP_COLOUR)) return;
     this.compColour = COMP_COLOUR[name];
@@ -2561,11 +2561,11 @@ export class Band {
 
   _guitarEvents(chords, song, style, straight, bpb, colour = COMP_COLOUR.warm) {
     const events = [];
-    // plain keeps the shell and stays out of the way; rich reaches for the
+    // plain keeps the shell and stays out of the way; warm reaches for the
     // rootless colour shape, pushes over the barline more, and lays out more
-    const VARIANT = [0.12, 0.35, 0.62][colour] ?? 0.35;
-    const BREATHE = [0.04, 0.1, 0.18][colour] ?? 0.1;
-    const PUSH = [0.06, 0.15, 0.3][colour] ?? 0.15;
+    const VARIANT = [0.12, 0.35][colour] ?? 0.35;
+    const BREATHE = [0.04, 0.1][colour] ?? 0.1;
+    const PUSH = [0.06, 0.15][colour] ?? 0.15;
     const chordAt = (beat) => {
       let cur = chords[0];
       for (const c of chords) if (c.startBeat <= beat) cur = c;
@@ -2583,7 +2583,7 @@ export class Band {
     // shape four times a bar is most of why this part sat over the band. The
     // full chord lands on the accents — 2 and 4 — so the backbeat is a change of
     // weight and not only of velocity.
-    const SOUND = [0.18, 0.3, 0.45][colour] ?? 0.3; // chance of the whole shape off the accent
+    const SOUND = [0.18, 0.3][colour] ?? 0.3; // chance of the whole shape off the accent
     const ghost = (v, accent) => {
       if (accent || rand() < SOUND) return v;
       // the voice that rings is the middle one — Green let the fourth string
@@ -2702,14 +2702,14 @@ export class Band {
 
   _bassLine(chords, totalBeats, style, straight, bpb, feel = "four", colour = COMP_COLOUR.warm) {
     const events = [];
-    // plain plants the root on the change and walks plain quarters; rich takes
+    // plain plants the root on the change and walks plain quarters; warm takes
     // the third and the fifth as targets more often and fills more of the gaps
-    const TARGETS = [[0.07, 0.11], [0.14, 0.22], [0.24, 0.36]][colour] ?? [0.14, 0.22];
-    const SKIPS = [0.45, 1, 2.3][colour] ?? 1;
+    const TARGETS = [[0.07, 0.11], [0.14, 0.22]][colour] ?? [0.14, 0.22];
+    const SKIPS = [0.45, 1][colour] ?? 1;
     // how often a full bar spells the chord instead of walking the scale, and
     // how often the bar arrives at the next chord by leap rather than neighbour
-    const ARP = [0.18, 0.38, 0.55][colour] ?? 0.38;
-    const LEAP = [0.1, 0.24, 0.38][colour] ?? 0.24;
+    const ARP = [0.18, 0.38][colour] ?? 0.38;
+    const LEAP = [0.1, 0.24][colour] ?? 0.24;
     const chordAt = (beat) => {
       let cur = chords[0];
       for (const c of chords) if (c.startBeat <= beat) cur = c;
@@ -3000,11 +3000,11 @@ export class Band {
     const events = [];
     const totalBars = song.progression.length;
     const twoFeel = opts.bassFeel === "two"; // what the bass is doing this chorus
-    // plain keeps time and stays out of the way; rich comps more, fills more,
+    // plain keeps time and stays out of the way; warm comps more, fills more,
     // and leans on the busier ride figures
     const colour = opts.colour ?? COMP_COLOUR.warm;
-    const COLOUR_COMP = [0.55, 1, 1.6][colour] ?? 1;
-    const COLOUR_FILL = [-0.22, 0, 0.14][colour] ?? 0;
+    const COLOUR_COMP = [0.55, 1][colour] ?? 1;
+    const COLOUR_FILL = [-0.22, 0][colour] ?? 0;
     const push = (bar, off, drum, vel, extra) => events.push({ beat: bar * bpb + off, drum, vel, ...extra });
     // where the soloist ends phrases, the drummer answers
     const endsByBar = new Map();

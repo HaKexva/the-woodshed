@@ -22,7 +22,7 @@ project).
 | 8 | `[B]` | **Two-feel** — per-chorus bass feel, drums following. The bass walked quarters from bar 1 of chorus 1 to the end. `two` and `four` are in (`pedal` and `broken` are not); the head chorus and the quiet chorus of the wave take two. 4.14 → 2.03 notes/bar with the root still on 78% of chord changes, drums sitting back to match | S | **done** |
 | 9 | `[B]` | **Separate the piano and guitar registers.** Only the piano moved in the end: its floor went F♯3 → A3, taking the overlap from 46.7% to about 25%. Moving the guitar as well was tried twice — floor to E2, ceiling to G3 — and both take it out of the range its voicings were built for, so it stays at 43–65 | XS | **done** |
 | 10 | `[P]` | **Let the band lay out for a human.** `duck()` (band.js:1002) and the drummer's phrase-end answers (band.js:993) are gated on `soloOn`, so the one part of the engine that models a band listening to a soloist is off whenever there is a real one | S | |
-| 11 | `[B]` | **Make the bass skip.** Was 92.5% stepwise against a 60–70% norm. A full bar now sometimes walks a chord-tone ladder — one rung is a third, not a second — and arrives by leap, the fifth falling a fourth to the next root. Step 92.5% → 73.6% at warm, 66.8% at rich | S | **done** |
+| 11 | `[B]` | **Make the bass skip.** Was 92.5% stepwise against a 60–70% norm. A full bar now sometimes walks a chord-tone ladder — one rung is a third, not a second — and arrives by leap, the fifth falling a fourth to the next root. Step 92.5% → 73.6% | S | **done** |
 | 12 | `[B]` | **Replace `bwave` and `role` with a per-chorus arrangement plan** — who comps, bass feel, drum intensity, which *whole bars* are empty. Measured, `bwave` keeps 94.6–100% of events and moves velocity ±3.6; `role` implements laying out as keeping a random 55% of events, which sounds like dropout | M | |
 | 13 | `[B]` | **Form model** — `formSections()`, with optional `sections: [{ label, bars }]` in the song schema and a derived default: a twelve-bar form turns over in fours, everything else takes 8-bar blocks. 138 tunes (31%) had their fill positions corrected; Blue Monk fills at 4/8/12 rather than 8/12 | M | **done** |
 | 14 | `[B]` | **Cross the barline at the top of the form.** Both parts now push over the loop point — piano on half of choruses, guitar on an eighth — using the wrapped `c.next` the bass always had. The wrap push is the chromatic approach, which resolves onto the next downbeat instead of replacing it | XS | **done** |
@@ -46,7 +46,7 @@ project).
 player names first — the comp repeating itself, the cymbal not swinging, the bass
 never changing gear, the guitar sitting on the band, and having to transpose the
 whole chart in your head. The comp colour that came out of item 2 grew past the
-piano into a band-wide plain / warm / rich control that reaches all four
+piano into a band-wide plain / warm control that reaches all four
 instruments.
 
 **Tried and reverted: 19.** The guitar's rhythm was never the problem; what the
