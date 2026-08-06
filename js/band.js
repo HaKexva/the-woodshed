@@ -1072,37 +1072,35 @@ export class Band {
     // below drops back — which is what makes the return to four read as a
     // decision rather than a setting. Only the swing family walks in the first
     // place; the other styles own their own bass line and ignore this.
-    const walking = !straight && style !== "ballad";
-    const chorus = this._chorus ?? 0;
-    const bassFeel = walking && (!chorus || (chorus % 4 === 3 && rand() < 0.6)) ? "two" : "four";
+    const plan = this._arrangement(song, style, straight);
+
+    // The plan, applied. A comper that goes quiet goes quiet for a phrase — the
+    // old code dropped a random 45% of its events instead, which is dropout
+    // rather than an arrangement, and thinned the "down" chorus by 5% and its
+    // velocity by 3.6, neither of which anyone could hear.
+    const shape = (events, who) =>
+      events
+        .filter((e) => !plan.layOut[who].has(Math.floor(e.beat / bpb)))
+        .filter(() => rand() < 0.6 + 0.4 * plan.energy)
+        .map((e) => ({ ...e, vel: Math.max(16, Math.round(e.vel + (plan.energy - 0.78) * 24)) }));
+
+    // the comp is built before the drums so the drummer has something to answer
+    const piano = shape(duck(this._pianoEvents(chords, style, straight, bpb, this.compColour)), "piano");
+    const guitar = shape(duck(this._guitarEvents(chords, song, style, straight, bpb, this.compColour)), "guitar");
 
     const ev = {
-      piano: duck(this._pianoEvents(chords, style, straight, bpb, this.compColour)),
-      guitar: duck(this._guitarEvents(chords, song, style, straight, bpb, this.compColour)),
-      bass: this._bassEvents(chords, totalBeats, style, straight, bpb, bassFeel, this.compColour),
+      piano,
+      guitar,
+      bass: this._bassEvents(chords, totalBeats, style, straight, bpb, plan.bassFeel, this.compColour),
       drums: this._drumEvents(song, style, straight, bpb, {
         phraseEnds,
-        bassFeel,
+        bassFeel: plan.bassFeel,
         colour: this.compColour,
+        energy: plan.energy,
+        compBeats: piano.map((e) => e.beat),
       }),
       meta: [],
     };
-
-    // rhythm-section roles: after the first chorus, guitar-led and piano-led
-    // choruses trade off — both comping full-time is a machine's tell
-    const role = this._chorus ? choice(["guitar", "piano", "both"]) : "both";
-    if (role === "guitar") ev.piano = ev.piano.filter(() => rand() < 0.55);
-    if (role === "piano") ev.guitar = ev.guitar.filter(() => rand() < 0.55);
-
-    // each chorus leans a little different — comping thickens on the "up"
-    // choruses and thins with softer touch on the "down" ones
-    const bwave = [0.92, 1, 1.1, 0.82][(this._chorus ?? 0) % 4];
-    const tilt = (events) =>
-      events
-        .filter(() => bwave >= 1 || rand() < 0.7 + bwave * 0.3)
-        .map((e) => ({ ...e, vel: Math.max(16, Math.round(e.vel + (bwave - 1) * 20)) }));
-    ev.piano = tilt(ev.piano);
-    ev.guitar = tilt(ev.guitar);
 
     for (const c of chords) ev.meta.push({ kind: "chord", beat: c.startBeat, chord: c });
     for (let b = 0; b < totalBeats; b++) {
@@ -1244,6 +1242,51 @@ export class Band {
 
     this._songCtx = { chords, totalBeats, style, bpb, beatSec };
     this._makeSoloPart(soloEvents);
+  }
+
+  /**
+   * What the rhythm section has decided for this chorus, before a note of it
+   * exists: who carries the comp, which phrases each of them sits out, how hard
+   * the whole thing is leaning, and whether the bass is in two or four.
+   *
+   * This replaces two levers that measured as inert. `bwave` was meant to be an
+   * energy arc and kept 94.6–100% of comp events while moving velocity by ±3.6.
+   * `role` was meant to trade piano-led and guitar-led choruses and implemented
+   * laying out as `filter(() => rand() < 0.55)` — a comper playing a random half
+   * of its own part, which is what dropout sounds like rather than what an
+   * arrangement sounds like. Both are gone.
+   */
+  _arrangement(song, style, straight) {
+    const chorus = this._chorus ?? 0;
+    const sections = formSections(song);
+    const layOut = { piano: new Set(), guitar: new Set() };
+
+    // Enough range to be heard. The quiet chorus keeps about 74% of the comp at
+    // ten velocity under; the peak keeps all of it, four over.
+    const energy = [0.55, 0.78, 1, 0.35][chorus % 4];
+
+    // Who leads. Both comping full-time every chorus is a machine's tell, but so
+    // is trading it every single time round.
+    const lead = !chorus ? "both" : choice(["both", "both", "piano", "guitar"]);
+
+    // A whole phrase off, not a scattering of beats. The one who is not leading
+    // is the one who sits out, and the form model says where a phrase ends.
+    if (chorus && sections.length > 1 && rand() < 0.55) {
+      const who =
+        lead === "piano" ? "guitar" : lead === "guitar" ? "piano" : choice(["piano", "guitar"]);
+      const s = sections[Math.floor(rand() * sections.length)];
+      for (let b = s.start; b < s.start + s.bars; b++) layOut[who].add(b);
+    }
+
+    // A trio plays the head in two and opens up for the solos. Nothing here
+    // knows which chorus is the head, so the first time through stands in for
+    // it, and the quiet chorus drops back — which is what makes the return to
+    // four read as a decision rather than a setting. Only the swing family walks
+    // in the first place; the other styles own their own bass line.
+    const walking = !straight && style !== "ballad";
+    const bassFeel = walking && (!chorus || (chorus % 4 === 3 && rand() < 0.6)) ? "two" : "four";
+
+    return { chorus, lead, layOut, energy, bassFeel };
   }
 
   /** Regenerate the line on demand (dial/style change, "new take"). */
@@ -2517,6 +2560,13 @@ export class Band {
       else if (c.beats >= 4) hits = choice(patterns4);
       else if (c.beats >= 2) hits = choice(patterns2);
       else hits = [[0, c.beats]];
+      // Every pattern above is written for a four-beat bar, so a chord that owns
+      // more than four beats had a silent tail — in 5/4 the comp simply stopped
+      // after beat four, every bar. Put a hit in the room that is left.
+      const covered = hits.length ? Math.max(...hits.map(([off]) => off)) : 0;
+      if (c.beats > 4 && c.beats - covered > 1.5) {
+        hits = [...hits, [covered + (rand() < 0.5 ? 1 : 1.5), c.beats - covered - 1]];
+      }
       if (anticipated) hits = hits.filter(([off]) => off > 0.25); // already ringing
       else if (resolving && !hits.some(([off]) => off < 0.25)) {
         const first = hits.length ? hits[0][0] : c.beats;
@@ -2868,7 +2918,12 @@ export class Band {
     for (const c of chords) {
       const startBeat = c.startBeat;
       const emit = (off, midi) => {
-        const accent = (startBeat + off) % bpb === 0 ? 6 : (startBeat + off) % bpb === 2 ? 2 : 0;
+        // The bar's strong beats. In four that is 1 and 3; in five it is 1 and 4,
+        // because the bar groups 3+2 — accenting 1 and 3 there puts the weight
+        // in the middle of the first group and contradicts the meter.
+        const inBar = (startBeat + off) % bpb;
+        const mid = bpb === 5 ? 3 : 2;
+        const accent = inBar === 0 ? 6 : inBar === mid ? 2 : 0;
         events.push({
           beat: startBeat + off,
           midi: clamp(midi),
@@ -3000,6 +3055,17 @@ export class Band {
     const events = [];
     const totalBars = song.progression.length;
     const twoFeel = opts.bassFeel === "two"; // what the bass is doing this chorus
+    const energy = opts.energy ?? 0.78; // how hard the section is leaning this chorus
+    // Where the piano actually played, per bar. The snare comping used to be
+    // 0–2 random spots a bar related to nothing at all — the kit had opinions
+    // about the tune and none about the band. A drummer lands on what the
+    // comper just played, or in the hole straight after it.
+    const compByBar = new Map();
+    for (const b of opts.compBeats ?? []) {
+      const bar = Math.floor(b / bpb);
+      if (!compByBar.has(bar)) compByBar.set(bar, new Set());
+      compByBar.get(bar).add(Math.round((b - bar * bpb) * 2) / 2);
+    }
     // plain keeps time and stays out of the way; warm comps more, fills more,
     // and leans on the busier ride figures
     const colour = opts.colour ?? COMP_COLOUR.warm;
@@ -3028,10 +3094,41 @@ export class Band {
       { w: 0.18, p: RIDE_PLAIN },
       { w: 0.14, p: [[0, 44], [2, 46], [3, 50]] }, // leave beat 2 out for air
     ];
-    const pickRide = () => {
+    // A jazz waltz is not 4/4 with a beat missing. It rides in threes with the
+    // skip on 2 and 3, and the 29 waltzes in the book were getting flat quarters
+    // and a hi-hat on 2 — the same figure a 4/4 tune gets, minus a beat.
+    const waltzPool = [
+      { w: 0.34, p: [[0, 48], [1, 40], [1.5, 28], [2, 44], [2.5, 28]] }, // both skips
+      { w: 0.24, p: [[0, 48], [1, 40], [2, 44], [2.5, 28]] }, // skip into the bar line
+      { w: 0.2, p: [[0, 48], [1, 40], [1.5, 28], [2, 44]] },
+      { w: 0.22, p: [[0, 48], [1, 40], [2, 44]] }, // plain threes, the contrast
+    ];
+    // Five is grouped 3+2 — Take Five is the only one in the book and it was
+    // losing its fifth beat entirely, because every figure here is written as
+    // absolute offsets that stop at 3.5. Accent falls on 1 and 4, where the
+    // groups start.
+    const fivePool = [
+      { w: 0.4, p: [[0, 48], [1, 42], [1.5, 28], [2, 44], [3, 48], [4, 42], [4.5, 28]] },
+      { w: 0.3, p: [[0, 48], [1, 42], [2, 44], [3, 48], [4, 42]] },
+      { w: 0.3, p: [[0, 48], [1, 42], [2, 44], [2.5, 28], [3, 48], [4, 42]] },
+    ];
+    // anything else (the book has two tunes in six) gets quarters with a skip on
+    // the offbeats, built to the bar rather than borrowed from 4/4
+    const genericRide = (n) => {
+      const p = [];
+      for (let b = 0; b < n; b++) {
+        p.push([b, b % 2 === 0 ? 46 : 42]);
+        if (b % 2 === 1 && b + 0.5 < n) p.push([b + 0.5, 28]);
+      }
+      return [{ w: 1, p }];
+    };
+    const poolFor = (n) =>
+      n === 3 ? waltzPool : n === 4 ? ridePool : n === 5 ? fivePool : genericRide(n);
+    const pickRide = (n = bpb) => {
+      const pool = poolFor(n);
       let r = rand();
-      for (const { w, p } of ridePool) { if ((r -= w) <= 0) return p; }
-      return ridePool[0].p;
+      for (const { w, p } of pool) { if ((r -= w) <= 0) return p; }
+      return pool[0].p;
     };
     const sectionEnds = new Set(formSections(song).map((s) => s.start + s.bars - 1));
     const sectionEnd = (bar) => sectionEnds.has(bar) || bar === totalBars - 1;
@@ -3161,8 +3258,12 @@ export class Band {
       const kickThresh =
         0.65 + slow * 0.25 + (combo === 1 ? 0.15 : 0) + (style === "modal" ? 0.1 : 0) + (twoFeel ? 0.18 : 0);
       if (bpb === 3) {
-        for (const [off, vel] of [[0, 48], [1, 38], [2, 42]]) push(bar, off, "ride", vel);
-        push(bar, 1, "hat", 46);
+        for (const [off, vel] of pickRide(3)) push(bar, off, "ride", vel);
+        push(bar, 1, "hat", 46); // the waltz backbeat is beat 2 alone
+      } else if (bpb !== 4) {
+        for (const [off, vel] of pickRide(bpb)) push(bar, off, "ride", vel);
+        // 3+2: the hat marks where the second group starts, not beats 2 and 4
+        push(bar, bpb === 5 ? 3 : Math.floor(bpb / 2), "hat", 48);
       } else {
         // The old `slow > 0.3` gate forced plain quarters below 95 bpm, which is
         // backwards: a slow tune is where a drummer puts more detail into the
@@ -3240,15 +3341,30 @@ export class Band {
           continue;
         }
       }
-      const density = compMul * comboComp * (twoFeel ? 0.55 : 1) * COLOUR_COMP;
+      const density =
+        compMul * comboComp * (twoFeel ? 0.55 : 1) * COLOUR_COMP * (0.55 + 0.6 * energy);
       const hits = rand() < (0.55 - slow * 0.25) * density ? 1 : rand() < 0.25 * density ? 2 : 0;
       // `hits` can be 2 while a slow tune offers only one spot, and the second
       // splice off an empty array then pushed a hit at beat NaN — one bogus
       // event per chorus per drum below 95 bpm, deduped into a single silent
       // casualty rather than an error. Stop when the spots run out.
       const spots = slow > 0.3 ? [2] : [0.5, 1.5, 2, 2.5, 3.5];
+      // What the piano played in this bar, and the holes just after it. Given
+      // the choice, the drummer takes one of those rather than a spot picked out
+      // of the air — reinforcing the comp or answering it.
+      const heard = [...(compByBar.get(bar) ?? [])].filter((o) => o > 0 && o < bpb);
+      const answers = heard
+        .flatMap((o) => [o, o + 0.5])
+        .filter((o) => o > 0 && o < bpb && spots.includes(o));
       for (let h = 0; h < hits && spots.length; h++) {
-        const off = spots.splice(Math.floor(rand() * spots.length), 1)[0];
+        const converse = answers.length && rand() < 0.6;
+        const off = converse
+          ? answers.splice(Math.floor(rand() * answers.length), 1)[0]
+          : spots[Math.floor(rand() * spots.length)];
+        // whichever way it was chosen, it is used up
+        const at = spots.indexOf(off);
+        if (at >= 0) spots.splice(at, 1);
+        if (off === undefined) break;
         // Cross-stick rather than a full stroke. The comping was snare-only, so
         // the kit had one voice for everything it said between the fills; the
         // click is the other half of that vocabulary, and it is what a drummer
