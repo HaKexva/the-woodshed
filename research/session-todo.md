@@ -13,12 +13,12 @@ project).
 |---|---|---|---|---|
 | 1 | `[P]` | Move **tempo ramp** and **chord breaks** out of `#inspire-panel` (index.html:114) into the session transport, and rename chord breaks to say what it is for. Both are implemented and correct; both are invisible to the person who came to practise | XS | |
 | 2 | `[B]` | **Voice-led, non-deterministic piano voicings.** Candidate set per chord, scored by voice motion from the previous chord and by top-note recency, picked weighted-random among the best few. Fixed the frozen top line, the 85 two-note voicings and the 12 ♯9 semitone clusters in one change — 0.186 → 0.343 distinct top notes per chord, top-voice motion *down* from 2.48 to 1.60 semitones, clusters and dyads to zero. See the applied section of [backing-band-audit.md](backing-band-audit.md#1-voice-led-non-deterministic-piano-voicings--applied) | M | **done** |
-| 3 | `[B]` | **Invert the ride weights** — the canonical figure plays in 15% of bars, a figure with no beat 2 in 40%. Make the skip figure the default (~60–70%) and delete the `slow > 0.3` gate at band.js:2914 that zeroes it below 95 bpm | XS | |
+| 3 | `[B]` | **Invert the ride weights** — the canonical figure played in 15% of bars, a figure with no beat 2 in 40%, and a `slow > 0.3` gate zeroed the skip note below 95 bpm. Reweighted, and the one skip figure split into three (skip on 2, on 4, on both); gate deleted. Bars with a swung skip note: 30% → 70% above 95 bpm, **0% → 66%** below it | XS | **done** |
 | 4 | `[P]` | **Display transposition** (concert / B♭ / E♭ / F) on the chord card, next-chord readout, scale strip, system view and lead sheet. Nothing in the codebase transposes anything; for a horn player that is close to disqualifying | S | |
 | 5 | `[P]` | **Section loop** with a bar-range picker and a pre-roll, snapping to barlines. `loopStart`/`loopEnd` already do the work. Most-used practice strategy in the literature | S | |
 | 6 | `[P]` | **Chorus counter and stop-after-N**, both off `_chorus` (band.js:914), which is tracked and never surfaced | XS | |
 | 7 | `[P]` | **Name and surface trading fours.** `setBreakBars(4)` already *is* that cycle. Needs a label and a cue for whose bars are whose. Zero music modelling | XS | |
-| 8 | `[B]` | **Two-feel** — per-chorus bass feel `two \| four \| pedal \| broken`, drums following. The bass currently walks quarters from bar 1 forever. Largest missing style variation; applies to 372 of 447 tunes | S | |
+| 8 | `[B]` | **Two-feel** — per-chorus bass feel, drums following. The bass walked quarters from bar 1 of chorus 1 to the end. `two` and `four` are in (`pedal` and `broken` are not); the head chorus and the quiet chorus of the wave take two. 4.14 → 2.03 notes/bar with the root still on 78% of chord changes, drums sitting back to match | S | **done** |
 | 9 | `[B]` | **Split the piano and guitar registers** — guitar shells ≈ MIDI 40–62, piano structures 60–76. Measured: 7 of the 15 pitches the piano uses are also played by the guitar | XS | |
 | 10 | `[P]` | **Let the band lay out for a human.** `duck()` (band.js:1002) and the drummer's phrase-end answers (band.js:993) are gated on `soloOn`, so the one part of the engine that models a band listening to a soloist is off whenever there is a real one | S | |
 | 11 | `[B]` | **Make the bass skip.** 92.5% of quarter-to-quarter motion is a step against a 60–70% norm. Two ladder rungs at a time sometimes, 5th→root drops, octave displacement at the top of the form, and let `targetPcFor` (band.js:2667) reach the 7th | S | |
@@ -43,6 +43,15 @@ project).
 **1, 3, 6, 7, 9, 14, 16, 17** — all XS, all independent of each other, none needs
 any music modelling. Then **2** on its own is the biggest audible change available
 in the band.
+
+Done so far: **2** (piano voicings), **3** (ride weights), **8** (two-feel).
+Between them they cover the three things a listener would name first — the comp
+repeating itself, the cymbal not swinging, and the bass never changing gear.
+Remaining first-cut items: 1, 6, 7, 9, 14, 16, 17.
+
+Item 9's headline number has already moved: the new voicings took piano/guitar
+pitch doubling from 47% to about 31% on their own, so the register split has less
+left to win than when it was written.
 
 ## Reproducing the measurements
 
