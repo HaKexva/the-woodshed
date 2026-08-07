@@ -27,5 +27,15 @@ read voice leading off ghosted events instead of the underlying voicings, one
 counted held chords as missed anticipations, and one averaged half-note bars in
 with the chops. Each looked like a regression and was not.
 
-The band is not seeded, so anything measuring pattern choice has to average
-over many takes rather than compare two.
+## Determinism
+
+`loader.mjs` replaces `Math.random` before `band.js` is imported, so the whole
+band is reproducible. It is not seeded in the app — only the soloist is — and
+without this, checks that measure a pattern choice were averaging over random
+takes: `item-10` failed about one run in twelve. A check that fails sometimes
+is worse in CI than no check, because it teaches people to re-run until green.
+
+Run against another seed with `WOODSHED_SEED=7 node test/run.mjs`. A check that
+only passes on the default seed is a weak check, and it is worth finding that
+out deliberately rather than on somebody's pull request. The suite currently
+passes on every seed tried.
