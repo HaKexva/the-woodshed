@@ -1206,6 +1206,31 @@ body.modal-open {
 
 /* -------------------------------------------------------------- credits */
 
+/* One quiet line under the credits. It is outside the disclosure because a
+   donate link folded behind a summary is not one, and it is small because the
+   tool is supposed to do the asking. */
+.tip-line[hidden] { display: none; }
+
+.tip-line {
+  margin-top: 0.8rem;
+  font-size: 0.72rem;
+  color: var(--cream-35);
+}
+
+/* .credits a paints every link in here blue, and it is the more specific
+   selector, so this has to match it. Amber rather than blue on purpose: the
+   other links in the credits are citations, and this one is the only thing on
+   the page asking you to do something. */
+.credits .tip-jar {
+  color: var(--amber);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.12s;
+}
+
+.credits .tip-jar:hover { color: var(--amber); border-bottom-color: var(--amber); }
+
+
 .credits {
   margin-top: 2.4rem;
   border-top: 2px solid var(--cream-10);
