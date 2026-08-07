@@ -258,6 +258,15 @@
         <span class="pedal-sub" data-i18n="compSub">how full</span>
       </label>
 
+      <!-- Working one passage: the section list comes from the form model, so
+           the range always snaps to a phrase rather than to wherever you
+           dragged. Rebuilt whenever the tune changes. -->
+      <label class="pedal" id="pedal-loop">
+        <span class="pedal-k" data-i18n="loopK">loop</span>
+        <select id="loop-range" class="pedal-v" aria-label="section loop"></select>
+        <span class="pedal-sub" data-i18n="loopSub">one passage</span>
+      </label>
+
       <!-- Reading changes what is written, never what sounds — the one pedal
            here that does not touch the band. It sits with them anyway because
            it is a practice control, and this is where you look for those. -->

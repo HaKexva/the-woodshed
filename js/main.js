@@ -2,7 +2,7 @@
 
 import { SONGS } from "./songs.js";
 import { loadMine, saveMine, removeMine, exportMine, importMine, randomTitle } from "./mytunes.js";
-import { Band, SOLO_STYLES } from "./band.js";
+import { Band, SOLO_STYLES, formSections } from "./band.js";
 import {
   parseChord,
   parseWarnings,
@@ -188,6 +188,7 @@ function selectSong(i) {
   $("#tempo-val").textContent = song.bpm;
   band.bpmOverride = null;
   band.loadSong(song);
+  renderLoopOptions();
   // a feel is chosen for the tune you are on, so it does not follow you to the next
   band.setFeel(null);
   $("#band-feel").value = "auto";
@@ -508,6 +509,35 @@ function armPedal(sel, on) {
   $(sel).classList.toggle("on", !!on);
 }
 
+/**
+ * Fill the loop pedal with this tune's sections. The list comes from the form
+ * model rather than from bar numbers you pick yourself: a loop that starts
+ * halfway through a phrase teaches you to hear the phrase wrong, and every
+ * range worth working is a section anyway. Bars are shown 1-based, the way
+ * they are counted on the stand.
+ */
+function renderLoopOptions() {
+  const song = state.currentSong;
+  const sel = $("#loop-range");
+  const was = sel.value;
+  const secs = song ? formSections(song) : [];
+  sel.innerHTML =
+    `<option value="">${t("rampOff")}</option>` +
+    secs
+      .map((s) => {
+        const from = s.start;
+        const to = s.start + s.bars - 1;
+        const name = s.label ? `${s.label} ` : "";
+        return `<option value="${from}-${to}">${name}${from + 1}–${to + 1}</option>`;
+      })
+      .join("");
+  // a section that still exists survives a repaint; anything else falls to off
+  sel.value = [...sel.options].some((o) => o.value === was) ? was : "";
+  if (sel.value !== was) band.setSectionLoop(null);
+  // one section is the whole tune — looping it is what not looping already does
+  $("#pedal-loop").hidden = secs.length < 2;
+}
+
 /** Repaint every pedal from state. Also the language hook: the value and
  *  sub-lines are written from here, so `applyStatic` cannot leave a pedal
  *  reading its placeholder after a language switch. */
@@ -519,6 +549,7 @@ function renderRig() {
   // rig runs on: you can see what is armed without opening anything
   armPedal("#pedal-feel", $("#band-feel").value !== "auto");
   armPedal("#pedal-comp", $("#comp-colour").value !== "warm");
+  armPedal("#pedal-loop", $("#loop-range").value !== "");
 
   $("#boost-v").textContent = t(state.boost ? "boostOn" : "rampOff");
   $("#bass-boost").setAttribute("aria-pressed", String(state.boost));
@@ -821,6 +852,19 @@ $("#comp-colour").value = compLevel;
 $("#comp-colour").addEventListener("change", (e) => {
   band.setCompColour(e.target.value);
   localStorage.setItem("woodshed-comp", e.target.value);
+  renderRig();
+});
+
+// Not remembered between tunes, unlike the other pedals: bar 9 means something
+// different in every song, and a loop you forgot you left on is the worst way
+// to find that out.
+$("#loop-range").addEventListener("change", (e) => {
+  const v = e.target.value;
+  if (!v) band.setSectionLoop(null);
+  else {
+    const [from, to] = v.split("-").map(Number);
+    band.setSectionLoop(from, to);
+  }
   renderRig();
 });
 
