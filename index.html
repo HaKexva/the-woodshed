@@ -131,7 +131,6 @@
             <select id="solo-inst" class="pedal-v" aria-label="solo instrument">
               <option value="piano" data-i18n="instPiano">piano</option>
               <option value="vibes" data-i18n="instVibes">vibes</option>
-              <option value="sax" data-i18n="instSax">tenor</option>
             </select>
             <span class="pedal-sub" data-i18n="soloInstSub">the voice</span>
           </label>
@@ -181,7 +180,7 @@
 
         <div class="take-strip">
           <span class="take-k" data-i18n="takeLabel">take</span>
-          <input id="take-seed" class="take-counter" type="text" size="6" spellcheck="false" autocomplete="off" aria-label="take seed" />
+          <input id="take-seed" class="take-counter" type="text" size="5" maxlength="5" spellcheck="false" autocomplete="off" aria-label="take seed" />
           <button id="new-take" class="take-btn primary" data-i18n="newTake">new take</button>
           <button id="hold-take" class="take-btn" aria-pressed="false" data-i18n="holdTake">hold this line</button>
           <span class="take-note" data-i18n="takeTip">
