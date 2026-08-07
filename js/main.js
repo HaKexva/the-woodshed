@@ -82,6 +82,9 @@ const band = new Band({
     state.soundingShift = semitones;
     redrawChart();
   },
+  // the output device changed under us and the browser wants a touch first
+  onAudioStalled: (state) =>
+    setStatus(state ? t(state === "gone" ? "status.audioGone" : "status.stalled") : ""),
   onProgress: (n, total) => setStatus(t("status.loading", { n, total })),
   onReady: () => {
     state.ready = true;

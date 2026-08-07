@@ -336,6 +336,47 @@ export class Band {
     this._applyPolish();
   }
 
+  /**
+   * Take the audio back after an interruption. The browser will usually let us
+   * resume without asking; when it will not — iOS after a real interruption is
+   * the case that matters — the next touch anywhere on the page does it, and
+   * until then the transport says so rather than looking like it is playing.
+   */
+  async _contextChanged() {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    if (ctx.state === "running") {
+      this._waking?.();
+      this.cb.onAudioStalled?.(false);
+      return;
+    }
+    if (!this.playing || this.paused) return; // a stop or a pause suspends it too
+    if (ctx.state === "closed") {
+      // nothing to resume — the context is gone and only a fresh page has one
+      this.cb.onAudioStalled?.("gone");
+      return;
+    }
+
+    try {
+      await ctx.resume();
+    } catch { /* the gesture path below */ }
+    if (ctx.state === "running") return;
+
+    this.cb.onAudioStalled?.(true);
+    if (this._waking) return; // already waiting on a touch
+    // Ask on every touch until one of them works — a gesture the browser
+    // refuses is not the last gesture there will be, and dropping the listener
+    // after the first try leaves the band silent for good.
+    const wake = () => ctx.resume().catch(() => {});
+    this._waking = () => {
+      window.removeEventListener("pointerdown", wake);
+      window.removeEventListener("keydown", wake);
+      this._waking = null;
+    };
+    window.addEventListener("pointerdown", wake);
+    window.addEventListener("keydown", wake);
+  }
+
   /** Background-band level (0..1.5) — scales piano/guitar/bass/drums, not the solo. */
   setBgVolume(v) {
     this.bgVolume = Math.max(0, Math.min(1.5, v));
@@ -434,6 +475,14 @@ export class Band {
     this.ctx = new AudioContext();
     Tone.setContext(this.ctx);
     const ctx = this.ctx;
+
+    // Plugging a headset in — or pulling one out, or any other change of output
+    // device — suspends the context. iOS calls that state "interrupted", Chrome
+    // calls it "suspended", and neither of them starts again on its own: the
+    // transport keeps its position, the button still says pause, and the band
+    // goes silent. Nothing in here ever detected a speaker; this is the whole
+    // of what "it stopped when I plugged my headphones in" was.
+    ctx.addEventListener("statechange", () => this._contextChanged());
 
     // How far ahead of the speaker the scheduler works. Tone ships 0.1s, which
     // is a tenth of a second of slack for a main thread that also has to build
