@@ -1227,6 +1227,9 @@ body.modal-open {
 /* amber where the credits' citations are blue: this is the only thing on the
    page asking the reader to do something */
 .tip-jar {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35em;
   color: var(--amber);
   text-decoration: none;
   border-bottom: 1px solid transparent;
