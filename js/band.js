@@ -14,6 +14,8 @@ import {
   placeNear,
   soloScaleSteps,
   keyContext,
+  transposeSymbol,
+  transposeKey,
 } from "./theory.js";
 import { WJD } from "./solo-vocab.js";
 
@@ -272,6 +274,12 @@ export class Band {
     this.soloFeel = { crowd: 0.5, phrase: 0.5 }; // note packing · how long a statement runs
     this.soloStyleName = "silver";
     this.soloInstName = "piano"; // piano · vibes — see SOLO_INSTRUMENTS
+    // Sounding key. keyShift moves the whole tune once; keyStep moves it again
+    // every chorus, which is how you take something round all twelve without
+    // stopping. A step of 1 or 5 visits every key before it repeats; 3 visits
+    // four and then loops, which is a different and much smaller exercise.
+    this.keyShift = 0;
+    this.keyStep = 0;
     this.soloVoicing = "mono"; // mono: single-note line · multi: doubled holds, stabs, octaves
     this.soloInst = null;
     this.soloPart = null;
@@ -1059,6 +1067,42 @@ export class Band {
     return this._loopSong ?? this.song;
   }
 
+  /**
+   * Move the sounding key. `shift` transposes the tune once; `step` moves it
+   * on again at every chorus. Unlike the reading key, which only rewrites what
+   * is on the page, this changes what the band plays.
+   */
+  setKey({ shift, step } = {}) {
+    if (shift !== undefined) this.keyShift = ((shift % 12) + 12) % 12;
+    if (step !== undefined) this.keyStep = ((step % 12) + 12) % 12;
+    this._nextPlan = null;
+    if (this.playing && this._songCtx) this._buildParts(this.form);
+    else this.cb.onKeyShift?.(this.shiftFor(this._chorus ?? 0));
+  }
+
+  /** Semitones the tune is sounding above where it is written, on this chorus. */
+  shiftFor(chorus) {
+    return (((this.keyShift + this.keyStep * chorus) % 12) + 12) % 12;
+  }
+
+  /**
+   * The tune as it will sound this time round. Transposing the song itself —
+   * rather than shifting notes on the way out — keeps every part reading the
+   * same chart: the chord symbols the UI is handed, the key the soloist reads
+   * its scales from, and the voicings all move together, and nothing has to
+   * know a transposition happened.
+   */
+  _shiftSong(song, by) {
+    if (!by || !song) return song;
+    return {
+      ...song,
+      key: transposeKey(song.key, by),
+      progression: song.progression.map((bar) =>
+        bar.map((cell) => ({ ...cell, chord: transposeSymbol(cell.chord, by) }))
+      ),
+    };
+  }
+
   async play() {
     await this.setup();
     await Tone.start();
@@ -1233,6 +1277,11 @@ export class Band {
    * nothing. Reads this._chorus, so plan for chorus n+1 with _chorus set to it.
    */
   _planChorus(song) {
+    // Everything below is written against the key this chorus actually sounds
+    // in, so the transposition is invisible past this line.
+    const shift = this.shiftFor(this._chorus ?? 0);
+    song = this._shiftSong(song, shift);
+    const key = keyContext(song);
     const bpb = song.timeSignature ?? 4;
     const chords = this._flatten(song, bpb);
     const totalBeats = song.progression.length * bpb;
@@ -1249,7 +1298,7 @@ export class Band {
       ? []
       : this.holdTake && this._heldLine
         ? this._heldLine.map((e) => ({ ...e }))
-        : this._soloEvents(chords, totalBeats, style, this.soloRange.lo, this.soloRange.hi, bpb);
+        : this._soloEvents(chords, totalBeats, style, this.soloRange.lo, this.soloRange.hi, bpb, key);
     if (this.soloOn && this.holdTake && !this._heldLine) this._heldLine = soloEvents.map((e) => ({ ...e }));
 
     // which bars is the soloist busy in? the comp thins there and breathes
@@ -1333,7 +1382,7 @@ export class Band {
       ev.meta.push({ kind: "beat", beat: b, bar: Math.floor(b / bpb), beatInBar: b % bpb });
     }
 
-    return { ev, chords, totalBeats, style, bpb, soloEvents };
+    return { ev, chords, totalBeats, style, bpb, soloEvents, shift, key };
   }
 
   /**
@@ -1352,7 +1401,13 @@ export class Band {
     }
     this.parts.forEach((p) => p.dispose());
     this.parts = [];
-    const { ev, chords, totalBeats, style, bpb, soloEvents } = plan;
+    const { ev, chords, totalBeats, style, bpb, soloEvents, shift } = plan;
+    // the chart on screen has to move with the band, or you are reading one key
+    // and hearing another
+    if (shift !== this._soundingShift) {
+      this._soundingShift = shift;
+      this.cb.onKeyShift?.(shift);
+    }
 
     const beatSec = () => 60 / Tone.getTransport().bpm.value;
     // everything shifts right by the count-in, which owns the bars before the form
@@ -1507,7 +1562,7 @@ export class Band {
       }, time);
     });
 
-    this._songCtx = { chords, totalBeats, style, bpb, beatSec };
+    this._songCtx = { chords, totalBeats, style, bpb, beatSec, key: plan.key };
     // _makeSoloPart used to be the thing that disposed the old part, so
     // skipping it would leave the previous chorus's line playing under a
     // soloist who has been switched off.
@@ -1572,7 +1627,7 @@ export class Band {
   _rebuildSoloPart() {
     const ctx = this._songCtx;
     if (!ctx || !this.soloOn) return;
-    this._makeSoloPart(this._soloEvents(ctx.chords, ctx.totalBeats, ctx.style, this.soloRange.lo, this.soloRange.hi, ctx.bpb));
+    this._makeSoloPart(this._soloEvents(ctx.chords, ctx.totalBeats, ctx.style, this.soloRange.lo, this.soloRange.hi, ctx.bpb, ctx.key));
   }
 
   _makeSoloPart(events) {
@@ -1675,12 +1730,12 @@ export class Band {
    *  take always plays the same solo — the other parts draw from the RNG too,
    *  so without a scope of its own the line would shift whenever the drummer
    *  rolled one more fill. */
-  _soloEvents(chords, totalBeats, style, lo, hi, bpb = 4) {
+  _soloEvents(chords, totalBeats, style, lo, hi, bpb = 4, key = null) {
     const seed = (Math.imul(this.takeSeed >>> 0, 0x9e3779b1) + (this._chorus ?? 0) * 0x85ebca6b) >>> 0;
-    return withSeed(seed, () => this._soloLine(chords, totalBeats, style, lo, hi, bpb));
+    return withSeed(seed, () => this._soloLine(chords, totalBeats, style, lo, hi, bpb, key));
   }
 
-  _soloLine(chords, totalBeats, style, lo, hi, bpb = 4) {
+  _soloLine(chords, totalBeats, style, lo, hi, bpb = 4, key = null) {
     const events = [];
     {
       // A voice does not have a piano's range. Narrowing the band itself —
@@ -1712,10 +1767,12 @@ export class Band {
       }
       return eighth;
     };
-    // The tune's key. Chords that are degrees of it get the key's own notes;
-    // everything else falls back to chord quality, so a tune that modulates or
-    // runs on secondary dominants is left exactly as it was.
-    const key = keyContext(this.song);
+    // The tune's key — the one it is sounding in, handed down from the plan so
+    // a transposed chorus draws its scales from where it actually is. Chords
+    // that are degrees of it get the key's own notes; everything else falls
+    // back to chord quality, so a tune that modulates or runs on secondary
+    // dominants is left exactly as it was.
+    key ??= keyContext(this.song);
     const pools = new Map();
     const poolFor = (c) => {
       if (!pools.has(c)) {

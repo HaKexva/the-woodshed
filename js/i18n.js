@@ -99,6 +99,14 @@ export const STRINGS = {
     compSub: "how full",
     loopK: "loop",
     loopSub: "one passage",
+    keyK: "key",
+    keySub: "what sounds",
+    keyAsWritten: "as written",
+    keyPlayIn: "play it in",
+    keyRound: "round the keys",
+    keyStep1: "+1 a chorus",
+    keyStep5: "+5 a chorus",
+    keyStep7: "+7 a chorus",
     feel: "feel",
     feelAuto: "as written",
     feelBallad: "ballad",
@@ -244,6 +252,14 @@ export const STRINGS = {
     compSub: "伴奏濃度",
     loopK: "循環",
     loopSub: "單段反覆",
+    keyK: "移調",
+    keySub: "實際音高",
+    keyAsWritten: "原調",
+    keyPlayIn: "移到",
+    keyRound: "輪轉各調",
+    keyStep1: "每次 +1",
+    keyStep5: "每次 +5",
+    keyStep7: "每次 +7",
     feel: "曲風",
     feelAuto: "照原譜",
     feelBallad: "抒情",
@@ -339,4 +355,6 @@ export function applyStatic() {
   set("data-i18n-ph", (el, v) => (el.placeholder = v));
   // a control whose whole label is an icon still has to say what it does
   set("data-i18n-aria", (el, v) => el.setAttribute("aria-label", v));
+  // an <optgroup> heading is a label attribute, not text content
+  set("data-i18n-label", (el, v) => el.setAttribute("label", v));
 }
