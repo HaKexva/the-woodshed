@@ -27,7 +27,20 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The site does not go out unless the generators still do what they claim.
+  # Same reasoning as the concurrency rule above: a wrong site is worse than a
+  # late one, and here the wrongness is inaudible until someone is playing.
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16"
+      - run: node test/run.mjs
+
   deploy:
+    needs: checks
     runs-on: ubuntu-latest
     environment:
       name: github-pages

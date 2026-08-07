@@ -1,0 +1,27 @@
+# Runs the generator checks on every push and pull request.
+#
+# There is no build and no dependencies: the checks import js/ directly and
+# stub the two CDN imports at resolve time, so this is Node and a checkout.
+name: checks
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # registerHooks, which test/loader.mjs uses to stub the CDN imports in
+      # process, landed in 22.15 — pinning the major is not enough.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.16"
+
+      - name: Run the checks
+        run: node test/run.mjs
