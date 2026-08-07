@@ -1250,13 +1250,17 @@ body.modal-open {
   letter-spacing: 0.02em;
 }
 
-/* Ko-fi's own frame. It brings its own white background, so it is boxed rather
-   than bled into the page — pretending it is ours would only make the seam
-   more obvious. */
+/* Ko-fi's own frame.
+   It is a cross-origin document, so its white background is not ours to change
+   — and it should not be. It is somebody else's payment form, and dressing it
+   up as part of this app would misrepresent where the card details are going.
+   So it sits on a cream mat with a little air around it: still plainly theirs,
+   but placed rather than punched through the page. */
 .tip-frame {
   flex: 1 1 auto;
   min-height: 0;
-  background: #fff;
+  padding: 0.5rem;
+  background: var(--cream);
 }
 
 .tip-frame iframe {
@@ -1264,6 +1268,7 @@ body.modal-open {
   width: 100%;
   height: 100%;
   border: 0;
+  background: #fff;
 }
 
 .tip-fallback {
@@ -1297,15 +1302,35 @@ body.modal-open {
    page asking the reader to do something */
 .tip-jar {
   display: inline-flex;
-  align-items: baseline;
-  gap: 0.35em;
+  /* centre, not baseline: an svg has no text baseline, so a baseline-aligned
+     flex line hangs it off its own bottom edge and the glass rides high */
+  align-items: center;
+  gap: 0.4em;
   color: var(--amber);
   text-decoration: none;
   border-bottom: 1px solid transparent;
   transition: border-color 0.12s;
 }
 
+.tip-jar .icon {
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: 0; /* the flex line places it now */
+}
+
 .tip-jar:hover { border-bottom-color: var(--amber); }
+
+/* The browser's blue ring is the one thing on this page that is not the app's
+   palette. It still needs to be reachable by keyboard, so it is not removed —
+   only moved to :focus-visible and given the amber the rest of the page uses.
+   closeTipJar() returns focus here on the way out, and a mouse user should not
+   be shown a ring for that. */
+.tip-jar:focus { outline: none; }
+
+.tip-jar:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 3px;
+}
 
 
 .credits {
