@@ -89,6 +89,7 @@ const band = new Band({
   },
 });
 
+
 // ------------------------------------------------------------------ tracklist
 
 function renderTracklist() {
@@ -522,7 +523,9 @@ function setStatus(msg) {
 let chorusBar = -1;
 
 function renderChorus() {
-  $("#chorus-n").textContent = state.chorus || "—";
+  const n = state.chorus || "—";
+  $("#chorus-n").textContent = n;
+  $("#chorus-dock").textContent = n; // the phone reads it off the dock row
 }
 
 function armPedal(sel, on) {
@@ -719,11 +722,48 @@ async function setMode(mode) {
 // the transport with nothing left to scroll.
 (function trackTransportHeight() {
   const bar = $(".transport");
-  const publish = () =>
+  const publish = () => {
+    // the open tray is a temporary thing sitting over the page; reserving room
+    // for it would make every tap of the handle scroll the chart
+    if (bar.classList.contains("open")) return;
     document.documentElement.style.setProperty("--transport-h", `${Math.ceil(bar.getBoundingClientRect().height)}px`);
+  };
   publish();
   if (window.ResizeObserver) new ResizeObserver(publish).observe(bar);
   else window.addEventListener("resize", publish);
+})();
+
+// The dock's tray. Only the phone layout shows the handle at all, so this is
+// inert on a desktop — the class it toggles has no rule there.
+$("#dock-handle").addEventListener("click", () => {
+  const open = $(".transport").classList.toggle("open");
+  $("#dock-handle").setAttribute("aria-expanded", String(open));
+});
+
+// The tempo readout is the control on a phone: drag it sideways, three pixels
+// to the bpm. It writes to the range input and fires the event the rest of the
+// app already listens for, so nothing else has to know this exists.
+(function dragTempo() {
+  const chip = $(".deck .tempo-ctl");
+  const input = $("#tempo");
+  let from = null;
+  chip.addEventListener("pointerdown", (e) => {
+    if (getComputedStyle(chip).cursor !== "ew-resize") return; // desktop: leave the slider alone
+    from = { x: e.clientX, bpm: Number(input.value) };
+    chip.setPointerCapture(e.pointerId);
+    chip.classList.add("dragging");
+  });
+  chip.addEventListener("pointermove", (e) => {
+    if (!from) return;
+    const next = Math.round(from.bpm + (e.clientX - from.x) / 3);
+    const clamped = Math.min(Number(input.max), Math.max(Number(input.min), next));
+    if (clamped === Number(input.value)) return;
+    input.value = clamped;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  const release = () => { from = null; chip.classList.remove("dragging"); };
+  chip.addEventListener("pointerup", release);
+  chip.addEventListener("pointercancel", release);
 })();
 
 $("#play").addEventListener("click", () => {

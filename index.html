@@ -31,7 +31,7 @@
     </div>
     <nav class="mode-switch" aria-label="mode">
       <button class="mode-btn active" data-mode="session" data-i18n="mode.session">session</button>
-      <button class="mode-btn" data-mode="inspire"><span data-i18n="mode.inspire">inspire</span><sup class="beta">beta</sup></button>
+      <button class="mode-btn" data-mode="inspire" data-i18n="mode.inspire">inspire</button>
     </nav>
     <button id="lang-toggle" class="lang-toggle" aria-label="language">中文</button>
   </header>
@@ -233,25 +233,45 @@
         </p>
         </details>
       </section>
-
-      <!-- The tip jar. It is the thing that sits on the piano in a club, which
-           is the right name for it here and an honest one — it does not promise
-           a particular drink, and it asks for the tool rather than the tunes.
-           Out at the foot of the page rather than inside the credits: those are
-           citations, this is the one line addressed to the reader. -->
-      <p id="tip-line" class="tip-line" hidden>
-        <span data-i18n="tipWhy">free, open source, and staying that way.</span>
-        <a id="tip-jar" class="tip-jar" href="#" target="_blank" rel="noopener">
-          <!-- lucide "beer", matching the stroke weight of the icons already here.
-               It sits outside the translated span on purpose: data-i18n writes
-               textContent, which would wipe an inline sibling. -->
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 11h1a3 3 0 0 1 0 6h-1"/><path d="M9 12v6"/><path d="M13 12v6"/><path d="M14 7.5c-1 0-1.44.5-3 .5s-2-.5-3-.5-1.72.5-2.5.5a2.5 2.5 0 0 1 0-5c.78 0 1.57.5 2.5.5S9.44 3 11 3s2 1.5 3 1.5 1.72-.5 2.5-.5a2.5 2.5 0 0 1 0 5c-.78 0-1.5-.5-2.5-.5Z"/><path d="M5 8v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8"/></svg><span data-i18n="tipJar">tip jar</span>
-        </a>
-      </p>
     </section>
   </main>
 
   <footer class="transport">
+    <!-- On a phone the bar is a dock: this row is always there, and everything
+         under it folds away behind the handle. On anything wider .deck and
+         .tray are display:contents, so the desktop bar is the one flex row it
+         has always been and these two wrappers do not exist as far as layout
+         is concerned. -->
+    <div class="deck">
+      <button id="play" class="play-btn" aria-label="play / pause">
+        <span class="play-glyph" aria-hidden="true"></span>
+      </button>
+      <button id="stop" class="stop-btn" aria-label="stop" disabled>
+        <span class="stop-glyph" aria-hidden="true"></span>
+      </button>
+      <span id="play-label" class="play-label" data-i18n="play">play</span>
+
+      <!-- The tempo is the number, not a slider you cannot land on with a
+           thumb: on a phone the readout fills the row and drags sideways. The
+           range input stays in the DOM, off-screen but focusable, so the
+           keyboard and a screen reader still get a slider. -->
+      <label class="tempo-ctl">
+        <span class="ctl-label" data-i18n="tempo">tempo</span>
+        <input id="tempo" type="range" min="50" max="240" value="120" />
+        <span class="tempo-readout"><span id="tempo-val">120</span> bpm</span>
+      </label>
+
+      <!-- the count the rig carries on a desktop, where the eye already is -->
+      <p class="dock-chorus"><b id="chorus-dock">—</b><span data-i18n="chorusK">chorus</span></p>
+
+      <button type="button" id="dock-handle" class="dock-handle" aria-expanded="false"
+              aria-controls="dock-tray" data-i18n-aria="dock.more" aria-label="more controls">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>
+      </button>
+    </div>
+
+    <div class="tray" id="dock-tray"><div class="tray-in">
+
     <!-- The rig. Every practice control the band already knows how to do, in the
          one place you can reach with a horn in your hands, and readable in the
          off state so you can see what is armed without opening anything. It
@@ -278,13 +298,13 @@
         <span class="pedal-k" data-i18n="feel">feel</span>
         <select id="band-feel" class="pedal-v" aria-label="how the band plays this tune">
           <option value="auto" selected data-i18n="feelAuto">as written</option>
-          <option value="swing">swing</option>
+          <option value="swing" data-i18n="feelSwing">swing</option>
           <option value="ballad" data-i18n="feelBallad">ballad</option>
-          <option value="blues">blues</option>
+          <option value="blues" data-i18n="feelBlues">blues</option>
           <option value="modal" data-i18n="feelModal">modal</option>
-          <option value="bossa">bossa</option>
-          <option value="latin">latin</option>
-          <option value="funk">funk</option>
+          <option value="bossa" data-i18n="feelBossa">bossa</option>
+          <option value="latin" data-i18n="feelLatin">latin</option>
+          <option value="funk" data-i18n="feelFunk">funk</option>
         </select>
         <span class="pedal-sub" data-i18n="feelSub">how it is played</span>
       </label>
@@ -375,20 +395,6 @@
       <p class="rig-chorus"><b id="chorus-n">—</b><span data-i18n="chorusK">chorus</span></p>
     </div>
 
-    <button id="play" class="play-btn" aria-label="play / pause">
-      <span class="play-glyph" aria-hidden="true"></span>
-    </button>
-    <button id="stop" class="stop-btn" aria-label="stop" disabled>
-      <span class="stop-glyph" aria-hidden="true"></span>
-    </button>
-    <span id="play-label" class="play-label" data-i18n="play">play</span>
-
-    <label class="tempo-ctl">
-      <span class="ctl-label" data-i18n="tempo">tempo</span>
-      <input id="tempo" type="range" min="50" max="240" value="120" />
-      <span class="tempo-readout"><span id="tempo-val">120</span> bpm</span>
-    </label>
-
     <label class="tempo-ctl">
       <span class="ctl-label" data-i18n="band">band</span>
       <input id="bg-vol" type="range" min="0" max="150" value="100" />
@@ -402,7 +408,23 @@
     </div>
 
     <span id="status" class="status" role="status"></span>
+    <!-- The tip jar. It is the thing that sits on the piano in a club, which is
+         the right name for it here and an honest one — it does not promise a
+         particular drink, and it asks for the tool rather than the tunes. It
+         rides in the transport, in the room the bar already has, so it is in
+         view while you play rather than only for whoever scrolls to the end. -->
+    <p id="tip-line" class="tip-line" hidden>
+      <span class="tip-why" data-i18n="tipWhy">free, open source, and staying that way.</span>
+      <a id="tip-jar" class="tip-jar" href="#" target="_blank" rel="noopener">
+        <!-- lucide "beer", matching the stroke weight of the icons already here.
+             It sits outside the translated span on purpose: data-i18n writes
+             textContent, which would wipe an inline sibling. -->
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 11h1a3 3 0 0 1 0 6h-1"/><path d="M9 12v6"/><path d="M13 12v6"/><path d="M14 7.5c-1 0-1.44.5-3 .5s-2-.5-3-.5-1.72.5-2.5.5a2.5 2.5 0 0 1 0-5c.78 0 1.57.5 2.5.5S9.44 3 11 3s2 1.5 3 1.5 1.72-.5 2.5-.5a2.5 2.5 0 0 1 0 5c-.78 0-1.5-.5-2.5-.5Z"/><path d="M5 8v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8"/></svg><span data-i18n="tipJar">tip jar</span>
+      </a>
+    </p>
     <span class="hint"><kbd>space</kbd> <span data-i18n="hint">play / stop</span></span>
+
+    </div></div>
   </footer>
 
   <!-- The tip jar, in place rather than away.
@@ -446,8 +468,8 @@
             <label><span data-i18n="ed.bpm">bpm</span><input id="ed-bpm" type="number" min="40" max="300" value="120" /></label>
             <label><span data-i18n="ed.style">style</span>
               <select id="ed-style">
-                <option>swing</option><option>bossa</option><option>ballad</option>
-                <option>blues</option><option>modal</option><option>latin</option><option>funk</option>
+                <option value="swing" data-i18n="feelSwing">swing</option><option value="bossa" data-i18n="feelBossa">bossa</option><option value="ballad" data-i18n="feelBallad">ballad</option>
+                <option value="blues" data-i18n="feelBlues">blues</option><option value="modal" data-i18n="feelModal">modal</option><option value="latin" data-i18n="feelLatin">latin</option><option value="funk" data-i18n="feelFunk">funk</option>
               </select>
             </label>
             <label><span data-i18n="ed.beatsPerBar">beats</span>

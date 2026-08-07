@@ -435,6 +435,16 @@ export class Band {
     Tone.setContext(this.ctx);
     const ctx = this.ctx;
 
+    // How far ahead of the speaker the scheduler works. Tone ships 0.1s, which
+    // is a tenth of a second of slack for a main thread that also has to build
+    // the next chorus's parts at every loop point — measured at 25–68ms on a
+    // fast laptop, more on a phone. When a stall eats the slack, notes are
+    // handed to the sampler with their time already past and it plays them at
+    // once: the top of a chorus arrives as a clump that does not match the line
+    // on screen. A quarter second absorbs that. The cost is that a press of
+    // play is a quarter second later than it was, which the count-in hides.
+    Tone.getContext().lookAhead = 0.25;
+
     // ---- mix bus: strips (sat → EQ → pan) → dry sum → glue → limiter →
     // master → out, with a low-cut pre-delayed reverb SEND. Every polish
     // element has a transparent state so the whole chain can A/B against
@@ -1124,12 +1134,14 @@ export class Band {
     t.bpm.value = bpmNow;
     t.timeSignature = song.timeSignature ?? 4;
     this._applySwing();
-    // Two bars of count-in, one above 200 — the tempo where two is longer than
-    // anybody wants to wait and one is already plenty to find the time. Fixed
-    // here for the whole take rather than read per build: every event's bar
-    // offset is measured from it, so a tempo ramp crossing 200 mid-tune would
-    // otherwise shift the entire form sideways by a bar.
-    this._countBars = bpmNow >= 200 ? 1 : 2;
+    // Two bars of count-in, one at either extreme. Above 200 two bars is longer
+    // than anybody wants to wait; under 80 the lead-in bar's half-time "one,
+    // two" is so far apart it stops reading as a count and starts reading as
+    // silence you are not sure is broken. Four beats is plenty at both ends.
+    // Fixed here for the whole take rather than read per build: every event's
+    // bar offset is measured from it, so a tempo ramp crossing a threshold
+    // mid-tune would otherwise shift the entire form sideways by a bar.
+    this._countBars = bpmNow >= 200 || bpmNow < 80 ? 1 : 2;
     // the count-in owns bars 0..n-1; the form loops after it
     t.loop = true;
     t.loopStart = `${this._countBars}m`;
@@ -1162,27 +1174,51 @@ export class Band {
       `${this._countBars + song.progression.length * 0.5}m`
     );
 
-    // every chorus is a fresh take: just before each loop wrap, re-roll the
-    // band's patterns and the solo (which builds as choruses stack up)
+    // Every chorus is a fresh take: a bar before each loop wrap, re-roll the
+    // band's patterns and the solo (which builds as choruses stack up).
+    //
+    // This used to fire a tenth of a bar out and dispose the playing parts on
+    // the spot, which left the whole build — 45ms on a laptop, 107ms measured
+    // under load — inside the last 120ms before the downbeat. Miss that window
+    // and the new parts register their first events after the transport has
+    // already gone past those ticks: the top of the chorus simply does not
+    // sound, which is the bug where the first bar is not what the line on
+    // screen says. A whole bar of room instead, and both generations are alive
+    // across the seam — see the gate in _buildParts, which is what lets the
+    // ending chorus keep its tail while the new parts stay silent until the
+    // downbeat they were written for.
+    const secPerBar = () => (60 / Tone.getTransport().bpm.value) * (song.timeSignature ?? 4);
     t.scheduleRepeat(
-      () => {
+      (time) => {
         this._chorus++;
-        if (this.rampBpm) {
-          const next = Math.min(this.rampCap, Tone.getTransport().bpm.value + this.rampBpm);
-          this.setBpm(Math.round(next));
-          this.cb.onTempo?.(Math.round(next));
-        }
         // the plan made halfway through the chorus that is ending, if it got
         // there — a dial moved mid-chorus throws it away and builds fresh
         const ready = this._nextPlan;
         this._nextPlan = null;
-        this._buildParts(song, ready ?? this._planChorus(song));
+        this._buildParts(song, ready ?? this._planChorus(song), time + secPerBar());
       },
       `${song.progression.length}m`,
-      // 0.1 bar before the wrap — measured from the loop point, not from bar 1,
+      // one bar before the wrap — measured from the loop point, not from bar 1,
       // or a two-bar count-in fires this a whole bar into the chorus that is
       // still playing and rebuilds the parts out from under it
-      `${song.progression.length + this._countBars - 0.1}m`
+      `${song.progression.length + this._countBars - 1}m`
+    );
+
+    // The ramp steps on the downbeat, not with the build. Moving the build a
+    // bar early would otherwise change tempo a bar before the chorus it
+    // belongs to, which is audible in a way a rebuild is not.
+    t.scheduleRepeat(
+      () => {
+        // the loop point, so: every chorus after the first. An event scheduled
+        // at loopEnd never fires — the transport is already back at loopStart
+        // by then — which is why this counts from the top of the form instead.
+        if (!this.rampBpm || (this._chorus ?? 0) < 1) return;
+        const next = Math.min(this.rampCap, Tone.getTransport().bpm.value + this.rampBpm);
+        this.setBpm(Math.round(next));
+        this.cb.onTempo?.(Math.round(next));
+      },
+      `${song.progression.length}m`,
+      `${this._countBars}m`
     );
     this.playing = true;
     this.paused = false;
@@ -1196,6 +1232,7 @@ export class Band {
     if (!this.playing || this.paused) return;
     Tone.getTransport().pause();
     this.paused = true;
+    this._pausedAt = Tone.now();
     // a sampled note holds its tail past the pause otherwise, so the bar
     // rings on over a stopped band
     this.piano?.stop?.();
@@ -1207,6 +1244,16 @@ export class Band {
   resume() {
     if (!this.playing || !this.paused) return;
     this.paused = false;
+    // The parts hand over at an audio time, and audio time ran on while the
+    // transport did not. Without this, a pause taken in the last bar comes back
+    // with that bar handed over already: the chorus that was ending loses its
+    // tail and the next chorus's parts play a bar of themselves early.
+    const dt = Tone.now() - (this._pausedAt ?? Tone.now()) + 0.05;
+    for (const g of [this._gate, this._prevGate, this._soloGate, this._prevSoloGate]) {
+      if (!g) continue;
+      if (Number.isFinite(g.from)) g.from += dt;
+      if (Number.isFinite(g.until)) g.until += dt;
+    }
     Tone.getTransport().start("+0.05");
   }
 
@@ -1218,9 +1265,14 @@ export class Band {
     this._nextPlan = null;
     this._setBandSilent(false); // a stop landing inside a chord break would stay muted
     this.parts.forEach((p) => p.dispose());
+    this._retired?.forEach((p) => p.dispose());
+    this._retired = null;
     this.parts = [];
     this.soloPart?.dispose();
+    this._retiredSolo?.dispose();
+    this._retiredSolo = null;
     this.soloPart = null;
+    this._gate = this._prevGate = this._soloGate = this._prevSoloGate = null;
     this.playing = false;
     this.piano?.stop?.();
     this.bass?.stop?.();
@@ -1428,12 +1480,19 @@ export class Band {
   }
 
   /**
-   * Hand a plan to the transport. Everything here is scheduling — disposing
-   * the old parts and creating the new ones — and it is all that has to happen
-   * at the loop point. The generation it used to do first now runs a chorus
+   * Hand a plan to the transport. Everything here is scheduling — retiring the
+   * old parts and creating the new ones — and it is all that has to happen at
+   * the loop point. The generation it used to do first now runs a chorus
    * early, in _planChorus.
+   *
+   * `handAt` is the audio time the parts being built take over: the downbeat
+   * of the chorus they were written for. The loop-point caller passes it a bar
+   * ahead, so the build has a bar to finish in rather than a tenth of one, and
+   * both generations are alive across the seam — gated by time, not disposed.
+   * A dial change passes nothing and takes over immediately, which is what a
+   * dial change means.
    */
-  _buildParts(song, plan = null) {
+  _buildParts(song, plan = null, handAt = 0) {
     // No plan means something changed — a dial, the feel, the colour — and
     // this is a rebuild rather than the loop point arriving. Whatever was
     // planned ahead was planned under the old settings, so it goes.
@@ -1441,14 +1500,37 @@ export class Band {
       this._nextPlan = null;
       plan = this._planChorus(song);
     }
-    this.parts.forEach((p) => p.dispose());
+
+    // The window this generation of parts sounds in. The one it replaces is
+    // closed at the same instant, so every tick between here and the downbeat
+    // belongs to exactly one of them: the chorus that is ending keeps its last
+    // bar, including the push over the barline, and the new parts stay silent
+    // in ticks that are theirs a whole loop later.
+    const gate = { from: handAt, until: Infinity };
+    if (handAt) {
+      if (this._gate) this._gate.until = handAt;
+      // one generation back is a chorus finished and gated shut; it is disposed
+      // here rather than at the seam, where the time it takes is the whole
+      // problem this window exists to solve
+      this._retired?.forEach((p) => p.dispose());
+      this._retired = this.parts;
+      this._prevGate = this._gate;
+    } else {
+      this.parts.forEach((p) => p.dispose());
+      this._retired?.forEach((p) => p.dispose());
+      this._retired = null;
+      this._prevGate = null;
+    }
+    this._gate = gate;
     this.parts = [];
+
     const { ev, chords, totalBeats, style, bpb, soloEvents, shift } = plan;
     // the chart on screen has to move with the band, or you are reading one key
-    // and hearing another
+    // and hearing another — and it moves when the band does, not when the parts
+    // for it happen to get built
     if (shift !== this._soundingShift) {
       this._soundingShift = shift;
-      this.cb.onKeyShift?.(shift);
+      this._atHandOver(handAt, () => this.cb.onKeyShift?.(shift));
     }
 
     const beatSec = () => 60 / Tone.getTransport().bpm.value;
@@ -1461,7 +1543,10 @@ export class Band {
       return `${bar}:${Math.floor(rem)}:${Math.round((rem % 1) * 4)}`;
     };
     const mk = (events, cb) => {
-      const part = new Tone.Part(cb, events.map((e) => [toBBS(e.beat), e]));
+      const part = new Tone.Part((time, e) => {
+        if (time < gate.from - 1e-6 || time >= gate.until - 1e-6) return;
+        cb(time, e);
+      }, events.map((e) => [toBBS(e.beat), e]));
       part.start(0);
       this.parts.push(part);
     };
@@ -1608,11 +1693,38 @@ export class Band {
     // _makeSoloPart used to be the thing that disposed the old part, so
     // skipping it would leave the previous chorus's line playing under a
     // soloist who has been switched off.
-    if (soloEvents.length) this._makeSoloPart(soloEvents);
+    if (soloEvents.length) this._makeSoloPart(soloEvents, handAt);
     else {
-      this.soloPart?.dispose();
+      this._retireSolo(handAt);
       this.soloPart = null;
       this.soloEvents = [];
+    }
+  }
+
+  /** Run something when the parts being built take over — the moment the chart
+   *  and the line on screen belong to the new chorus rather than the old one.
+   *  A plain timer rather than Tone's draw queue: draw runs off rAF, which a
+   *  hidden tab stops, and coming back to a stale line for a chorus is worse
+   *  than a repaint that is a frame out. */
+  _atHandOver(handAt, fn) {
+    const ms = handAt ? (handAt - Tone.now()) * 1000 : 0;
+    if (ms <= 0) fn();
+    else setTimeout(fn, ms);
+  }
+
+  /** Close the playing solo part's window — at the hand-over if there is one,
+   *  or now, for a dial change that has to be heard at once. */
+  _retireSolo(handAt) {
+    this._retiredSolo?.dispose();
+    this._retiredSolo = null;
+    if (!this.soloPart) return;
+    if (handAt) {
+      if (this._soloGate) this._soloGate.until = handAt;
+      this._prevSoloGate = this._soloGate;
+      this._retiredSolo = this.soloPart;
+    } else {
+      this.soloPart.dispose();
+      this._prevSoloGate = null;
     }
   }
 
@@ -1672,10 +1784,12 @@ export class Band {
     this._makeSoloPart(this._soloEvents(ctx.chords, ctx.totalBeats, ctx.style, this.soloRange.lo, this.soloRange.hi, ctx.bpb, ctx.key));
   }
 
-  _makeSoloPart(events) {
+  _makeSoloPart(events, handAt = 0) {
     const ctx = this._songCtx;
     if (!ctx) return;
-    this.soloPart?.dispose();
+    this._retireSolo(handAt);
+    const gate = { from: handAt, until: Infinity };
+    this._soloGate = gate;
     const ppq = Tone.getTransport().PPQ;
 
     // Tone swings at the tick level: every event off the beat is displaced by
@@ -1720,9 +1834,14 @@ export class Band {
       return invert(e.beat);
     };
     this.soloEvents = [...events].sort((a, b) => a.beat - b.beat);
-    this.cb.onSoloLine?.(this.soloEvents, { chords: ctx.chords, totalBeats: ctx.totalBeats, bpb: ctx.bpb });
+    // The line on screen changes when the line you hear does. Painting it at
+    // build time would now put the next chorus on the page a bar early.
+    this._atHandOver(handAt, () =>
+      this.cb.onSoloLine?.(this.soloEvents, { chords: ctx.chords, totalBeats: ctx.totalBeats, bpb: ctx.bpb })
+    );
     this.soloPart = new Tone.Part((time, e) => {
       if (!this.soloOn) return;
+      if (time < gate.from - 1e-6 || time >= gate.until - 1e-6) return;
       const st = SOLO_STYLES[this.soloStyleName]?.p ?? {};
       const durSec = e.dur * ctx.beatSec();
       const when = time + (((st.lag ?? 19) * (STYLE_FEEL[ctx.style]?.lag ?? 1)) / 1000) * (1 - 0.55 * SOLO_HEAT) + ((e.lagAdj ?? 0) / 1000) + rnd(-0.004, 0.004);
@@ -3078,7 +3197,17 @@ export class Band {
       // chord, not a strum that rings — at 0.42 of a beat four of them a bar
       // filled the space between the ride and the bass, and the guitar was the
       // loudest thing in a band it is supposed to sit under.
-      const hold = style === "modal" ? 2.2 : style === "latin" ? 0.5 : straight ? 0.6 : 0.28;
+      // Funk is a chank, not a chord: damped, short, even. It used to fall
+      // through to the straight branch's 0.6-beat hold *and* take a +10 lift,
+      // the only style carrying both — so a full three-note shape landing among
+      // ghosted singles read as the guitar suddenly shouting mid-bar.
+      const hold =
+        style === "modal" ? 2.2 : style === "funk" ? 0.18 : style === "latin" ? 0.5 : straight ? 0.6 : 0.28;
+
+      // One hand position for the whole bar. A funk guitarist does not change
+      // how many strings are sounding between one 16th and the next, and it was
+      // that per-hit re-roll that made the loud ones read as accidents.
+      const funkFull = style === "funk" && rand() < 0.5;
 
       for (const off of offsets) {
         const beat = bar * bpb + off;
@@ -3086,11 +3215,12 @@ export class Band {
         const accent = !straight && off % 2 === 1; // lean on 2 & 4
         const lean =
           style === "blues" && (off === 1 || off === 3) ? 8 : style === "modal" ? -8 : 0;
+        const full = shapes.get(c) ?? guitarVoicing(c.info, variant);
         events.push({
           beat,
           dur: hold,
-          midis: ghost(shapes.get(c) ?? guitarVoicing(c.info, variant), accent),
-          vel: Math.max(18, Math.round(rnd(30, 38)) + (accent ? 6 : 0) + (style === "funk" ? 10 : 0) + lean),
+          midis: style === "funk" ? (funkFull ? full : full.slice(1)) : ghost(full, accent),
+          vel: Math.max(18, Math.round(rnd(30, 38)) + (accent ? 6 : 0) + (style === "funk" ? 4 : 0) + lean),
         });
       }
 
