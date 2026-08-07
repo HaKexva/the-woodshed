@@ -77,7 +77,7 @@ export const STRINGS = {
     comp: "comp",
     compPlain: "plain",
     compWarm: "warm",
-    compSub: "how much it reaches",
+    compSub: "how full",
     feel: "feel",
     feelAuto: "as written",
     feelBallad: "ballad",
