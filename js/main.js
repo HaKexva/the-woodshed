@@ -1293,6 +1293,7 @@ $("#editor-overlay").addEventListener("click", (e) => {
 // above a near-full-height sheet, so this stopped being optional.
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !$("#editor-overlay").hidden) closeEditor();
+  if (e.key === "Escape" && !$("#tip-overlay").hidden) closeTipJar();
 });
 
 
@@ -1543,8 +1544,49 @@ const TIP_JAR_URL = "https://ko-fi.com/the_woodshed";
 
 if (TIP_JAR_URL) {
   $("#tip-jar").href = TIP_JAR_URL;
+  $("#tip-direct").href = TIP_JAR_URL;
   $("#tip-line").hidden = false;
 }
+
+/**
+ * Open the tip jar in place.
+ *
+ * The frame is built on the first open and kept afterwards, so Ko-fi is not
+ * contacted at all unless somebody asks for it — the page loads no third-party
+ * anything otherwise, and it would be a poor trade to give that up for a
+ * button. The link keeps its href and its middle-click, so opening it in a tab
+ * still works and the whole thing degrades to what it was without script.
+ */
+function openTipJar() {
+  const host = $("#tip-frame");
+  if (!host.firstChild) {
+    const frame = document.createElement("iframe");
+    frame.src = `${TIP_JAR_URL.replace(/\/$/, "")}/?hidefeed=true&widget=true&embed=true&preview=true`;
+    frame.title = t("tipJar");
+    frame.loading = "lazy";
+    host.appendChild(frame);
+  }
+  $("#tip-overlay").hidden = false;
+  lockPage();
+  $("#tip-close").focus();
+}
+
+function closeTipJar() {
+  $("#tip-overlay").hidden = true;
+  unlockPage();
+  $("#tip-jar").focus();
+}
+
+$("#tip-jar").addEventListener("click", (e) => {
+  // a modified click is someone asking for a tab, and that is theirs to have
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+  e.preventDefault();
+  openTipJar();
+});
+$("#tip-close").addEventListener("click", closeTipJar);
+$("#tip-overlay").addEventListener("click", (e) => {
+  if (e.target === $("#tip-overlay")) closeTipJar(); // the backdrop, not the card
+});
 
 // ------------------------------------------------------------------ boot
 

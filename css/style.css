@@ -1206,6 +1206,75 @@ body.modal-open {
 
 /* -------------------------------------------------------------- credits */
 
+/* The tip jar modal. Same shell as the editor overlay — a dark scrim, a card
+   that stops the click, and the page locked behind it — with the Ko-fi frame
+   dropped in on first open. */
+.tip-overlay[hidden] { display: none; }
+
+.tip-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(15, 18, 22, 0.82);
+}
+
+.tip-modal {
+  width: min(26rem, 100%);
+  /* a height rather than a max-height: the frame has to be *given* the room,
+     or it sizes to its own minimum and Ko-fi's tip button falls off the bottom */
+  height: min(46rem, 92vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--ink-2);
+  border: 2px solid var(--cream-25);
+}
+
+.tip-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.1rem 0.7rem;
+  border-bottom: 1px solid var(--cream-10);
+}
+
+.tip-head h2 {
+  font-family: var(--display);
+  font-size: 1.3rem;
+  font-weight: 400;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
+/* Ko-fi's own frame. It brings its own white background, so it is boxed rather
+   than bled into the page — pretending it is ours would only make the seam
+   more obvious. */
+.tip-frame {
+  flex: 1 1 auto;
+  min-height: 0;
+  background: #fff;
+}
+
+.tip-frame iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.tip-fallback {
+  padding: 0.6rem 1.1rem 0.8rem;
+  font-size: 0.72rem;
+  border-top: 1px solid var(--cream-10);
+}
+
+.tip-fallback a { color: var(--cream-60); text-decoration: none; }
+.tip-fallback a:hover { color: var(--amber); }
+
 /* The tip jar, at the foot of the page.
    Outside the credits because those are citations and this is the one line
    addressed to the reader — and given its own rule above the fold of the

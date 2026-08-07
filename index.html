@@ -405,6 +405,26 @@
     <span class="hint"><kbd>space</kbd> <span data-i18n="hint">play / stop</span></span>
   </footer>
 
+  <!-- The tip jar, in place rather than away.
+       Ko-fi ship a widget script, and taking it would put a third-party script
+       on every load of an app that otherwise works with the network off. This
+       is our own shell instead, and the Ko-fi frame inside it is not created
+       until somebody opens it — so nothing third-party loads unless you ask. -->
+  <div id="tip-overlay" class="tip-overlay" hidden>
+    <div class="tip-modal" role="dialog" aria-modal="true" aria-labelledby="tip-heading">
+      <div class="tip-head">
+        <h2 id="tip-heading"><span data-i18n="tipJar">tip jar</span><span class="brand-dot">.</span></h2>
+        <button type="button" id="tip-close" class="ed-close" data-i18n-aria="ed.close" aria-label="close">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div id="tip-frame" class="tip-frame"></div>
+      <p class="tip-fallback">
+        <a id="tip-direct" href="#" target="_blank" rel="noopener" data-i18n="tipOpenPage">open the page instead →</a>
+      </p>
+    </div>
+  </div>
+
   <div id="editor-overlay" class="editor-overlay" hidden>
     <div class="editor" role="dialog" aria-modal="true" aria-labelledby="ed-heading">
       <div class="ed-grab" id="ed-grab" role="button" tabindex="0" aria-label="close"></div>
