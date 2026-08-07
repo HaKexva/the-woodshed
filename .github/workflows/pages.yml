@@ -17,6 +17,8 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  # deploy-pages has documented this as required since v4
+  actions: read
 
 # One deploy at a time, and never cancel one that is already running: a
 # half-published site is worse than a late one. The group is deliberately not
@@ -50,15 +52,18 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Configure Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
-      # the repo root is the site: index.html at the top, with css/, js/ and
-      # samples/ beside it. .git and .github are excluded by the action.
+      # The repo root is the site: index.html at the top, with css/, js/ and
+      # samples/ beside it. .git and .github are excluded by the action, and
+      # from v4 it drops dotfiles generally — which costs this site nothing,
+      # because those two are the only ones and neither is served. Anything
+      # that has to ship from a dotfile in future needs a different upload.
       - name: Upload the site
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: .
 
       - name: Deploy
         id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
