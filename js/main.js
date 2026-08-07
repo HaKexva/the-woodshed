@@ -707,10 +707,14 @@ function renderStyleBlurb() {
 }
 renderStyleBlurb();
 
+// Two groups share the chip style — voicing and instrument — so each click
+// only speaks for its own group. Toggling every .voice-chip on the page would
+// clear the other picker's selection along with it.
 $$(".voice-chip").forEach((b) =>
   b.addEventListener("click", () => {
-    band.setSoloVoicing(b.dataset.voice);
-    $$(".voice-chip").forEach((x) => x.classList.toggle("active", x === b));
+    if (b.dataset.voice) band.setSoloVoicing(b.dataset.voice);
+    else if (b.dataset.soloinst) band.setSoloInstrument(b.dataset.soloinst);
+    [...b.parentElement.children].forEach((x) => x.classList.toggle("active", x === b));
   })
 );
 

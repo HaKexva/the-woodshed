@@ -3,7 +3,7 @@
 // supply piano / bass / guitar; drums are Tone synths (no samples to host).
 
 import * as Tone from "https://cdn.jsdelivr.net/npm/tone@15.1.22/+esm";
-import { Soundfont, SplendidGrandPiano, Sampler } from "https://cdn.jsdelivr.net/npm/smplr@1.0.0/+esm";
+import { Soundfont, SplendidGrandPiano, Sampler, Mallet } from "https://cdn.jsdelivr.net/npm/smplr@1.0.0/+esm";
 import {
   parseChord,
   voiceComp,
@@ -44,8 +44,26 @@ const SOLO_CANTABILE = 0.625;
 // the first attempt at horns (WebAudioFont JCLive, commit 4576d1c) was pulled
 // too. See research/solo-vocabulary-plan.md for what a convincing pack would
 // have to come from.
+// Vibes are the second voice, and the reason they work where the horns did not
+// is not taste — it is what a sample can tell the truth about. A GM horn fails
+// because one velocity layer and a looped sustain say every note was blown the
+// same way, which is the opposite of what a horn is. A struck bar has no
+// breath, no embouchure and no sustained-tone shaping: it is hit once and then
+// it decays. "One attack, then decay" is exactly what a sample is, so the
+// recording is not standing in for anything.
+//
+// VCSL's vibraphone (CC0, real recordings, reached through smplr's Mallet
+// rather than any soundfont) samples F3–F6 with no gaps — measured note by
+// note offline, not assumed. The range below sits inside that with headroom at
+// both ends, so nothing the generator clamps can land on an unsampled bar.
 export const SOLO_INSTRUMENTS = {
   piano: { label: "piano", lo: SOLO_LO, hi: SOLO_HI, mono: false, breath: Infinity, floor: 25, trim: 1 },
+  vibes: { label: "vibes", lo: 55, hi: 86, mono: false, breath: Infinity, floor: 25, trim: 1.15 },
+};
+/** How each soloist is built. Kept beside the table it belongs to. */
+const SOLO_LOADERS = {
+  piano: (ctx, dest) => new SplendidGrandPiano(ctx, { destination: dest }),
+  vibes: (ctx, dest) => new Mallet(ctx, { instrument: "Vibraphone - Soft Mallets", destination: dest }),
 };
 // Song-style feel layer — composes multiplicatively with the soloist-style
 // presets so a Parker solo over a bossa still swings *bossa*. swing is the
@@ -242,6 +260,7 @@ export class Band {
     this.soloOn = false;
     this.soloFeel = { crowd: 0.5, phrase: 0.5 }; // note packing · how long a statement runs
     this.soloStyleName = "silver";
+    this.soloInstName = "piano"; // piano · vibes — see SOLO_INSTRUMENTS
     this.soloVoicing = "mono"; // mono: single-note line · multi: doubled holds, stabs, octaves
     this.soloInst = null;
     this.soloPart = null;
@@ -784,19 +803,37 @@ export class Band {
   /** The soloist's sounding range. A table lookup rather than a constant, so a
    *  future sampled horn only has to declare its own. */
   get soloRange() {
-    return SOLO_INSTRUMENTS.piano;
+    return SOLO_INSTRUMENTS[this.soloInstName] ?? SOLO_INSTRUMENTS.piano;
+  }
+
+  /** Switch the soloist's instrument. Each one is loaded once and kept. */
+  async setSoloInstrument(name) {
+    if (!(name in SOLO_INSTRUMENTS) || name === this.soloInstName) return;
+    this.soloInstName = name;
+    this.soloInst = null;
+    await this.loadSoloist();
+    // the range moved, so the line has to be written for the new one
+    this._nextPlan = null;
+    if (this.playing) this._rebuildSoloPart();
   }
 
   /** Lazy-load the soloist. */
   async loadSoloist() {
     await this.setup();
     if (this.soloInst) return;
+    const name = this.soloInstName;
+    this._soloInsts ??= {};
+    if (this._soloInsts[name]) {
+      this.soloInst = this._soloInsts[name];
+      return;
+    }
     try {
-      const inst = new SplendidGrandPiano(this.ctx, { destination: this.gains.solo });
+      const inst = SOLO_LOADERS[name](this.ctx, this.gains.solo);
       await inst.load;
+      this._soloInsts[name] = inst;
       this.soloInst = inst;
     } catch (e) {
-      console.warn("solo piano failed, using synth fallback", e);
+      console.warn(`solo ${name} failed, using synth fallback`, e);
       this.soloInst = this._synthFallback("piano", this.gains.solo);
     }
   }
