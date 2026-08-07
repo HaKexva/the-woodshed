@@ -307,8 +307,21 @@ function renderSystemView(curBar) {
         html += `<span class="sys-cell"></span>`;
         continue;
       }
+      // Each symbol is its own box so a crowded bar wraps between chords
+      // rather than being cut off mid-symbol. data-n carries how many, so the
+      // type can step down with the crowding instead of at one threshold.
+      //
+      // A lone symbol cannot wrap between anything, and the longest in the
+      // book — AMaj7#11/Gb — is wider than a quarter of a phone at any size
+      // worth reading. A slash chord may break after the slash, which is how
+      // it is read anyway; data-long then takes the rest of the way.
       const cls = `sys-cell${bar.length > 1 ? " multi" : ""}${b === curBar ? " on" : ""}`;
-      html += `<span class="${cls}">${bar.map((x) => written(x.chord)).join(" ")}</span>`;
+      const syms = bar.map((x) => written(x.chord));
+      const longest = Math.max(...syms.map((s) => s.length));
+      const long = longest >= 8 ? ` data-long="${Math.min(longest, 11)}"` : "";
+      html += `<span class="${cls}" data-n="${bar.length}"${long}>${syms
+        .map((s) => `<span class="sys-ch">${s.replace("/", "/<wbr>")}</span>`)
+        .join("")}</span>`;
     }
     return html;
   };

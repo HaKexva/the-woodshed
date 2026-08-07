@@ -1764,21 +1764,56 @@ select.pedal-v option { background: var(--ink-2); font-family: var(--body); text
   .sys-row.next { opacity: 0.5; }
   .sys-row.live { border-color: var(--cream-60); }
 
+  /* A bar of four chords cannot fit a quarter of a phone on one line, and the
+     old ellipsis answered that by cutting the symbol in half — "Fm7b5 Ab…" is
+     not a chord anybody can play. So the cell wraps between symbols instead:
+     each chord is its own unbreakable box, and a crowded bar simply gets
+     taller. Nothing is ever cut. */
   .sys-cell {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0 0.32em;
+    min-width: 0;
     border-right: 2px solid var(--cream-25);
-    padding: 0.6rem 0.15rem;
+    padding: 0.6rem 0.2rem;
     text-align: center;
     font-weight: 600;
     font-size: 0.85rem;
     letter-spacing: 0.01em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
+  /* A symbol holds no spaces, so it stays whole on its own line without being
+     told to — except at the <wbr> after a slash, which is the one place a
+     chord is allowed to break. Nowrap here would forbid even that. */
+  .sys-ch { min-width: 0; }
+
+  /* the last resort for a symbol too long to wrap: step it down, relative to
+     whatever size the crowding already settled on */
+  .sys-cell[data-long="8"] .sys-ch { font-size: 0.9em; }
+  .sys-cell[data-long="9"] .sys-ch { font-size: 0.82em; }
+  .sys-cell[data-long="10"] .sys-ch,
+  .sys-cell[data-long="11"] .sys-ch { font-size: 0.76em; }
   .sys-cell:last-child { border-right: 0; }
-  .sys-row.live .sys-cell { font-size: 1.08rem; padding: 0.95rem 0.15rem; }
-  .sys-cell.multi { font-size: 0.72rem; }
-  .sys-row.live .sys-cell.multi { font-size: 0.85rem; }
+  .sys-row.live .sys-cell { font-size: 1.08rem; padding: 0.95rem 0.2rem; }
+
+  /* Type steps down with the crowding rather than at a single threshold. The
+     lone symbol stays big — it is the one you read at a glance — and only the
+     bars that actually need the room give it up. AMaj7#11/Gb is the longest
+     symbol in the book and cannot wrap, so a full bar of one chord keeps
+     enough headroom for it. */
+  .sys-cell[data-n="2"] { font-size: 0.74rem; }
+  .sys-cell[data-n="3"] { font-size: 0.68rem; }
+  .sys-cell[data-n="4"], .sys-cell[data-n="5"] { font-size: 0.62rem; }
+  .sys-row.live .sys-cell[data-n="2"] { font-size: 0.92rem; }
+  .sys-row.live .sys-cell[data-n="3"] { font-size: 0.82rem; }
+  .sys-row.live .sys-cell[data-n="4"],
+  .sys-row.live .sys-cell[data-n="5"] { font-size: 0.72rem; }
+
+  /* the row keeps its height when the bars above and below are less crowded,
+     so moving through the form does not make the chart jump */
+  .sys-row { min-height: 3rem; }
+  .sys-row.live { min-height: 3.9rem; }
   .sys-cell.on { background: var(--amber); color: var(--ink); }
   .sleeve { border-right: 0; border-bottom: 2px solid var(--cream-25); min-height: 0; padding-bottom: 1rem; }
 
