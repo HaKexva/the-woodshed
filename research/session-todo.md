@@ -73,6 +73,28 @@ The lead sheet also dims every bar outside the line being played and the one
 after it, wrapping at the end of the form. Not from either review; it came out of
 using the thing.
 
+**Not on the list: the soloist now knows what key the tune is in.** It had been
+picking its scale from chord quality alone, which cannot tell a I chord from a
+IV — so every maj7 got ionian, and over the IV the line played a natural 11.
+Now a chord that is wholly diatonic to the key draws from the key's own
+collection rotated onto it (IV → lydian, vi → aeolian, iii → phrygian), and V7
+of a minor key gets phrygian dominant, whose b9 and b13 are notes the tune has
+been playing all along. A chord the key has no claim on — a secondary dominant,
+a tritone sub, a modulation — keeps the quality lookup untouched, which is what
+leaves Coltrane changes alone. It moves 16.5% of the songbook's chord beats.
+
+The tunes label their key with a bare letter 420 times out of 447, and some of
+those are minor tunes: Mr. P.C. and Footprints both say "C". The progression is
+the authority the label is not, so a bare label is settled by what quality the
+tune's own tonic chord turns out to be. That reads 55 of them as minor.
+
+Writing that turned up an unrelated bug it had nothing to do with. Nine chord
+qualities were missing from the chord-scale table and fell through to a
+mixolydian default that contradicts the symbol outright — a natural 9 over
+C7b9, a natural 11 over C9#11, a major 3rd over Cmb6. A chord scale may add
+notes to a chord; it may never take away the ones the symbol spells, and that
+is now a check rather than a hope.
+
 Item 23 is worth more than its position suggests: without a seeded band every
 measurement here is an average over many takes rather than an A/B, and that is
 the whole reason the guitar took three attempts. What is left is now mostly
@@ -85,6 +107,10 @@ Stub Tone and smplr, import `js/band.js` in Node, and call the event builders of
 and the transport bpm); `_pianoEvents` and `_guitarEvents` do not. Watch the bpm
 stub — several drum branches are gated on tempo, and a `bpm` that reads back
 `undefined` silently disables kick feathering and half the fill vocabulary.
+
+The scripts run against *copies* of `js/`, so refresh them first — a stale copy
+reports green for code that no longer exists. That is now the first line of the
+runner rather than something to remember.
 
 Measure the thing that changed, not the thing next to it. Three checks on this
 work failed on their own assumptions rather than on the code: voice leading read
