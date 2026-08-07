@@ -47,7 +47,7 @@ const savedReading = localStorage.getItem("woodshed-reading");
 let readingKey = savedReading in READING_KEYS ? savedReading : "C";
 const shift = () => READING_KEYS[readingKey].shift;
 /** A chord symbol as this instrument should read it. */
-const written = (symbol) => transposeSymbol(symbol, shift());
+const written = (symbol) => transposeSymbol(symbol, state.soundingShift + shift());
 
 const state = {
   mode: "session", // session | inspire
@@ -62,6 +62,10 @@ const state = {
   boost: false, // Bass+ — harmonics that stand in for a fundamental a speaker cannot make
   stopAfter: 0, // choruses to play before stopping — 0 runs until you stop it
   chorus: 0, // times round the form so far, 1-based while playing
+  // Semitones the band is sounding above the written chart. Reading
+  // transposition sits on top of this: one changes the sound, the other only
+  // the page, and the chart has to show both.
+  soundingShift: 0,
 };
 
 const band = new Band({
@@ -72,6 +76,11 @@ const band = new Band({
   onTempo: (bpm) => {
     $("#tempo").value = bpm;
     $("#tempo-val").textContent = bpm;
+  },
+  onKeyShift: (semitones) => {
+    if (semitones === state.soundingShift) return;
+    state.soundingShift = semitones;
+    redrawChart();
   },
   onProgress: (n, total) => setStatus(t("status.loading", { n, total })),
   onReady: () => {
@@ -183,7 +192,7 @@ function selectSong(i) {
   state.currentSong = song;
   $("#song-title").textContent = song.title;
   $("#song-detail").textContent =
-    `${song.composer} — ${transposeKey(song.key, shift())} · ${song.form} · ${song.style}`;
+    `${song.composer} — ${transposeKey(song.key, state.soundingShift + shift())} · ${song.form} · ${song.style}`;
   $("#tempo").value = song.bpm;
   $("#tempo-val").textContent = song.bpm;
   band.bpmOverride = null;
@@ -345,6 +354,17 @@ function readingKeyContext() {
   if (!k || !by) return k;
   const move = (pc) => ((((pc + by) % 12) + 12) % 12);
   return { ...k, tonicPc: move(k.tonicPc), pcs: k.pcs.map(move) };
+}
+
+/** Every surface that spells a chord, after the key underneath it moved. */
+function redrawChart() {
+  const song = state.currentSong;
+  if (!song) return;
+  $("#song-detail").textContent =
+    `${song.composer} — ${transposeKey(song.key, state.soundingShift + shift())} · ${song.form} · ${song.style}`;
+  renderLeadsheet(song);
+  renderSystemView(lastBar);
+  renderRig();
 }
 
 function renderSoloStrip(info) {
@@ -550,6 +570,7 @@ function renderRig() {
   armPedal("#pedal-feel", $("#band-feel").value !== "auto");
   armPedal("#pedal-comp", $("#comp-colour").value !== "warm");
   armPedal("#pedal-loop", $("#loop-range").value !== "");
+  armPedal("#pedal-key", $("#sounding-key").value !== "0");
 
   $("#boost-v").textContent = t(state.boost ? "boostOn" : "rampOff");
   $("#bass-boost").setAttribute("aria-pressed", String(state.boost));
@@ -873,6 +894,15 @@ $("#comp-colour").addEventListener("change", (e) => {
 // Not remembered between tunes, unlike the other pedals: bar 9 means something
 // different in every song, and a loop you forgot you left on is the worst way
 // to find that out.
+// One control, two jobs, because they are the same question: what key is this
+// sounding in. A fixed shift answers it once; a step answers it again every
+// chorus, which is how a tune gets taken round all twelve.
+$("#sounding-key").addEventListener("change", (e) => {
+  const [kind, n] = e.target.value.includes(":") ? e.target.value.split(":") : ["shift", "0"];
+  band.setKey({ shift: kind === "shift" ? Number(n) : 0, step: kind === "step" ? Number(n) : 0 });
+  renderRig();
+});
+
 $("#loop-range").addEventListener("change", (e) => {
   const v = e.target.value;
   if (!v) band.setSectionLoop(null);
@@ -899,7 +929,7 @@ $("#reading-key").addEventListener("change", (e) => {
   const song = state.currentSong;
   if (song) {
     $("#song-detail").textContent =
-      `${song.composer} — ${transposeKey(song.key, shift())} · ${song.form} · ${song.style}`;
+      `${song.composer} — ${transposeKey(song.key, state.soundingShift + shift())} · ${song.form} · ${song.style}`;
     renderLeadsheet(song);
   }
   if (lastChord) handleChord(lastChord);

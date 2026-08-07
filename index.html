@@ -279,6 +279,35 @@
       <!-- Working one passage: the section list comes from the form model, so
            the range always snaps to a phrase rather than to wherever you
            dragged. Rebuilt whenever the tune changes. -->
+      <!-- The only pedal that changes what *sounds*. Reading, two along, changes
+           what is written and never what is played; these two sitting apart in
+           the row is deliberate. -->
+      <label class="pedal" id="pedal-key">
+        <span class="pedal-k" data-i18n="keyK">key</span>
+        <select id="sounding-key" class="pedal-v" aria-label="sounding key">
+          <option value="0" data-i18n="keyAsWritten">as written</option>
+          <optgroup label="play it in" data-i18n-label="keyPlayIn">
+            <option value="shift:1">up 1</option>
+            <option value="shift:2">up 2</option>
+            <option value="shift:3">up 3</option>
+            <option value="shift:4">up 4</option>
+            <option value="shift:5">up 5</option>
+            <option value="shift:6">up 6</option>
+            <option value="shift:7">up 7</option>
+            <option value="shift:8">up 8</option>
+            <option value="shift:9">up 9</option>
+            <option value="shift:10">up 10</option>
+            <option value="shift:11">up 11</option>
+          </optgroup>
+          <optgroup label="round the keys" data-i18n-label="keyRound">
+            <option value="step:1" data-i18n="keyStep1">+1 a chorus</option>
+            <option value="step:5" data-i18n="keyStep5">+5 a chorus</option>
+            <option value="step:7" data-i18n="keyStep7">+7 a chorus</option>
+          </optgroup>
+        </select>
+        <span class="pedal-sub" data-i18n="keySub">what sounds</span>
+      </label>
+
       <label class="pedal" id="pedal-loop">
         <span class="pedal-k" data-i18n="loopK">loop</span>
         <select id="loop-range" class="pedal-v" aria-label="section loop"></select>
