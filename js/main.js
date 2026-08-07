@@ -1528,6 +1528,24 @@ $("#lang-toggle").addEventListener("click", () => {
   renderRig(); // the pedal values are written from state, not from data-i18n
 });
 
+// The tip jar.
+//
+// Set this to a Ko-fi / Buy Me a Coffee / GitHub Sponsors URL and the line
+// appears; leave it empty and nothing ships, which is why an unset link cannot
+// go out broken. It sits outside the credits disclosure on purpose — a donate
+// link folded behind a summary is not a donate link — but it is one quiet line,
+// because the tool is the pitch.
+//
+// It asks for support of the tool, deliberately not of the songbook. The
+// changes come from corpora under CC BY 4.0 and GPL-2.0, the samples from CC0
+// and CC BY-SA packs, and none of that is ours to sell. See the credits.
+const TIP_JAR_URL = "";
+
+if (TIP_JAR_URL) {
+  $("#tip-jar").href = TIP_JAR_URL;
+  $("#tip-line").hidden = false;
+}
+
 // ------------------------------------------------------------------ boot
 
 applyStatic();
