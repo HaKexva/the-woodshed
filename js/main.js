@@ -1005,16 +1005,45 @@ function renderEditorSheet() {
 // a save or delete message outranks the live parse line until the next keystroke
 let editorHeld = false;
 
+/* ---- the key is a list now, not a text box -----------------------------
+ *
+ * It used to be free text, back when the key was a caption. The soloist reads
+ * it now: it decides whether the IV chord gets lydian and whether the V7 of a
+ * minor tune gets its b9. "Bb Major" still parses, but "B flat" or "bbm" does
+ * not, and the cost of that typo is the whole key context going quietly
+ * missing — no error, just a line that plays the wrong notes over the right
+ * chords. A list cannot be typed wrong.
+ */
+function fillKeyOptions() {
+  const roots = Array.from({ length: 12 }, (_, pc) => flatName(pc));
+  const group = (mode) =>
+    `<optgroup label="${mode}">${roots.map((r) => `<option>${r} ${mode}</option>`).join("")}</optgroup>`;
+  $("#ed-key").innerHTML = `<option value="—">—</option>${group("major")}${group("minor")}`;
+}
+
+/** Show a key, keeping anything the list does not offer rather than rewriting it. */
+function setEditorKey(key) {
+  const sel = $("#ed-key");
+  const want = key && key !== "—" ? String(key).trim() : "—";
+  // A tune saved before this list existed — or imported from someone else's
+  // export — keeps whatever key it had. Snapping it to the nearest option
+  // would edit a field the person never touched.
+  if (![...sel.options].some((o) => o.value === want)) {
+    sel.insertAdjacentHTML("afterbegin", `<option>${esc(want)}</option>`);
+  }
+  sel.value = want;
+}
+
 function buildEditorSong() {
   const ts = Number($("#ed-ts").value);
   const { progression, errors, warnings } = parseProgressionText($("#ed-prog").value, ts);
   // A title is no longer a gate. The shortest path from "I have some changes"
   // to hearing them should not run through naming the thing first.
-  const title = $("#ed-title").value.trim() || randomTitle($("#ed-key").value.trim());
+  const title = $("#ed-title").value.trim() || randomTitle($("#ed-key").value);
   const song = {
     title,
     composer: "unknown",
-    key: $("#ed-key").value.trim() || "—",
+    key: $("#ed-key").value || "—",
     bpm: Number($("#ed-bpm").value) || 120,
     style: $("#ed-style").value,
     timeSignature: ts,
@@ -1230,7 +1259,7 @@ function randomChanges() {
 $("#ed-random").addEventListener("click", () => {
   const gen = randomChanges();
   $("#ed-prog").value = gen.bars.join(" | ");
-  $("#ed-key").value = gen.key;
+  setEditorKey(gen.key);
   $("#ed-style").value = gen.style;
   $("#ed-bpm").value = gen.bpm;
   if (!$("#ed-title").value.trim()) $("#ed-title").value = `Dice in ${gen.key}`;
@@ -1249,7 +1278,7 @@ function progressionToText(progression, ts) {
 function fillEditor(song) {
   const ts = song.timeSignature === 3 ? 3 : 4;
   $("#ed-title").value = song.title ?? "";
-  $("#ed-key").value = song.key && song.key !== "—" ? song.key : "";
+  setEditorKey(song.key);
   $("#ed-bpm").value = song.bpm ?? 120;
   $("#ed-style").value = [...$("#ed-style").options].some((o) => o.value === song.style) ? song.style : "swing";
   $("#ed-ts").value = String(ts);
@@ -1411,6 +1440,7 @@ $("#lang-toggle").addEventListener("click", () => {
 applyStatic();
 renderLangToggle();
 
+fillKeyOptions();
 renderTracklist();
 selectSong(0);
 updateListView();
