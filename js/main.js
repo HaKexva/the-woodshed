@@ -1539,7 +1539,7 @@ $("#lang-toggle").addEventListener("click", () => {
 // It asks for support of the tool, deliberately not of the songbook. The
 // changes come from corpora under CC BY 4.0 and GPL-2.0, the samples from CC0
 // and CC BY-SA packs, and none of that is ours to sell. See the credits.
-const TIP_JAR_URL = "";
+const TIP_JAR_URL = "https://ko-fi.com/the_woodshed";
 
 if (TIP_JAR_URL) {
   $("#tip-jar").href = TIP_JAR_URL;
