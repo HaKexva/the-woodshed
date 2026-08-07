@@ -280,6 +280,10 @@ export class Band {
     // four and then loops, which is a different and much smaller exercise.
     this.keyShift = 0;
     this.keyStep = 0;
+    // The band re-rolls every chorus, because a rhythm section that repeats
+    // itself exactly is a recording. Pin it to the take to make a performance
+    // reproducible — see _planChorus; the checks are the main caller.
+    this.pinBand = false;
     this.soloVoicing = "mono"; // mono: single-note line · multi: doubled holds, stabs, octaves
     this.soloInst = null;
     this.soloPart = null;
@@ -1286,11 +1290,21 @@ export class Band {
    * generator was an average over takes rather than an A/B, which is most of
    * why the guitar took three attempts to get right.
    *
-   * After the plan/schedule split there is exactly one place to do this. The
-   * seed is the take and the chorus, so a chorus stays a fresh take of its own
-   * while the whole performance is reproducible from the number in the take
-   * box. Different constants from the soloist's seed, so the band and the line
-   * do not move in step.
+   * After the plan/schedule split there is exactly one place to do this — but
+   * reproducible is not what you want while playing. A band that plays the
+   * identical chorus every time you hit the same take is a recording, and the
+   * whole point of practising against it is that it is not one. So by default
+   * every chorus draws a fresh seed and the band really does play it
+   * differently each time round.
+   *
+   * pinBand ties it to the take instead: same take, same chorus, same notes.
+   * That is what makes a change to a generator comparable against the version
+   * before it rather than against an average over takes, and it is what the
+   * checks run under. Different constants from the soloist's seed, so the band
+   * and the line do not move in step.
+   *
+   * Either way the seed goes through withSeed, so a chorus is internally
+   * consistent and the soloist's own nested seed still restores cleanly.
    *
    * What is deliberately left random is the per-hit jitter inside the drum
    * part's playback callback — pitch and length wobble on the audio thread, so
@@ -1298,7 +1312,9 @@ export class Band {
    * be reproduced from a schedule anyway, and the checks do not read it.
    */
   _planChorus(song) {
-    const seed = (Math.imul(this.takeSeed >>> 0, 0x2545f491) + (this._chorus ?? 0) * 0x27d4eb2d) >>> 0;
+    const seed = this.pinBand
+      ? (Math.imul(this.takeSeed >>> 0, 0x2545f491) + (this._chorus ?? 0) * 0x27d4eb2d) >>> 0
+      : randomSeed();
     return withSeed(seed, () => this._planChorusFrom(song));
   }
 

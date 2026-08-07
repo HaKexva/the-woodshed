@@ -6,8 +6,8 @@
 //
 // Two contracts, because there are two situations:
 //
-//   · No soloist. The rhythm section is reproducible from the take and the
-//     chorus, with no ceremony at all.
+//   · Pinned, no soloist. The rhythm section is reproducible from the take and
+//     the chorus, with no ceremony at all.
 //   · With a soloist. The line carries motifs from one chorus to the next so it
 //     can quote itself, and the band listens to the line — busy bars thin the
 //     comp, phrase ends give the drummer somewhere to answer. So the whole
@@ -31,7 +31,8 @@ const rhythm = (plan) =>
     .join("|");
 
 /** A plan. `fresh` clears remembered material, the way newTake() does. */
-const plan = (song, seed, chorus, { solo, fresh }) => {
+const plan = (song, seed, chorus, { solo, fresh, pin = true }) => {
+  band.pinBand = pin;
   band.soloOn = solo;
   band.song = song;
   band.takeSeed = seed;
@@ -41,7 +42,18 @@ const plan = (song, seed, chorus, { solo, fresh }) => {
   return band._planChorus(song);
 };
 
-// ---- the band alone ------------------------------------------------------
+// ---- the default is a fresh band every chorus ----------------------------
+// A rhythm section that plays the identical chorus every time you hit the same
+// take is a recording, and practising against a recording is not the point.
+if (new Band({}).pinBand !== false) fail.push("pinBand defaults to true — the band should re-roll unless asked not to");
+
+for (const [title, song] of songs) {
+  const loose = { solo: false, fresh: false, pin: false };
+  const takes = new Set(Array.from({ length: 6 }, () => rhythm(plan(song, 0x4f2a, 2, loose))));
+  if (takes.size === 1) fail.push(`${title}: unpinned, six goes at the same chorus were all identical`);
+}
+
+// ---- pinned, the band alone ----------------------------------------------
 for (const [title, song] of songs) {
   const opts = { solo: false, fresh: false };
   const a = rhythm(plan(song, 0x4f2a, 2, opts));
