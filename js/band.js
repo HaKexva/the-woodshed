@@ -3,7 +3,7 @@
 // supply piano / bass / guitar; drums are Tone synths (no samples to host).
 
 import * as Tone from "https://cdn.jsdelivr.net/npm/tone@15.1.22/+esm";
-import { Soundfont, SplendidGrandPiano, Sampler, Mallet, Versilian } from "https://cdn.jsdelivr.net/npm/smplr@1.0.0/+esm";
+import { Soundfont, SplendidGrandPiano, Sampler, Mallet } from "https://cdn.jsdelivr.net/npm/smplr@1.0.0/+esm";
 import {
   parseChord,
   voiceComp,
@@ -60,19 +60,11 @@ export const SOLO_INSTRUMENTS = {
   piano: { label: "piano", lo: SOLO_LO, hi: SOLO_HI, mono: false, breath: Infinity, floor: 25, trim: 1, send: 0.22 },
   // a rung bar is already a long tail; it does not need much room added to it
   vibes: { label: "vibes", lo: 55, hi: 86, mono: false, breath: Infinity, floor: 25, trim: 1, send: 0.07 },
-  // Tenor sax, on trial. VCSL's is real recordings rather than a soundfont, which
-  // is what makes it worth hearing at all — but its timbre does not move with
-  // velocity (measured: brightness flat across a 25x amplitude range), and that
-  // sameness is exactly what made the two previous horns read as fake. Range is
-  // Bb2-E5, a real tenor's working register and inside what the pack samples;
-  // it sounds above that only by stretching the top note.
-  sax: { label: "tenor", lo: 46, hi: 76, mono: true, breath: Infinity, floor: 25, trim: 0.7, send: 0.18 },
 };
 /** How each soloist is built. Kept beside the table it belongs to. */
 const SOLO_LOADERS = {
   piano: (ctx, dest) => new SplendidGrandPiano(ctx, { destination: dest }),
   vibes: (ctx, dest) => new Mallet(ctx, { instrument: "Vibraphone - Soft Mallets", destination: dest }),
-  sax: (ctx, dest) => new Versilian(ctx, { instrument: "Aerophones/Reed Aerophones/Tenor Saxophone - Non-Vibrato", destination: dest }),
 };
 // Song-style feel layer — composes multiplicatively with the soloist-style
 // presets so a Parker solo over a bossa still swings *bossa*. swing is the
@@ -201,16 +193,26 @@ const withSeed = (seed, fn) => {
     _rand = prev;
   }
 };
-/** Human-typeable take seeds: "4F2A" ⇄ a 32-bit number. */
-export const seedToText = (n) => (n >>> 0).toString(36).toUpperCase().padStart(6, "0");
+/**
+ * Human-typeable take seeds: "4F2AK" ⇄ a number.
+ *
+ * Five base-36 characters, which is 60 million takes — more than anyone will
+ * play, and short enough to read back over a phone or write in a margin. A
+ * 32-bit seed spelled up to seven, and the last two bought nothing you would
+ * ever exhaust.
+ */
+const SEED_SPACE = 36 ** 5; // 60,466,176
+export const seedToText = (n) => (((n % SEED_SPACE) + SEED_SPACE) % SEED_SPACE).toString(36).toUpperCase().padStart(5, "0");
 export const textToSeed = (s) => {
   const direct = parseInt(String(s).trim(), 36);
-  if (Number.isFinite(direct)) return direct >>> 0;
+  if (Number.isFinite(direct)) return direct % SEED_SPACE;
+  // not base-36 at all — hash whatever was typed into the same space, so any
+  // word someone types is still a take rather than an error
   let h = 2166136261;
   for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
-  return h >>> 0;
+  return (h >>> 0) % SEED_SPACE;
 };
-const randomSeed = () => (Math.random() * 0xffffffff) >>> 0;
+const randomSeed = () => Math.floor(Math.random() * SEED_SPACE);
 
 const rnd = (lo, hi) => lo + rand() * (hi - lo);
 const choice = (arr) => arr[Math.floor(rand() * arr.length)];
@@ -831,9 +833,6 @@ export class Band {
     if (!(name in SOLO_INSTRUMENTS) || name === this.soloInstName) return;
     this.soloInstName = name;
     this.soloInst = null;
-    // One breath, one note. "multi" doubles and stacks the line, which no horn
-    // can do and which is the fastest way to give the game away.
-    if (SOLO_INSTRUMENTS[name].mono) this.soloVoicing = "mono";
     await this.loadSoloist();
     this._applyPolish(); // the reverb send belongs to the instrument
     // the range moved, so the line has to be written for the new one
