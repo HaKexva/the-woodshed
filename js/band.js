@@ -1126,6 +1126,29 @@ export class Band {
         if (e.dur >= 1.1) phraseEnds.push(e.beat);
       }
       for (const [bar, n] of perBar) if (n >= 3) busyBars.add(bar);
+    } else {
+      // A human is soloing. The band cannot hear them — there is no mic and no
+      // MIDI — so the two mechanisms that model a rhythm section listening
+      // used to switch off exactly when the listening mattered, and the band
+      // played the whole chorus as if nobody were out front.
+      //
+      // It does not need to hear them to be in the right place. Both are
+      // reading the same form, and a rhythm section gets out of the way at the
+      // end of a phrase — where a soloist lands, breathes, or leaves a hole on
+      // purpose — and the drummer answers into it. The form model already says
+      // where those are: sections turn over every four bars on a blues and
+      // every eight on a standard.
+      // Not every phrase, every time. A comper who opens up on all four
+      // phrase ends of every chorus is not listening either — that is a rule,
+      // and it reads as one by the second time round. Roughly two in three
+      // makes it a habit, which is what it is.
+      let at = 0;
+      for (const sec of formSections(song)) {
+        const last = at + sec.bars - 1;
+        at += sec.bars;
+        if (rand() < 0.65) busyBars.add(last); // the comp opens at the phrase end
+        phraseEnds.push(last * bpb + bpb - 1); // the drummer answers into it
+      }
     }
     const duck = (events) =>
       events.filter((e) => !busyBars.has(Math.floor(e.beat / bpb)) || rand() < 0.55)
