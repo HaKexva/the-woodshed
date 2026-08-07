@@ -1276,7 +1276,33 @@ export class Band {
    * middle of the chorus before it, off the loop point, where being slow costs
    * nothing. Reads this._chorus, so plan for chorus n+1 with _chorus set to it.
    */
+  /**
+   * A chorus, reproducibly.
+   *
+   * Only the soloist used to run inside a seed; everything else fell through to
+   * rand()'s unseeded source, so the same tune played twice gave a different
+   * comp, a different walk and different fills. That is fine to listen to and
+   * useless to measure against: every comparison between two versions of a
+   * generator was an average over takes rather than an A/B, which is most of
+   * why the guitar took three attempts to get right.
+   *
+   * After the plan/schedule split there is exactly one place to do this. The
+   * seed is the take and the chorus, so a chorus stays a fresh take of its own
+   * while the whole performance is reproducible from the number in the take
+   * box. Different constants from the soloist's seed, so the band and the line
+   * do not move in step.
+   *
+   * What is deliberately left random is the per-hit jitter inside the drum
+   * part's playback callback — pitch and length wobble on the audio thread, so
+   * no two hits are identical. That is rendition rather than notes, it cannot
+   * be reproduced from a schedule anyway, and the checks do not read it.
+   */
   _planChorus(song) {
+    const seed = (Math.imul(this.takeSeed >>> 0, 0x2545f491) + (this._chorus ?? 0) * 0x27d4eb2d) >>> 0;
+    return withSeed(seed, () => this._planChorusFrom(song));
+  }
+
+  _planChorusFrom(song) {
     // Everything below is written against the key this chorus actually sounds
     // in, so the transposition is invisible past this line.
     const shift = this.shiftFor(this._chorus ?? 0);
