@@ -13,6 +13,7 @@ import {
   bassPcs,
   placeNear,
   soloScaleSteps,
+  keyContext,
 } from "./theory.js";
 import { WJD } from "./solo-vocab.js";
 
@@ -1474,10 +1475,14 @@ export class Band {
       }
       return eighth;
     };
+    // The tune's key. Chords that are degrees of it get the key's own notes;
+    // everything else falls back to chord quality, so a tune that modulates or
+    // runs on secondary dominants is left exactly as it was.
+    const key = keyContext(this.song);
     const pools = new Map();
     const poolFor = (c) => {
       if (!pools.has(c)) {
-        const pcs = new Set(soloScaleSteps(c.info).map((s) => (c.info.rootPc + s) % 12));
+        const pcs = new Set(soloScaleSteps(c.info, key).map((s) => (c.info.rootPc + s) % 12));
         const pool = [];
         for (let m = lo; m <= hi; m++) if (pcs.has(m % 12)) pool.push(m);
         pools.set(c, pool);

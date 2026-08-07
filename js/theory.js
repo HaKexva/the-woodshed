@@ -582,6 +582,9 @@ const SCALES = {
   halfwhole:  { label: "half-whole dim.",     steps: [0, 1, 3, 4, 6, 7, 9, 10] },
   wholehalf:  { label: "whole-half dim.",     steps: [0, 2, 3, 5, 6, 8, 9, 11] },
   lyddom:     { label: "lydian dominant",     steps: [0, 2, 4, 6, 7, 9, 10, 12] },
+  phrygdom:   { label: "phrygian dominant",   steps: [0, 1, 4, 5, 7, 8, 10, 12] },
+  lydaug:     { label: "lydian augmented",    steps: [0, 2, 4, 6, 8, 9, 11, 12] },
+  aeolian:    { label: "aeolian",             steps: [0, 2, 3, 5, 7, 8, 10, 12] },
   altered:    { label: "altered",             steps: [0, 1, 3, 4, 6, 8, 10, 12] },
   wholetone:  { label: "whole tone",          steps: [0, 2, 4, 6, 8, 10, 12] },
 };
@@ -599,12 +602,134 @@ const SCALE_FOR_QUALITY = {
   "7#11": "lyddom", "7b5": "lyddom",
   "7alt": "altered", "7b13": "altered",
   aug: "wholetone", "7#5": "wholetone", "9#5": "wholetone",
+  // Eleven qualities used to fall through to the mixolydian default, and for
+  // nine of them mixolydian contradicts the symbol outright: a natural 9 over
+  // C7b9, a natural 11 over C9#11, a major 3rd over Cmb6. A chord scale may
+  // add notes to a chord; it may not take away the ones the symbol spells.
+  "7#9#5": "altered", "7b9b5": "altered", "7#9b5": "altered", "7b9#5": "altered",
+  "maj7#5": "lydaug",
+  "7b9#11": "halfwhole", "7#9#11": "halfwhole", "13b9": "halfwhole",
+  "7b9sus": "phrygdom", "7b9sus4": "phrygdom",
+  "maj#11": "lydian", "9#11": "lyddom", "13#11": "lyddom",
+  "13sus": "mixo",
+  mb6: "aeolian",
 };
 
+/* ---- the key the tune is in --------------------------------------------
+ *
+ * A soloist does not rebuild a scale from nothing at every chord — they hear
+ * the key, and each chord as a degree of it. Quality lookup alone cannot do
+ * that. It answers "major" for every maj7, so over the IV chord the line plays
+ * a natural 11, the one note that says the player is reading symbols rather
+ * than hearing the tune. Same story for vi (a raised 6th that belongs to no
+ * key here) and for V7 in a minor key (a plain mixolydian that ignores the b6
+ * the whole tune is built on).
+ *
+ * So: when a chord is wholly diatonic to the key, the notes come from the
+ * key's own collection rotated onto that chord. When it is not — a secondary
+ * dominant, a tritone sub, a modulation — nothing is claimed and the quality
+ * lookup stands. That test is what keeps Coltrane changes untouched.
+ */
+
+const MODE_STEPS = {
+  major: [0, 2, 4, 5, 7, 9, 11],
+  minor: [0, 2, 3, 5, 7, 8, 10], // natural minor: the collection, not the cadence
+  dorian: [0, 2, 3, 5, 7, 9, 10],
+};
+
+const MINOR_TONIC = new Set(["m", "m7", "m9", "m11", "m6", "m69", "mmaj7"]);
+
+/** Does the tune sit on a minor tonic? Asked only when the label is bare. */
+function tonicIsMinor(song, tonicPc) {
+  let minor = 0;
+  let major = 0;
+  for (const bar of song?.progression ?? []) {
+    for (const cell of bar ?? []) {
+      const info = parseChord(cell.chord);
+      if (info.rootPc !== tonicPc) continue;
+      if (MINOR_TONIC.has(info.quality)) minor += cell.beats ?? 4;
+      else major += cell.beats ?? 4;
+    }
+  }
+  return minor > major;
+}
+
+/**
+ * The key a tune is in, as { tonicPc, mode, pcs }, or null when it has none.
+ *
+ * 420 of the 447 tunes label only a root letter, and several of those are
+ * minor tunes — Mr. P.C. and Footprints both say "C". The progression is the
+ * authority the label is not, so a bare label gets settled by what quality the
+ * tune's own tonic chord is.
+ */
+export function keyContext(song) {
+  const raw = song?.key;
+  if (!raw || raw === "—") return null;
+  const m = /^([A-G][b#♭♯]?)\s*(.*)$/.exec(String(raw).trim());
+  if (!m) return null;
+  const tonicPc = notePc(m[1]);
+  const rest = m[2].trim().toLowerCase();
+  let mode = "major";
+  if (rest.startsWith("dor")) mode = "dorian";
+  else if (rest === "m" || rest.startsWith("min")) mode = "minor";
+  else if (rest === "" && tonicIsMinor(song, tonicPc)) mode = "minor";
+  return { tonicPc, mode, pcs: MODE_STEPS[mode].map((s) => (tonicPc + s) % 12) };
+}
+
+// The seven diatonic modes by their own step pattern, so a collection rotated
+// onto a chord can name itself whichever parent mode the key is in.
+const MODE_BY_STEPS = {
+  "0,2,4,5,7,9,11": "major",
+  "0,2,3,5,7,9,10": "dorian",
+  "0,1,3,5,7,8,10": "phrygian",
+  "0,2,4,6,7,9,11": "lydian",
+  "0,2,4,5,7,9,10": "mixolydian",
+  "0,2,3,5,7,8,10": "aeolian",
+  "0,1,3,5,6,8,10": "locrian",
+};
+
+/** Every note the symbol spells is in the scale — a scale may add, never take. */
+function fitsChord(chord, steps) {
+  const pool = new Set(steps.map((s) => (chord.rootPc + s) % 12));
+  return chord.intervals.every((iv) => pool.has((chord.rootPc + iv) % 12));
+}
+
+/** The chord read as a degree of the key — null when it is not one of them. */
+function keyScale(chord, key) {
+  if (!key) return null;
+  const inKey = (pc) => key.pcs.includes((((pc % 12) + 12) % 12));
+
+  // V7 of a minor key is not diatonic — it borrows its 3rd from harmonic minor
+  // — but it is the most key-defining chord in the tune, and mixolydian answers
+  // it with notes from the parallel major: over G7 in C minor, an A and an E
+  // natural, neither of which the tune contains. Phrygian dominant is the key's
+  // own collection with that borrowed leading tone put back, so the b9 is Ab
+  // and the b13 is Eb — both notes the tune has been playing all along.
+  //
+  // Altered would be the hipper answer, but it drops the natural 5th, and that
+  // is a chord tone the symbol did not ask to have taken away.
+  const degree = (((chord.rootPc - key.tonicPc) % 12) + 12) % 12;
+  const dominant = chord.intervals.includes(4) && chord.intervals.includes(10);
+  if (key.mode !== "major" && dominant && degree === 7) {
+    const steps = SCALES.phrygdom.steps.filter((s) => s < 12);
+    // A written alteration outranks the key: E7#9 asked for that G natural,
+    // and E9 for its F#. Neither is in the key, and neither is ours to refuse.
+    return fitsChord(chord, steps) ? { steps, label: SCALES.phrygdom.label } : null;
+  }
+
+  // wholly diatonic, or the key has no claim on it
+  if (!inKey(chord.rootPc)) return null;
+  for (const iv of chord.intervals) if (!inKey(chord.rootPc + iv)) return null;
+
+  const steps = MODE_STEPS[key.mode]
+    .map((s) => ((((key.tonicPc + s - chord.rootPc) % 12) + 12) % 12))
+    .sort((a, b) => a - b);
+  return { steps, label: MODE_BY_STEPS[steps.join(",")] ?? "major" };
+}
+
 /** Scale steps (semitones, octave dropped) a soloist draws from over a chord. */
-export function soloScaleSteps(chord) {
-  const scale = SCALES[SCALE_FOR_QUALITY[chord.quality] ?? "mixo"];
-  return scale.steps.filter((s) => s < 12);
+export function soloScaleSteps(chord, key = null) {
+  return keyScale(chord, key)?.steps ?? SCALES[SCALE_FOR_QUALITY[chord.quality] ?? "mixo"].steps.filter((s) => s < 12);
 }
 
 const LETTERS = ["C", "D", "E", "F", "G", "A", "B"];
@@ -616,9 +741,16 @@ const ACC = { "-2": "bb", "-1": "b", 0: "", 1: "#", 2: "##" };
  * Returns { label: "D dorian", notes: ["D","E","F","G","A","B","C","D"] }.
  * Seven-note scales are spelled diatonically (one note per letter);
  * diminished/whole-tone scales fall back to flat names.
+ *
+ * Takes the same key as the generator, so the strip names the scale the line
+ * is actually playing. A student reading "C major" over the IV chord while
+ * hearing an F# is being taught the wrong thing twice over.
  */
-export function soloScale(chord) {
-  const scale = SCALES[SCALE_FOR_QUALITY[chord.quality] ?? "mixo"];
+export function soloScale(chord, key = null) {
+  const keyed = keyScale(chord, key);
+  const scale = keyed
+    ? { label: keyed.label, steps: [...keyed.steps, 12] }
+    : SCALES[SCALE_FOR_QUALITY[chord.quality] ?? "mixo"];
   const diatonic = scale.steps.length === 8 && scale.steps[7] === 12;
   let notes;
   if (diatonic) {

@@ -11,6 +11,7 @@ import {
   transposeSymbol,
   transposeKey,
   READING_KEYS,
+  keyContext,
 } from "./theory.js";
 import { classify, chordAt } from "./solo-metrics.js";
 import { t, getLang, setLang, applyStatic } from "./i18n.js";
@@ -322,10 +323,20 @@ function renderSystemView(curBar) {
   $("#sys-pos").textContent = t("bars", { from, to: Math.min(total, from + SYS_BARS - 1), total });
 }
 
+// The tune's key, moved into the reading key alongside the chord symbol — a
+// tenor reading up a tone needs the key it sees, not the one the trio hears.
+function readingKeyContext() {
+  const k = keyContext(state.currentSong);
+  const by = shift();
+  if (!k || !by) return k;
+  const move = (pc) => ((((pc + by) % 12) + 12) % 12);
+  return { ...k, tonicPc: move(k.tonicPc), pcs: k.pcs.map(move) };
+}
+
 function renderSoloStrip(info) {
   // parse the *written* symbol so the scale is spelled in the reading key —
   // "D dorian → D E F G A B C D" for a tenor over the trio's C minor
-  const { label, notes, pcs } = soloScale(shift() ? parseChord(written(info.symbol)) : info);
+  const { label, notes, pcs } = soloScale(shift() ? parseChord(written(info.symbol)) : info, readingKeyContext());
   $("#solo-scale").textContent = label;
   $("#solo-notes").innerHTML = notes
     .map((n, i) => `<span class="solo-note${i === 0 || i === notes.length - 1 ? " root" : ""}" data-pc="${pcs[i]}">${n}</span>`)
