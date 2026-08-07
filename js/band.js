@@ -302,7 +302,7 @@ export class Band {
   setCompColour(name) {
     if (!(name in COMP_COLOUR)) return;
     this.compColour = COMP_COLOUR[name];
-    if (this.playing && this._songCtx) this._buildParts(this.song);
+    if (this.playing && this._songCtx) this._buildParts(this.form);
   }
 
   /** Push the bass forward for walking-line practice — level in _gainFor,
@@ -701,7 +701,7 @@ export class Band {
 
   setRide(on) {
     this.rideOn = on;
-    if (this.playing && this._songCtx) this._buildParts(this.song);
+    if (this.playing && this._songCtx) this._buildParts(this.form);
   }
 
   /** Toggle one polish element ("pan","eq","comp","reverb","sat","vel",
@@ -994,7 +994,44 @@ export class Band {
   loadSong(song) {
     this.song = song;
     this._soloMotif = null; // a new tune starts with no material to quote
+    this.setSectionLoop(null); // bar 9 of the last tune means nothing in this one
     if (this.playing) this.stop();
+  }
+
+  /**
+   * Loop a stretch of the form instead of the whole thing — the single most
+   * used practice strategy there is, and the reason to have a band at all when
+   * the bridge is the part that will not go.
+   *
+   * The section becomes the form. Slicing the progression and handing that to
+   * the same machinery means the arrangement, the chorus count, the loop
+   * points and the rebuild interval all keep working without knowing a loop is
+   * on: eight bars simply turn over four times as often as thirty-two. It also
+   * means the count-in still lands where it always did, immediately before the
+   * bars you are working — which is the pre-roll.
+   *
+   * from/to are 0-based bar indices, inclusive. null clears it.
+   */
+  setSectionLoop(from, to) {
+    const off = from == null;
+    if (off && this.loopFrom == null) return;
+    if (!off && from === this.loopFrom && to === this.loopTo) return;
+    this.loopFrom = off ? null : from;
+    this.loopTo = off ? null : to;
+    this._loopSong = off
+      ? null
+      : { ...this.song, progression: this.song.progression.slice(from, to + 1), sections: undefined };
+    this._nextPlan = null;
+    // The transport's loop points, the part offsets and the rebuild schedule
+    // are all set up in play() from the form length, so changing the form
+    // means going through it again. It restarts from the count-in, which is
+    // what you want anyway when you have just chosen a new passage to work.
+    if (this.playing) this.play();
+  }
+
+  /** The form as it is being played — the looped section, or the whole tune. */
+  get form() {
+    return this._loopSong ?? this.song;
   }
 
   async play() {
@@ -1002,7 +1039,10 @@ export class Band {
     await Tone.start();
 
     const t = Tone.getTransport();
-    const song = this.song;
+    // What gets played round and round: the whole tune, or the section being
+    // worked. Everything below is measured from it, so a section loop needs no
+    // special case anywhere past here.
+    const song = this.form;
 
     t.stop();
     t.cancel(0);
@@ -1158,7 +1198,7 @@ export class Band {
     if (!this.playing) return;
     this._applySwing();
     this._applyStyleBass(this.feel);
-    this._buildParts(this.song);
+    this._buildParts(this.form);
   }
 
   /**
