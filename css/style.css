@@ -1206,29 +1206,34 @@ body.modal-open {
 
 /* -------------------------------------------------------------- credits */
 
-/* One quiet line under the credits. It is outside the disclosure because a
-   donate link folded behind a summary is not one, and it is small because the
-   tool is supposed to do the asking. */
+/* The tip jar, at the foot of the page.
+   Outside the credits because those are citations and this is the one line
+   addressed to the reader — and given its own rule above the fold of the
+   transport so it reads as the end of the page rather than a footnote. */
 .tip-line[hidden] { display: none; }
 
 .tip-line {
-  margin-top: 0.8rem;
-  font-size: 0.72rem;
+  margin-top: 2rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--cream-10);
+  font-size: 0.74rem;
   color: var(--cream-35);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
 }
 
-/* .credits a paints every link in here blue, and it is the more specific
-   selector, so this has to match it. Amber rather than blue on purpose: the
-   other links in the credits are citations, and this one is the only thing on
-   the page asking you to do something. */
-.credits .tip-jar {
+/* amber where the credits' citations are blue: this is the only thing on the
+   page asking the reader to do something */
+.tip-jar {
   color: var(--amber);
   text-decoration: none;
   border-bottom: 1px solid transparent;
   transition: border-color 0.12s;
 }
 
-.credits .tip-jar:hover { color: var(--amber); border-bottom-color: var(--amber); }
+.tip-jar:hover { border-bottom-color: var(--amber); }
 
 
 .credits {
