@@ -15,11 +15,13 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # registerHooks, which test/loader.mjs uses to stub the CDN imports in
-      # process, landed in 22.15 — pinning the major is not enough.
-      - uses: actions/setup-node@v4
+      # process, landed in 22.15 — pinning the major is not enough. This is the
+      # Node the checks run on, and is unrelated to the Node the actions
+      # themselves run on, which the runner decides.
+      - uses: actions/setup-node@v7
         with:
           node-version: "22.16"
 
