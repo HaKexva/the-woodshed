@@ -225,11 +225,31 @@
         <span class="pedal-sub" data-i18n="rampSub">each chorus</span>
       </label>
 
-      <button type="button" class="pedal pedal-btn" id="trade" aria-pressed="false">
-        <span class="pedal-k" data-i18n="tradeK">trade</span>
-        <span class="pedal-v" id="trade-v" data-i18n="rampOff">off</span>
-        <span class="pedal-sub" id="trade-sub" data-i18n="tradeSub">fours</span>
-      </button>
+      <!-- Feel is what the band does with the tune, not what the tune is, so it
+           belongs with the things you set before you play. -->
+      <label class="pedal" id="pedal-feel">
+        <span class="pedal-k" data-i18n="feel">feel</span>
+        <select id="band-feel" class="pedal-v" aria-label="how the band plays this tune">
+          <option value="auto" selected data-i18n="feelAuto">as written</option>
+          <option value="swing">swing</option>
+          <option value="ballad" data-i18n="feelBallad">ballad</option>
+          <option value="blues">blues</option>
+          <option value="modal" data-i18n="feelModal">modal</option>
+          <option value="bossa">bossa</option>
+          <option value="latin">latin</option>
+          <option value="funk">funk</option>
+        </select>
+        <span class="pedal-sub" data-i18n="feelSub">how it is played</span>
+      </label>
+
+      <label class="pedal" id="pedal-comp">
+        <span class="pedal-k" data-i18n="comp">comp</span>
+        <select id="comp-colour" class="pedal-v" aria-label="comping colour">
+          <option value="plain" data-i18n="compPlain">plain</option>
+          <option value="warm" selected data-i18n="compWarm">warm</option>
+        </select>
+        <span class="pedal-sub" data-i18n="compSub">how much it reaches</span>
+      </label>
 
       <!-- Reading changes what is written, never what sounds — the one pedal
            here that does not touch the band. It sits with them anyway because
@@ -256,6 +276,16 @@
         </select>
         <span class="pedal-sub" data-i18n="countSub">then stop</span>
       </label>
+
+      <!-- Bass+ is a fix for a speaker that cannot produce the note at all, not
+           a "more bass" control, so it belongs with the things you set up before
+           you play rather than with the mix. The help sits on the sub-line: it
+           makes headphones worse, and that has to be readable without a tap. -->
+      <button type="button" class="pedal pedal-btn" id="bass-boost" aria-pressed="false">
+        <span class="pedal-k" data-i18n="boost">Bass+</span>
+        <span class="pedal-v" id="boost-v" data-i18n="rampOff">off</span>
+        <span class="pedal-sub" data-i18n="boostSub">speakers only</span>
+      </button>
 
       <p class="rig-chorus"><b id="chorus-n">—</b><span data-i18n="chorusK">chorus</span></p>
     </div>
@@ -285,40 +315,6 @@
       <button class="mute" data-inst="bass" data-i18n="mute.bass">bass</button>
       <button class="mute" data-inst="drums" data-i18n="mute.drums">drums</button>
     </div>
-
-    <label class="reading-ctl">
-      <span class="ctl-label" data-i18n="feel">feel</span>
-      <select id="band-feel" aria-label="how the band plays this tune">
-        <option value="auto" selected data-i18n="feelAuto">as written</option>
-        <option value="swing">swing</option>
-        <option value="ballad" data-i18n="feelBallad">ballad</option>
-        <option value="blues">blues</option>
-        <option value="modal" data-i18n="feelModal">modal</option>
-        <option value="bossa">bossa</option>
-        <option value="latin">latin</option>
-        <option value="funk">funk</option>
-      </select>
-    </label>
-
-    <label class="reading-ctl">
-      <span class="ctl-label" data-i18n="comp">comp</span>
-      <select id="comp-colour" aria-label="comping colour">
-        <option value="plain" data-i18n="compPlain">plain</option>
-        <option value="warm" selected data-i18n="compWarm">warm</option>
-      </select>
-    </label>
-
-    <span class="boost-group">
-      <label class="real-toggle">
-        <span data-i18n="boost">Bass+</span>
-        <input id="bass-boost" type="checkbox" />
-        <span class="switch" aria-hidden="true"></span>
-      </label>
-      <button id="boost-help" class="take-help" aria-expanded="false" aria-controls="boost-tip" aria-label="what is Bass+?">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 17v-5"/><path d="M12 8h.01"/></svg>
-      </button>
-      <p id="boost-tip" class="take-tip boost-tip" role="tooltip" data-i18n="boostTip">For phone and laptop speakers only. Leave it off on headphones.</p>
-    </span>
 
     <span id="status" class="status" role="status"></span>
     <span class="hint"><kbd>space</kbd> <span data-i18n="hint">play / stop</span></span>
