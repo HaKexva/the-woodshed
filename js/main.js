@@ -2,7 +2,7 @@
 
 import { SONGS } from "./songs.js";
 import { loadMine, saveMine, removeMine, exportMine, importMine, randomTitle } from "./mytunes.js";
-import { Band, SOLO_STYLES, formSections } from "./band.js";
+import { Band, SOLO_STYLES, SOLO_INSTRUMENTS, formSections } from "./band.js";
 import {
   parseChord,
   parseWarnings,
@@ -737,6 +737,13 @@ function renderStyleBlurb() {
 }
 
 function renderSoloRig() {
+  // A horn plays one note at a time, so "multi" is not on offer while one is
+  // selected — a control that is there but does nothing is worse than absent.
+  const mono = SOLO_INSTRUMENTS[$("#solo-inst").value]?.mono;
+  $("#solo-voicing").querySelector('option[value="multi"]').disabled = !!mono;
+  if (mono) $("#solo-voicing").value = "mono";
+  $("#pedal-voicing").classList.toggle("muted", !!mono);
+
   armPedal("#pedal-style", $("#solo-style").value !== "silver");
   armPedal("#pedal-soloinst", $("#solo-inst").value !== "piano");
   armPedal("#pedal-crowd", $("#feel-crowd").value !== "50");

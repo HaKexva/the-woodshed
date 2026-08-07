@@ -67,6 +67,7 @@ export const STRINGS = {
     soloInst: "played on",
     instPiano: "piano",
     instVibes: "vibes",
+    instSax: "tenor",
     next: "next · {chord}",
     bars: "bars {from}–{to} of {total}",
     creditsHead: "sources & credits",
@@ -77,7 +78,7 @@ export const STRINGS = {
     creditsWjd:
       'The soloist\'s phrasing figures are measured from the <a href="https://jazzomat.hfm-weimar.de/" rel="noopener">Weimar Jazz Database</a> — 456 hand-transcribed solos from the Jazzomat Research Project, Hochschule fur Musik Franz Liszt Weimar, under the <a href="https://opendatacommons.org/licenses/odbl/" rel="noopener">Open Database License (ODbL 1.0)</a>. No transcription is reproduced; what ships is derived statistics.',
     credits2:
-      'Samples: <a href="https://github.com/gleitz/midi-js-soundfonts" rel="noopener">MusyngKite soundfont kit (CC BY-SA 3.0)</a> the Splendid Grand Piano, and the vibraphone from the <a href="https://github.com/sgossner/VCSL" rel="noopener">Versilian Community Sample Library (CC0)</a>, via <a href="https://github.com/danigb/smplr" rel="noopener">smplr (MIT)</a> · scheduling by <a href="https://tonejs.github.io/" rel="noopener">Tone.js (MIT)</a> · drums synthesized in-browser. "Real" pack (all CC0): <a href="https://github.com/sfzinstruments/karoryfer.meatbass" rel="noopener">Meatbass</a>, <a href="https://github.com/sfzinstruments/karoryfer.pastabass" rel="noopener">Pastabass</a>, <a href="https://github.com/sfzinstruments/karoryfer.black-and-green-guitars" rel="noopener">Black &amp; Green Guitars</a> and <a href="https://github.com/sfzinstruments/karoryfer.swirly-drums" rel="noopener">Swirly Drums</a> by Karoryfer Samples · <a href="https://github.com/sfzinstruments/virtuosity_drums" rel="noopener">Virtuosity Drums</a> by Versilian Studios. This site is <a href="https://github.com/HaKexva/the-woodshed" rel="noopener">open source under GPLv3</a>. For personal practice &amp; education.',
+      'Samples: <a href="https://github.com/gleitz/midi-js-soundfonts" rel="noopener">MusyngKite soundfont kit (CC BY-SA 3.0)</a>, the Splendid Grand Piano, and the vibraphone and tenor saxophone from the <a href="https://github.com/sgossner/VCSL" rel="noopener">Versilian Community Sample Library (CC0)</a>, via <a href="https://github.com/danigb/smplr" rel="noopener">smplr (MIT)</a> · scheduling by <a href="https://tonejs.github.io/" rel="noopener">Tone.js (MIT)</a> · drums synthesized in-browser. "Real" pack (all CC0): <a href="https://github.com/sfzinstruments/karoryfer.meatbass" rel="noopener">Meatbass</a>, <a href="https://github.com/sfzinstruments/karoryfer.pastabass" rel="noopener">Pastabass</a>, <a href="https://github.com/sfzinstruments/karoryfer.black-and-green-guitars" rel="noopener">Black &amp; Green Guitars</a> and <a href="https://github.com/sfzinstruments/karoryfer.swirly-drums" rel="noopener">Swirly Drums</a> by Karoryfer Samples · <a href="https://github.com/sfzinstruments/virtuosity_drums" rel="noopener">Virtuosity Drums</a> by Versilian Studios. This site is <a href="https://github.com/HaKexva/the-woodshed" rel="noopener">open source under GPLv3</a>. For personal practice &amp; education.',
     tempo: "tempo",
     band: "band",
     play: "play",
@@ -212,6 +213,7 @@ export const STRINGS = {
     soloInst: "音色",
     instPiano: "鋼琴",
     instVibes: "鐵琴",
+    instSax: "次中音薩克斯風",
     next: "下一個 · {chord}",
     bars: "第 {from}–{to} 小節・共 {total} 小節",
     creditsHead: "來源與致謝",

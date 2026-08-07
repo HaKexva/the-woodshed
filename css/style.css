@@ -1121,6 +1121,9 @@ body.modal-open {
   max-width: 11rem;
 }
 
+/* a pedal whose choice the instrument has already made for it */
+.pedal.muted { opacity: 0.5; }
+
 /* The take is not a setting — it is the name of one particular solo, the thing
    you write down and type back. So it does not get a pedal. */
 .take-strip {
