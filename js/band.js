@@ -912,7 +912,19 @@ export class Band {
   }
 
   setSolo(on) {
+    if (on === this.soloOn) return;
     this.soloOn = on;
+    // The line is only built while the soloist is on, so switching it on
+    // mid-tune has to go and build one — and switching it off should take the
+    // part away rather than leave it muted note by note.
+    if (this.playing && this._songCtx) {
+      if (on) this._rebuildSoloPart();
+      else {
+        this.soloPart?.dispose();
+        this.soloPart = null;
+        this.soloEvents = [];
+      }
+    }
   }
 
   setMuted(name, value) {
@@ -1082,14 +1094,19 @@ export class Band {
     const straight = this.straight;
     const style = this.feel;
 
-    // the soloist goes first so the band can listen to it
+    // The soloist goes first so the band can listen to it — but only when
+    // there is one. This is the largest generator in the file and it sits on
+    // the loop-wrap critical path, where every millisecond is a millisecond
+    // the next chorus is late by. When a human is soloing, none of its output
+    // is read: busyBars and phraseEnds below are gated on soloOn, and the part
+    // returns early on every note.
     this._songCtx = { chords, totalBeats, style, bpb };
-    const soloEvents =
-      this.holdTake && this._heldLine
+    const soloEvents = !this.soloOn
+      ? []
+      : this.holdTake && this._heldLine
         ? this._heldLine.map((e) => ({ ...e }))
         : this._soloEvents(chords, totalBeats, style, this.soloRange.lo, this.soloRange.hi, bpb);
-    if (this.holdTake && !this._heldLine) this._heldLine = soloEvents.map((e) => ({ ...e }));
-    this._soloEventsCache = soloEvents;
+    if (this.soloOn && this.holdTake && !this._heldLine) this._heldLine = soloEvents.map((e) => ({ ...e }));
 
     // which bars is the soloist busy in? the comp thins there and breathes
     // in the gaps (only when the solo is actually audible)
@@ -1283,7 +1300,15 @@ export class Band {
     });
 
     this._songCtx = { chords, totalBeats, style, bpb, beatSec };
-    this._makeSoloPart(soloEvents);
+    // _makeSoloPart used to be the thing that disposed the old part, so
+    // skipping it would leave the previous chorus's line playing under a
+    // soloist who has been switched off.
+    if (soloEvents.length) this._makeSoloPart(soloEvents);
+    else {
+      this.soloPart?.dispose();
+      this.soloPart = null;
+      this.soloEvents = [];
+    }
   }
 
   /**
@@ -1338,7 +1363,7 @@ export class Band {
   /** Regenerate the line on demand (dial/style change, "new take"). */
   _rebuildSoloPart() {
     const ctx = this._songCtx;
-    if (!ctx) return;
+    if (!ctx || !this.soloOn) return;
     this._makeSoloPart(this._soloEvents(ctx.chords, ctx.totalBeats, ctx.style, this.soloRange.lo, this.soloRange.hi, ctx.bpb));
   }
 
