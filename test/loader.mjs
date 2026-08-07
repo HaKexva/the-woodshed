@@ -12,19 +12,21 @@ import { registerHooks } from "node:module";
 
 // Determinism.
 //
-// band.js captures Math.random once, at module init, as the source its rand()
-// falls back to when no seed is active — and only the soloist ever sets one.
-// So every check that measures a pattern choice was averaging over random
-// takes, and one of them (item-10, comparing comp density at phrase ends
-// against everywhere else) failed about one run in twelve. A check that fails
-// sometimes is worse in CI than no check at all: it teaches people to re-run
-// until it goes green.
+// The band seeds itself now — _planChorus runs inside withSeed(take, chorus) —
+// so what a chorus plays is reproducible from the number in the take box. One
+// input is still unseeded: takeSeed itself, which a new Band() draws from
+// Math.random. That is enough to keep the suite varying run to run, and
+// item-10 (comparing comp density at phrase ends against everywhere else) still
+// failed about once in forty with the band seeded but this left alone.
 //
-// Replacing Math.random here, before band.js is ever imported, makes the whole
-// band reproducible without the app having to change. Set WOODSHED_SEED to run
-// the suite against a different one — a check that only passes on this seed is
-// a weak check, and that is worth finding out on purpose rather than by
-// accident on somebody's pull request.
+// So Math.random is replaced here, before band.js is ever imported, which pins
+// the take as well and makes a run exactly repeatable. A check that fails
+// sometimes is worse in CI than no check: it teaches people to re-run until it
+// goes green, and then it is not protecting anything.
+//
+// Set WOODSHED_SEED to run against a different one. A check that only passes on
+// this seed is a weak check, and that is worth finding out on purpose rather
+// than by accident on somebody's pull request.
 const seed = Number(process.env.WOODSHED_SEED ?? 0x5eed) >>> 0;
 let state = seed || 1;
 Math.random = () => {
