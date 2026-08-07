@@ -914,6 +914,8 @@ export class Band {
   setSolo(on) {
     if (on === this.soloOn) return;
     this.soloOn = on;
+    // a chorus planned ahead carries whether there was a soloist in it
+    this._nextPlan = null;
     // The line is only built while the soloist is on, so switching it on
     // mid-tune has to go and build one — and switching it off should take the
     // part away rather than leave it muted note by note.
@@ -985,7 +987,31 @@ export class Band {
 
     this._chorus = 0;
     this._applyStyleBass(this.feel);
+    this._nextPlan = null;
     this._buildParts(song);
+
+    // Halfway through each chorus, work out the next one. Nothing is scheduled
+    // here and nothing is disposed — it is pure generation, landing in the
+    // middle of a bar where a few milliseconds cost nothing.
+    //
+    // The tempo it reads is the current one, so with a ramp running the drum
+    // branches that are gated on tempo decide one step early. A ramp step is a
+    // few bpm and those gates sit at 95 and 200, so crossing one a chorus late
+    // is not audible; being late at the loop point is.
+    t.scheduleRepeat(
+      () => {
+        const cur = this._chorus;
+        this._chorus = cur + 1;
+        try {
+          this._nextPlan = this._planChorus(song);
+        } finally {
+          this._chorus = cur;
+        }
+      },
+      `${song.progression.length}m`,
+      `${this._countBars + song.progression.length * 0.5}m`
+    );
+
     // every chorus is a fresh take: just before each loop wrap, re-roll the
     // band's patterns and the solo (which builds as choruses stack up)
     t.scheduleRepeat(
@@ -996,10 +1022,17 @@ export class Band {
           this.setBpm(Math.round(next));
           this.cb.onTempo?.(Math.round(next));
         }
-        this._buildParts(song);
+        // the plan made halfway through the chorus that is ending, if it got
+        // there — a dial moved mid-chorus throws it away and builds fresh
+        const ready = this._nextPlan;
+        this._nextPlan = null;
+        this._buildParts(song, ready ?? this._planChorus(song));
       },
       `${song.progression.length}m`,
-      `${song.progression.length + 0.9}m`
+      // 0.1 bar before the wrap — measured from the loop point, not from bar 1,
+      // or a two-bar count-in fires this a whole bar into the chorus that is
+      // still playing and rebuilds the parts out from under it
+      `${song.progression.length + this._countBars - 0.1}m`
     );
     this.playing = true;
     this.paused = false;
@@ -1032,6 +1065,7 @@ export class Band {
     t.stop();
     t.cancel(0);
     this.paused = false;
+    this._nextPlan = null;
     this._setBandSilent(false); // a stop landing inside a chord break would stay muted
     this.parts.forEach((p) => p.dispose());
     this.parts = [];
@@ -1090,10 +1124,13 @@ export class Band {
     this._buildParts(this.song);
   }
 
-  _buildParts(song) {
-    this.parts.forEach((p) => p.dispose());
-    this.parts = [];
-
+  /**
+   * Everything the next chorus will play, as plain data — no transport, no
+   * parts, nothing scheduled. Split out from _buildParts so it can run in the
+   * middle of the chorus before it, off the loop point, where being slow costs
+   * nothing. Reads this._chorus, so plan for chorus n+1 with _chorus set to it.
+   */
+  _planChorus(song) {
     const bpb = song.timeSignature ?? 4;
     const chords = this._flatten(song, bpb);
     const totalBeats = song.progression.length * bpb;
@@ -1106,7 +1143,6 @@ export class Band {
     // the next chorus is late by. When a human is soloing, none of its output
     // is read: busyBars and phraseEnds below are gated on soloOn, and the part
     // returns early on every note.
-    this._songCtx = { chords, totalBeats, style, bpb };
     const soloEvents = !this.soloOn
       ? []
       : this.holdTake && this._heldLine
@@ -1194,6 +1230,27 @@ export class Band {
     for (let b = 0; b < totalBeats; b++) {
       ev.meta.push({ kind: "beat", beat: b, bar: Math.floor(b / bpb), beatInBar: b % bpb });
     }
+
+    return { ev, chords, totalBeats, style, bpb, soloEvents };
+  }
+
+  /**
+   * Hand a plan to the transport. Everything here is scheduling — disposing
+   * the old parts and creating the new ones — and it is all that has to happen
+   * at the loop point. The generation it used to do first now runs a chorus
+   * early, in _planChorus.
+   */
+  _buildParts(song, plan = null) {
+    // No plan means something changed — a dial, the feel, the colour — and
+    // this is a rebuild rather than the loop point arriving. Whatever was
+    // planned ahead was planned under the old settings, so it goes.
+    if (!plan) {
+      this._nextPlan = null;
+      plan = this._planChorus(song);
+    }
+    this.parts.forEach((p) => p.dispose());
+    this.parts = [];
+    const { ev, chords, totalBeats, style, bpb, soloEvents } = plan;
 
     const beatSec = () => 60 / Tone.getTransport().bpm.value;
     // everything shifts right by the count-in, which owns the bars before the form
