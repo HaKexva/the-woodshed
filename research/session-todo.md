@@ -73,6 +73,14 @@ The lead sheet also dims every bar outside the line being played and the one
 after it, wrapping at the end of the form. Not from either review; it came out of
 using the thing.
 
+On a phone the chart used to truncate a crowded bar — `Fm7b5 Ab…`, which is not
+a chord anybody can play. A bar of four chords cannot fit a quarter of a phone
+on one line, so it now wraps between symbols and simply gets taller: each chord
+is its own unbreakable box, and the type steps down with the crowding. A lone
+symbol has nothing to wrap between, so a slash chord may break after the slash
+— the way it is read anyway — and the longest ones step down again. All 1464
+distinct bar shapes in the book now fit at 320px and up with nothing clipped.
+
 **Not on the list: the soloist now knows what key the tune is in.** It had been
 picking its scale from chord quality alone, which cannot tell a I chord from a
 IV — so every maj7 got ionian, and over the IV the line played a natural 11.
