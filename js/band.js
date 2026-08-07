@@ -57,8 +57,9 @@ const SOLO_CANTABILE = 0.625;
 // note offline, not assumed. The range below sits inside that with headroom at
 // both ends, so nothing the generator clamps can land on an unsampled bar.
 export const SOLO_INSTRUMENTS = {
-  piano: { label: "piano", lo: SOLO_LO, hi: SOLO_HI, mono: false, breath: Infinity, floor: 25, trim: 1 },
-  vibes: { label: "vibes", lo: 55, hi: 86, mono: false, breath: Infinity, floor: 25, trim: 1.15 },
+  piano: { label: "piano", lo: SOLO_LO, hi: SOLO_HI, mono: false, breath: Infinity, floor: 25, trim: 1, send: 0.22 },
+  // a rung bar is already a long tail; it does not need much room added to it
+  vibes: { label: "vibes", lo: 55, hi: 86, mono: false, breath: Infinity, floor: 25, trim: 1.15, send: 0.07 },
 };
 /** How each soloist is built. Kept beside the table it belongs to. */
 const SOLO_LOADERS = {
@@ -732,7 +733,18 @@ export class Band {
       drums: { f: 400, cut: -2, airF: 9000, air: 2 },
       solo: { f: 300, cut: -2, airF: 8000, air: 1.5 },
     };
-    const sends = { piano: 0.18, guitar: 0.16, bass: this._bassSend(), drums: 0.1, solo: 0.22 };
+    // The soloist's send belongs to the instrument, not to the slot. 0.22 was
+    // set for a piano, whose notes decay out of the way; a vibraphone bar rings
+    // for seconds on its own and the motor keeps it moving, so the same send
+    // lands reverb on top of a tail that is already long and the line washes
+    // into itself. Each instrument declares what it needs.
+    const sends = {
+      piano: 0.18,
+      guitar: 0.16,
+      bass: this._bassSend(),
+      drums: 0.1,
+      solo: this.soloRange.send ?? 0.22,
+    };
 
     for (const [name, s] of Object.entries(this.strips)) {
       set(s.pan.pan, P.pan ? pans[name] : 0);
@@ -812,6 +824,7 @@ export class Band {
     this.soloInstName = name;
     this.soloInst = null;
     await this.loadSoloist();
+    this._applyPolish(); // the reverb send belongs to the instrument
     // the range moved, so the line has to be written for the new one
     this._nextPlan = null;
     if (this.playing) this._rebuildSoloPart();
@@ -1630,7 +1643,11 @@ export class Band {
         () => this.cb.onSoloNote?.({ midi: e.midi, beat: e.beat, durSec, chord: c, atom: e.atom, vel: e.vel }),
         when
       );
-    }, events.map((e) => [`${Math.round((preSwing(e) + ctx.bpb) * ppq)}i`, e]));
+      // The same count-in shift the rest of the band gets. This used to add one
+      // bar flat, which was the count-in's length back when it was always one —
+      // with two, the line played a bar ahead of the changes it was written
+      // against, and the score lit a bar behind the playhead.
+    }, events.map((e) => [`${Math.round((preSwing(e) + ctx.bpb * (this._countBars ?? 2)) * ppq)}i`, e]));
     this.soloPart.start(0);
   }
 
