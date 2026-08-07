@@ -111,63 +111,81 @@
         <div id="solo-score" class="solo-score"></div>
       </div>
 
+      <!-- The soloist speaks the rig's language: one pedal per setting, each
+           readable at rest. The take is not a setting — it is the name of a
+           particular solo, the one thing here you write down and type back —
+           so it keeps its own strip below, and a monospaced counter, because a
+           code you read aloud should not be set in the display face. -->
       <div id="inspire-panel" class="inspire-panel" hidden>
-        <p class="inspire-label"><span data-i18n="soloistStyle">soloist style · </span><em id="style-blurb"></em></p>
-        <div id="style-picker" class="style-picker" role="group" aria-label="soloist style"></div>
-        <div class="take-row">
-          <button id="new-take" class="take-btn" data-i18n="newTake">new take</button>
-          <label class="wood-opt"><input type="checkbox" id="hold-take" /> <span data-i18n="holdTake">hold this line</span></label>
-          <span class="take-field">
-          <label class="take-seed">
-            <span data-i18n="takeLabel">take</span>
-            <input id="take-seed" type="text" size="8" spellcheck="false" autocomplete="off" aria-label="take seed" />
+        <div class="solo-rig">
+          <span class="rig-label" data-i18n="soloistK">the soloist</span>
+
+          <label class="pedal" id="pedal-style">
+            <span class="pedal-k" data-i18n="styleK">style</span>
+            <select id="solo-style" class="pedal-v" aria-label="soloist style"></select>
+            <span class="pedal-sub" id="style-blurb"></span>
           </label>
-          <button id="take-help" class="take-help" aria-expanded="false" aria-controls="take-tip" aria-label="what is a take?">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 17v-5"/><path d="M12 8h.01"/></svg>
-          </button>
-          <p id="take-tip" class="take-tip" role="tooltip" data-i18n="takeTip">
-            Every solo is improvised from this number. The same one always plays the same line, so write down a take you liked and type it back to hear it again. "New take" rolls a fresh one.
-          </p>
-          </span>
-        </div>
-        <div class="wood-row">
-          <!-- the tempo ramp used to live here, where only the generated soloist
-               could reach it; it is a practice control and now sits in the rig.
-               Chord breaks are gone entirely — the mechanism is trading fours. -->
-          <label class="wood-opt"><input type="checkbox" id="chromatic" /> <span data-i18n="chromaticOpt">chromatic notes</span></label>
+
+          <label class="pedal" id="pedal-soloinst">
+            <span class="pedal-k" data-i18n="soloInst">played on</span>
+            <select id="solo-inst" class="pedal-v" aria-label="solo instrument">
+              <option value="piano" data-i18n="instPiano">piano</option>
+              <option value="vibes" data-i18n="instVibes">vibes</option>
+            </select>
+            <span class="pedal-sub" data-i18n="soloInstSub">the voice</span>
+          </label>
+
+          <label class="pedal" id="pedal-crowd">
+            <span class="pedal-k" data-i18n="crowding">crowding</span>
+            <select id="feel-crowd" class="pedal-v" aria-label="crowding">
+              <option value="0" data-i18n="stepSparse">sparse</option>
+              <option value="25" data-i18n="stepLight">light</option>
+              <option value="50" selected data-i18n="stepEven">even</option>
+              <option value="75" data-i18n="stepBusy">busy</option>
+              <option value="100" data-i18n="stepCrowded">crowded</option>
+            </select>
+            <span class="pedal-sub" data-i18n="crowdSub">how many notes</span>
+          </label>
+
+          <label class="pedal" id="pedal-phrase">
+            <span class="pedal-k" data-i18n="phrasing">phrasing</span>
+            <select id="feel-phrase" class="pedal-v" aria-label="phrasing">
+              <option value="0" data-i18n="stepShortest">clipped</option>
+              <option value="25" data-i18n="short">short</option>
+              <option value="50" selected data-i18n="stepMedium">medium</option>
+              <option value="75" data-i18n="long">long</option>
+              <option value="100" data-i18n="stepLongest">spun out</option>
+            </select>
+            <span class="pedal-sub" data-i18n="phraseSub">how long a line</span>
+          </label>
+
+          <label class="pedal" id="pedal-voicing">
+            <span class="pedal-k" data-i18n="voicing">voicing</span>
+            <select id="solo-voicing" class="pedal-v" aria-label="solo voicing">
+              <option value="mono" data-i18n="mono">mono</option>
+              <option value="multi" data-i18n="multi">multi</option>
+            </select>
+            <span class="pedal-sub" data-i18n="voicingSub">one note or more</span>
+          </label>
+
+          <label class="pedal" id="pedal-chromatic">
+            <span class="pedal-k" data-i18n="chromaticK">chromatic</span>
+            <select id="chromatic" class="pedal-v" aria-label="chromatic notes">
+              <option value="" data-i18n="rampOff">off</option>
+              <option value="on" data-i18n="boostOn">on</option>
+            </select>
+            <span class="pedal-sub" data-i18n="chromaticSub">notes outside</span>
+          </label>
         </div>
 
-        <div class="feel-dials">
-          <div>
-            <p class="inspire-label" data-i18n="crowding">crowding</p>
-            <label class="density-ctl">
-              <span class="density-tag" data-i18n="sparse">sparse</span>
-              <input id="feel-crowd" type="range" min="0" max="100" value="50" />
-              <span class="density-tag" data-i18n="crowded">crowded</span>
-            </label>
-          </div>
-          <div>
-            <p class="inspire-label" data-i18n="phrasing">phrasing</p>
-            <label class="density-ctl">
-              <span class="density-tag" data-i18n="short">short</span>
-              <input id="feel-phrase" type="range" min="0" max="100" value="50" />
-              <span class="density-tag" data-i18n="long">long</span>
-            </label>
-          </div>
-          <div>
-            <p class="inspire-label" data-i18n="voicing">voicing</p>
-            <div class="voicing-picker" role="group" aria-label="solo voicing">
-              <button class="voice-chip active" data-voice="mono" data-i18n="mono">mono</button>
-              <button class="voice-chip" data-voice="multi" data-i18n="multi">multi</button>
-            </div>
-          </div>
-          <div>
-            <p class="inspire-label" data-i18n="soloInst">played on</p>
-            <div class="voicing-picker" role="group" aria-label="solo instrument">
-              <button class="voice-chip active" data-soloinst="piano" data-i18n="instPiano">piano</button>
-              <button class="voice-chip" data-soloinst="vibes" data-i18n="instVibes">vibes</button>
-            </div>
-          </div>
+        <div class="take-strip">
+          <span class="take-k" data-i18n="takeLabel">take</span>
+          <input id="take-seed" class="take-counter" type="text" size="6" spellcheck="false" autocomplete="off" aria-label="take seed" />
+          <button id="new-take" class="take-btn primary" data-i18n="newTake">new take</button>
+          <button id="hold-take" class="take-btn" aria-pressed="false" data-i18n="holdTake">hold this line</button>
+          <span class="take-note" data-i18n="takeTip">
+            Every solo is improvised from this number. The same one always plays the same line, so write down a take you liked and type it back to hear it again.
+          </span>
         </div>
       </div>
 
