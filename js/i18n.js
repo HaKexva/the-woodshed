@@ -73,6 +73,7 @@ export const STRINGS = {
     reportProblem: "report a problem →",
     tipWhy: "free, open source, and staying that way.",
     tipJar: "tip jar",
+    tipOpenPage: "open the page instead →",
     credits1:
       'This tool displays <strong>chord symbols only</strong> — no melodies, no lyrics, no recordings. Song titles and composer names are shown as factual metadata. Chord changes follow common lead-sheet practice, cross-checked against jazz-education references.',
     verified: "changes for this song verified against: ",
@@ -228,6 +229,7 @@ export const STRINGS = {
     reportProblem: "回報問題 →",
     tipWhy: "免費、開源，而且會一直是。",
     tipJar: "小費罐",
+    tipOpenPage: "改為開啟頁面 →",
     credits1:
       "本工具<strong>僅顯示和弦記號</strong>——不含旋律、歌詞或錄音。曲名與作曲者僅作為事實性資訊呈現。和弦進行依照常見的 lead sheet 慣例，並與爵士教育資源相互查證。",
     verified: "本曲和弦已比對下列來源：",
