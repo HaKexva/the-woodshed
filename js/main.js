@@ -58,7 +58,7 @@ const state = {
   loading: false,
   ready: false,
   // the rig
-  trading: false, // band four bars, you four, alternating
+  boost: false, // Bass+ — harmonics that stand in for a fundamental a speaker cannot make
   stopAfter: 0, // choruses to play before stopping — 0 runs until you stop it
   chorus: 0, // times round the form so far, 1-based while playing
 };
@@ -190,6 +190,7 @@ function selectSong(i) {
   // a feel is chosen for the tune you are on, so it does not follow you to the next
   band.setFeel(null);
   $("#band-feel").value = "auto";
+  renderRig();
   renderLeadsheet(song);
   renderSources(song);
   resetChordDisplay();
@@ -462,7 +463,6 @@ function setStatus(msg) {
 // call and response. band.js works out who is sounding from the bar index, so
 // the screen derives whose four it is from the same number rather than needing
 // to be told — same formula, same bar, no engine change.
-const TRADE_BARS = 4;
 
 // The chorus count is derived too: the form has come round whenever the bar
 // index stops climbing. band.js keeps a private `_chorus` for the arrangement
@@ -491,13 +491,14 @@ function renderRig() {
   armPedal("#pedal-ramp", Number($("#tempo-ramp").value) > 0);
   armPedal("#pedal-count", state.stopAfter > 0);
   armPedal("#pedal-reading", readingKey !== "C");
+  // both of these light when they are off their default, which is the rule the
+  // rig runs on: you can see what is armed without opening anything
+  armPedal("#pedal-feel", $("#band-feel").value !== "auto");
+  armPedal("#pedal-comp", $("#comp-colour").value !== "warm");
 
-  const yours = state.trading && state.yourFour;
-  $("#trade-v").textContent = t(state.trading ? "tradeFours" : "rampOff");
-  $("#trade-sub").textContent = state.trading ? t(yours ? "tradeYou" : "tradeBand") : t("tradeSub");
-  $("#trade").classList.toggle("yours", yours);
-  $("#trade").setAttribute("aria-pressed", String(state.trading));
-  armPedal("#trade", state.trading);
+  $("#boost-v").textContent = t(state.boost ? "boostOn" : "rampOff");
+  $("#bass-boost").setAttribute("aria-pressed", String(state.boost));
+  armPedal("#bass-boost", state.boost);
 
   renderChorus();
 }
@@ -515,7 +516,6 @@ function rigBar(bar) {
     }
   }
   chorusBar = bar;
-  if (state.trading) state.yourFour = Math.floor(bar / TRADE_BARS) % 2 === 1;
   renderRig();
   return true;
 }
@@ -523,7 +523,6 @@ function rigBar(bar) {
 function resetRig() {
   chorusBar = -1;
   state.chorus = 0;
-  state.yourFour = false;
   renderRig();
 }
 
@@ -728,13 +727,6 @@ $("#tempo-ramp").addEventListener("change", (e) => {
   renderRig();
 });
 
-$("#trade").addEventListener("click", () => {
-  state.trading = !state.trading;
-  state.yourFour = false;
-  band.setBreakBars(state.trading ? TRADE_BARS : 0);
-  renderRig();
-});
-
 // Nothing is scheduled ahead: the count is checked on each downbeat, so
 // changing this mid-tune takes effect on the next time round.
 $("#stop-after").addEventListener("change", (e) => {
@@ -776,21 +768,13 @@ function hqPill(n, total) {
 band.hqOn = true; // _setup kicks off the pack load at first play
 band.cb.onHqProgress = hqPill;
 
-// Bass+ needs a sentence: it is not a "more bass" control, it is a fix for a
-// speaker that cannot produce the note at all, and it makes headphones worse.
-$("#boost-help").addEventListener("click", () => {
-  const btn = $("#boost-help");
-  const open = btn.getAttribute("aria-expanded") !== "true";
-  btn.setAttribute("aria-expanded", String(open));
-  $("#boost-tip").classList.toggle("open", open);
+// Bass+ is a pedal in the rig now rather than a switch in the mix: it is set up
+// before you play, not ridden while you do.
+$("#bass-boost").addEventListener("click", () => {
+  state.boost = !state.boost;
+  band.setBassBoost(state.boost);
+  renderRig();
 });
-document.addEventListener("click", (e) => {
-  if (e.target.closest("#boost-help") || e.target.closest("#boost-tip")) return;
-  $("#boost-help")?.setAttribute("aria-expanded", "false");
-  $("#boost-tip")?.classList.remove("open");
-});
-
-$("#bass-boost").addEventListener("change", (e) => band.setBassBoost(e.target.checked));
 
 // Reading transposition. Nothing about the band changes — every surface that
 // prints a chord symbol simply redraws in the new key. The chord card and the
@@ -809,13 +793,17 @@ $("#comp-colour").value = compLevel;
 $("#comp-colour").addEventListener("change", (e) => {
   band.setCompColour(e.target.value);
   localStorage.setItem("woodshed-comp", e.target.value);
+  renderRig();
 });
 
 // How the band plays this tune, as opposed to what the tune is. Deliberately not
 // remembered: a feel belongs to the tune in front of you, and coming back
 // tomorrow to find every standard playing as a bossa would be a bug. It resets
 // with the song for the same reason.
-$("#band-feel").addEventListener("change", (e) => band.setFeel(e.target.value));
+$("#band-feel").addEventListener("change", (e) => {
+  band.setFeel(e.target.value);
+  renderRig();
+});
 
 $("#reading-key").value = readingKey;
 $("#reading-key").addEventListener("change", (e) => {
@@ -1410,6 +1398,7 @@ renderRig();
 // either way. Coarse pointer catches a tablet held sideways, which is wider
 // than the mobile breakpoint but still played through a built-in speaker.
 if (isMobile() || window.matchMedia("(pointer: coarse)").matches) {
-  $("#bass-boost").checked = true;
+  state.boost = true;
   band.setBassBoost(true);
+  renderRig();
 }

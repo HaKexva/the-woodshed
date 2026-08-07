@@ -373,8 +373,6 @@ body {
 
 .now-head p { margin-top: 0.35rem; color: var(--cream-60); font-size: 0.85rem; }
 
-.now-head .reading-ctl { margin-top: 0.55rem; }
-
 .edit-preview {
   display: inline-flex;
   align-items: center;
@@ -1191,39 +1189,8 @@ body.modal-open {
 .take-btn:hover { background: var(--amber); color: var(--ink); }
 .take-btn:active { transform: translateY(1px); }
 
-/* Bass+ carries its own explanation, and the transport sits at the bottom of
-   the window — so this tip opens upward, unlike the take one. */
-.boost-group { position: relative; display: inline-flex; align-items: center; gap: 0.15rem; }
-
-/* written as .take-tip.boost-tip so it out-ranks the take tip's own `top`,
-   which sits later in the file and would otherwise open this one downward —
-   off the bottom of the window, since the transport is already there */
-/* The tip is anchored to the transport, not to the Bass+ control, at every
-   width. Anchoring it to the control put its right edge at the control's right
-   edge — and the moment the transport wraps, that control is near the left, so
-   a 300px box extended off the screen. The transport always spans the window,
-   so hanging the tip off that is the only position that cannot fall off. */
-.boost-group { position: static; }
-
-.take-tip.boost-tip {
-  position: absolute;
-  top: auto;
-  bottom: calc(100% + 0.6rem);
-  left: auto;
-  right: 2rem;
-  width: max-content;
-  max-width: min(22rem, calc(100vw - 4rem));
-  text-transform: none;
-  letter-spacing: 0.01em;
-}
 
 @media (max-width: 900px) {
-  .take-tip.boost-tip {
-    left: 0.8rem;
-    right: 0.8rem;
-    width: auto;
-    max-width: none;
-  }
 }
 
 /* the take strip: reroll the line, or type a seed back in to hear one again */
@@ -1509,21 +1476,6 @@ body.modal-open {
 
 /* reading transposition — a horn player sets it once, so it sits quietly beside
    the mutes rather than taking a row of its own */
-.reading-ctl { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
-
-.reading-ctl select {
-  font-family: var(--body);
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  background: var(--ink-3);
-  color: var(--cream);
-  border: 2px solid var(--cream-25);
-  padding: 0.28rem 0.4rem;
-  cursor: pointer;
-}
-
-.reading-ctl select:focus-visible { outline: 2px solid var(--flame); outline-offset: 2px; }
 
 #tempo-val { color: var(--cream); font-weight: 600; }
 
@@ -1717,65 +1669,6 @@ select.pedal-v option { background: var(--ink-2); font-family: var(--body); text
   cursor: pointer;
 }
 
-.real-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  cursor: pointer;
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--cream-60);
-  user-select: none;
-}
-
-.real-toggle input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.real-toggle .switch {
-  width: 2.1rem;
-  height: 1.15rem;
-  border: 2px solid var(--cream-25);
-  border-radius: 999px;
-  position: relative;
-  transition: background 0.15s, border-color 0.15s;
-  flex: none;
-}
-
-.real-toggle .switch::after {
-  content: "";
-  position: absolute;
-  top: 1px;
-  left: 1px;
-  width: 0.75rem;
-  height: 0.75rem;
-  border-radius: 50%;
-  background: var(--cream-60);
-  transition: transform 0.15s, background 0.15s;
-}
-
-.real-toggle input:checked + .switch {
-  background: var(--amber);
-  border-color: var(--amber);
-}
-
-.real-toggle input:checked + .switch::after {
-  transform: translateX(0.95rem);
-  background: var(--ink-2);
-}
-
-.real-toggle input:focus-visible + .switch {
-  outline: 2px solid var(--blue);
-  outline-offset: 2px;
-}
-
-.real-toggle:has(input:checked) {
-  color: var(--cream);
-}
-
 .hint { font-size: 0.78rem; color: var(--cream-60); letter-spacing: 0.06em; }
 
 .hint kbd {
@@ -1806,7 +1699,6 @@ select.pedal-v option { background: var(--ink-2); font-family: var(--body); text
   .editor textarea,
   .song-search,
   .take-seed input,
-  .reading-ctl select,
   select.pedal-v,
   .wood-opt select { font-size: 16px; }
 
