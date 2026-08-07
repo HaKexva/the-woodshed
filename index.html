@@ -14,6 +14,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Familjen+Grotesk:ital,wght@0,400..700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#0f1216" />
+  <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%230f1216'/><rect x='14' y='14' width='44' height='44' fill='%23f08a24'/><text x='24' y='84' font-size='40' fill='%23f2e7d3' font-family='sans-serif' font-weight='bold'>w.</text></svg>" />
 </head>
 <body>
@@ -436,5 +439,13 @@
   </div>
 
   <script type="module" src="js/main.js"></script>
+  <script>
+    // Offline, and installable. Registered after load so it never competes with
+    // the first paint or the sample fetches for bandwidth. Failure is fine —
+    // it costs offline, not the app.
+    if ("serviceWorker" in navigator) {
+      addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+    }
+  </script>
 </body>
 </html>
