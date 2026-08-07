@@ -604,38 +604,6 @@ body {
 }
 
 /* woodshed row: hold a line still, walk the tempo up, drop the band out */
-.wood-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.4rem;
-  margin: -0.6rem 0 1.3rem;
-}
-
-.wood-opt {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.68rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--cream-60);
-  cursor: pointer;
-}
-
-.wood-opt select {
-  font-family: var(--body);
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  background: var(--ink-3);
-  color: var(--cream);
-  border: 2px solid var(--cream-25);
-  padding: 0.28rem 0.4rem;
-  cursor: pointer;
-}
-
-.wood-opt select:focus { outline: none; border-color: var(--amber); }
-.wood-opt input[type="checkbox"] { accent-color: var(--amber); width: 1rem; height: 1rem; }
 
 /* ------------------------------------------------------------ leadsheet */
 
@@ -673,14 +641,6 @@ body {
 .inspire-panel[hidden] { display: none; }
 
 .inspire-panel { margin-bottom: 2rem; }
-
-.inspire-label {
-  font-size: 0.78rem;
-  letter-spacing: 0.35em;
-  text-transform: uppercase;
-  color: var(--blue);
-  margin-bottom: 0.8rem;
-}
 
 /* --------------------------------------------------------------- editor */
 
@@ -1143,161 +1103,97 @@ body.modal-open {
 .sleeve-toggle .chev { transition: transform 0.25s ease; }
 .sleeve.open .sleeve-toggle .chev { transform: rotate(180deg); }
 
-.style-picker { display: flex; gap: 0.55rem; flex-wrap: wrap; margin-bottom: 1.3rem; }
+/* ---------------------------------------------------------- the soloist */
 
-.voicing-picker { display: flex; gap: 0.55rem; }
-
-.style-chip,
-.voice-chip {
-  font-family: var(--body);
-  font-weight: 600;
-  font-size: 0.8rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  background: transparent;
-  color: var(--cream);
-  border: 2px solid var(--cream-25);
-  padding: 0.42rem 0.85rem;
-  cursor: pointer;
-  transition: all 0.12s;
-}
-
-.style-chip:hover,
-.voice-chip:hover { border-color: var(--cream); }
-
-.style-chip.active,
-.voice-chip.active { background: var(--amber); border-color: var(--amber); color: var(--ink); }
-
-/* "new take" is an action, not a third member of the voicing toggle group next
-   to it — it never carries an .active state, so sharing the chip look made it
-   read as an un-selected option and left the real selection ambiguous. */
-.take-btn {
-  font-family: var(--body);
-  font-weight: 700;
-  font-size: 0.8rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  background: var(--cream-10);
-  color: var(--amber);
-  border: 2px solid transparent;
-  border-radius: 999px;
-  padding: 0.42rem 1.1rem;
-  cursor: pointer;
-  transition: all 0.12s;
-}
-
-.take-btn:hover { background: var(--amber); color: var(--ink); }
-.take-btn:active { transform: translateY(1px); }
-
-
-@media (max-width: 900px) {
-}
-
-/* the take strip: reroll the line, or type a seed back in to hear one again */
-/* the field, its help icon and the tip travel together — with the icon out in
-   the row's own 0.9rem gap it read as unrelated to the box it explains */
-.take-field {
-  position: relative;
+/* The soloist wears the rig's pedals. Its own row rather than the rig's: the
+   rig is a rail across the transport and this sits in the page, so it takes
+   the shape and leaves the full-bleed bar behind. */
+.solo-rig {
   display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.take-row {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-  margin: -0.5rem 0 1.3rem;
+  align-items: flex-end;
   flex-wrap: wrap;
+  gap: 0.5rem;
+  row-gap: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
-.take-help {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.6rem;
-  height: 1.6rem;
-  padding: 0;
-  background: none;
-  border: none;
-  color: var(--cream-60);
-  cursor: pointer;
-  transition: color 0.12s;
+.solo-rig .pedal-sub {
+  max-width: 11rem;
 }
 
-.take-help .icon { width: 1.05rem; height: 1.05rem; }
-.take-help:hover,
-.take-help[aria-expanded="true"] { color: var(--amber); }
-
-.take-tip {
-  position: absolute;
-  top: calc(100% + 0.5rem);
-  left: 0;
-  z-index: 5;
-  width: max-content;
-  max-width: min(32rem, 70vw);
-  margin: 0;
-  padding: 0.7rem 0.9rem;
-  background: var(--ink-3);
-  border: 2px solid var(--cream-25);
-  color: var(--cream-60);
-  font-size: 0.78rem;
-  line-height: 1.5;
-  letter-spacing: 0.01em;
-  text-transform: none;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.12s;
-}
-
-.take-help:hover ~ .take-tip,
-.take-help:focus-visible ~ .take-tip,
-.take-tip.open { opacity: 1; visibility: visible; }
-
-.take-seed {
+/* The take is not a setting — it is the name of one particular solo, the thing
+   you write down and type back. So it does not get a pedal. */
+.take-strip {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-family: var(--body);
-  font-size: 0.7rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--cream-60);
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  background: var(--ink-3);
+  border: 1px solid var(--cream-10);
+  padding: 0.55rem 0.75rem;
 }
 
-.take-seed input {
-  font-family: var(--body);
-  font-size: 0.8rem;
-  letter-spacing: 0.16em;
+.take-k {
+  font-size: 0.55rem;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
+  color: var(--amber);
+  flex: none;
+}
+
+/* A code you read back over the phone wants even digits and a fixed width, and
+   the display face gives neither. */
+.take-counter {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 1.15rem;
+  letter-spacing: 0.16em;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+  color: var(--cream);
+  background: var(--ink);
+  border: 1px solid var(--cream-25);
+  padding: 0.16rem 0.5rem;
+  width: 8rem;
+  flex: none;
+}
+
+.take-counter:focus { outline: none; border-color: var(--amber); }
+
+.take-btn {
+  font-family: var(--display);
+  font-size: 1rem;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
   background: transparent;
   color: var(--cream);
   border: 2px solid var(--cream-25);
-  padding: 0.36rem 0.55rem;
-  width: 14ch; /* seven base-36 digits, plus the wide tracking and the padding */
+  padding: 0.26rem 0.75rem;
+  cursor: pointer;
+  flex: none;
+  transition: border-color 0.12s, background-color 0.12s, color 0.12s;
 }
 
-.take-seed input:focus { outline: none; border-color: var(--amber); }
+.take-btn:hover { border-color: var(--cream); }
+.take-btn:active { transform: translateY(1px); }
+.take-btn.primary { border-color: var(--amber); color: var(--amber); }
+.take-btn.primary:hover { background: var(--amber); color: var(--ink); }
 
-.feel-dials { display: flex; gap: 3rem; flex-wrap: wrap; }
-
-.feel-dials .inspire-label { margin-bottom: 0.5rem; }
-
-.inspire-label em {
-  font-style: normal;
-  text-transform: none;
-  letter-spacing: 0.03em;
-  color: var(--cream-60);
+/* hold is a state, not an action — it stays down while it is holding */
+.take-btn[aria-pressed="true"] {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: var(--ink);
 }
 
-.density-ctl { display: flex; align-items: center; gap: 0.8rem; }
-
-.density-tag {
+/* the explanation stands in the strip rather than behind a "?" */
+.take-note {
   font-size: 0.68rem;
-  letter-spacing: 0.25em;
-  text-transform: uppercase;
-  color: var(--cream-60);
+  line-height: 1.35;
+  color: var(--cream-35);
+  flex: 1 1 16rem;
+  min-width: 0;
 }
+
 
 /* -------------------------------------------------------------- credits */
 
@@ -1698,9 +1594,8 @@ select.pedal-v option { background: var(--ink-2); font-family: var(--body); text
   .editor select,
   .editor textarea,
   .song-search,
-  .take-seed input,
-  select.pedal-v,
-  .wood-opt select { font-size: 16px; }
+  .take-counter,
+  select.pedal-v { font-size: 16px; }
 
   /* The rig keeps every pedal on a phone — it is the row you reach for with an
      instrument in your hands, so nothing here collapses behind a menu. The
