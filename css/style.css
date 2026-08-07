@@ -1504,6 +1504,26 @@ select.pedal-v option { background: var(--ink-2); font-family: var(--body); text
   color: var(--cream-25);
 }
 
+/* Three states, not two.
+ *
+ * A pedal was either dim or amber, and dim meant "at its default" — which is
+ * honest for a switch, where the default is *off* and the control really is
+ * doing nothing. It is wrong for a choice. "played on · piano" is not an idle
+ * control, it is the instrument; rendering it the same grey as an unarmed
+ * tempo ramp reads as disabled, which is the one thing it is not.
+ *
+ * So a choice — every value equally active, no off — always reads live, and
+ * amber is kept for the thing it is actually good at: telling you at a glance
+ * what you have moved off its default and might have forgotten.
+ *
+ *   dim     off, doing nothing
+ *   cream   on, at its default
+ *   amber   on, and you changed it
+ */
+.pedal.choice { border-color: var(--cream-35); }
+.pedal.choice .pedal-k { color: var(--cream-60); }
+.pedal.choice .pedal-v { color: var(--cream); }
+
 /* armed: the amber is the whole point of the row being visible at rest */
 .pedal.on { border-color: var(--amber); background: rgba(240, 138, 36, 0.1); }
 .pedal.on .pedal-k { color: var(--amber); }
