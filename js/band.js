@@ -972,10 +972,16 @@ export class Band {
     t.bpm.value = bpmNow;
     t.timeSignature = song.timeSignature ?? 4;
     this._applySwing();
-    // bar 0 is a count-in; the form loops over bars 1..n
+    // Two bars of count-in, one above 200 — the tempo where two is longer than
+    // anybody wants to wait and one is already plenty to find the time. Fixed
+    // here for the whole take rather than read per build: every event's bar
+    // offset is measured from it, so a tempo ramp crossing 200 mid-tune would
+    // otherwise shift the entire form sideways by a bar.
+    this._countBars = bpmNow >= 200 ? 1 : 2;
+    // the count-in owns bars 0..n-1; the form loops after it
     t.loop = true;
-    t.loopStart = "1m";
-    t.loopEnd = `${song.progression.length + 1}m`;
+    t.loopStart = `${this._countBars}m`;
+    t.loopEnd = `${song.progression.length + this._countBars}m`;
 
     this._chorus = 0;
     this._applyStyleBass(this.feel);
@@ -1167,9 +1173,10 @@ export class Band {
     }
 
     const beatSec = () => 60 / Tone.getTransport().bpm.value;
-    // everything shifts one bar right — bar 0 belongs to the count-in
+    // everything shifts right by the count-in, which owns the bars before the form
+    const countBars = this._countBars ?? 2;
     const toBBS = (beat) => {
-      const shifted = beat + bpb;
+      const shifted = beat + bpb * countBars;
       const bar = Math.floor(shifted / bpb);
       const rem = shifted - bar * bpb;
       return `${bar}:${Math.floor(rem)}:${Math.round((rem % 1) * 4)}`;
@@ -1180,11 +1187,30 @@ export class Band {
       this.parts.push(part);
     };
 
-    // count-in: one bar of hat clicks (plays once — the loop skips bar 0)
+    // The count-in, played once — the loop starts after it.
+    //
+    // Two bars of undifferentiated clicks is not how anybody counts a band in.
+    // The lead-in bar is half-time — "one, two" — and the bar against the
+    // downbeat is every beat, so the last four say "one two three four" and
+    // land you on 1. One bar of that is what you get above 200.
     const countEvents = [];
-    for (let b = 0; b < bpb; b++) {
-      countEvents.push({ beat: b, drum: "hat", vel: b === 0 ? 56 : 40, count: true });
-      ev.meta.push({ kind: "beat", beat: b - bpb, bar: -1, beatInBar: b });
+    // Where the lead-in bar speaks: the downbeat, and the middle of the bar
+    // when there is one. A waltz has no middle to land on — three evenly split
+    // is just the bar again — so it gets the downbeat alone.
+    const leadHits = bpb >= 4 ? [0, Math.floor(bpb / 2)] : [0];
+    for (let b = 0; b < bpb * countBars; b++) {
+      const beatInBar = b % bpb;
+      const lastBar = Math.floor(b / bpb) === countBars - 1;
+      const sounds = lastBar || leadHits.includes(beatInBar);
+      if (sounds) {
+        countEvents.push({ beat: b, drum: "hat", vel: beatInBar === 0 ? (lastBar ? 62 : 50) : 40, count: true });
+      }
+      ev.meta.push({
+        kind: "beat",
+        beat: b - bpb * countBars,
+        bar: Math.floor(b / bpb) - countBars,
+        beatInBar,
+      });
     }
     const countPart = new Tone.Part(
       (time, e) => {
@@ -1200,7 +1226,7 @@ export class Band {
           try { this.hatPool.next().triggerAttackRelease(0.04, time, e.vel / 127); } catch { /* skip */ }
         }
       },
-      countEvents.map((e) => [`0:${e.beat}:0`, e])
+      countEvents.map((e) => [`${Math.floor(e.beat / bpb)}:${e.beat % bpb}:0`, e])
     );
     countPart.start(0);
     this.parts.push(countPart);
