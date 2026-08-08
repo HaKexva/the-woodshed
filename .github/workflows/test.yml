@@ -1,10 +1,19 @@
-# Runs the generator checks on every push and pull request.
+# Runs the generator checks on every pull request, and on main itself — work
+# lands here by fast-forward as often as it does by PR, and a trigger that only
+# fires on pull requests means the branch everything deploys from is the one
+# branch nothing checks.
+#
+# A push to a branch with a pull request open is already covered by the
+# pull_request trigger, so this is scoped to main rather than to every branch,
+# or every such push would run the suite twice.
 #
 # There is no build and no dependencies: the checks import js/ directly and
 # stub the two CDN imports at resolve time, so this is Node and a checkout.
 name: checks
 
 on:
+  push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
