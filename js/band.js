@@ -425,12 +425,16 @@ export class Band {
       const bars = (this.form?.progression?.length ?? 0) >= 16 ? TAKEOVER_LONG : TAKEOVER_SHORT;
       const bpb = this._songCtx?.bpb ?? 4;
       const t = Tone.getTransport();
-      this._takeOverUntil = t.ticks + bars * t.PPQ * bpb;
+      const secs = (bars * bpb * 60) / t.bpm.value;
+      // the end of the phrase is a moment, not a tick: armed near the loop
+      // point, a tick target lands past loopEnd, where the wrapping transport
+      // never goes, and the band sits at the top of the range until the
+      // player comes back instead of settling
+      this._takeOverUntil = Tone.now() + secs;
       // and come back down when it runs out, rather than at whatever the next
       // dial change happens to be
-      const secs = ((bars * bpb * 60) / t.bpm.value) * 1000;
       clearTimeout(this._takeOverTimer);
-      this._takeOverTimer = setTimeout(() => this._liveRebuild(), secs + 50);
+      this._takeOverTimer = setTimeout(() => this._liveRebuild(), secs * 1000 + 50);
     } else {
       this._takeOverUntil = null;
       clearTimeout(this._takeOverTimer);
@@ -447,7 +451,7 @@ export class Band {
   get heatNow() {
     if (this.liveHeat == null) return null;
     if (this._takeOverUntil == null) return this.liveHeat;
-    return Tone.getTransport().ticks < this._takeOverUntil ? TAKEOVER_HEAT : SETTLED_HEAT;
+    return Tone.now() < this._takeOverUntil ? TAKEOVER_HEAT : SETTLED_HEAT;
   }
 
   /**
@@ -492,13 +496,25 @@ export class Band {
     const bpb = this._songCtx.bpb ?? 4;
     const span = ppq * bpb * (this.liveResponse === "phrase" ? 4 : 1);
     const secPerTick = 60 / (t.bpm.value * ppq);
+    // The grid is the form's, not the clock's: bar one sits after the count-in,
+    // so an absolute multiple of four bars lands two bars into every phrase a
+    // listener actually hears.
+    const origin = ppq * bpb * (this._countBars ?? 2);
+    const loopEnd = origin + ppq * bpb * (this.form?.progression?.length ?? 0);
     // Never aim at a boundary the build cannot beat. A build was measured at
     // 46-107ms; a bar at 240bpm is a second, and the last of those is not a
     // margin. Under a third of a second of room, take the boundary after.
     const MIN_LEAD = 0.35;
     let ticks = t.ticks;
-    let next = Math.ceil((ticks + 1) / span) * span;
+    let next = origin + Math.ceil((ticks - origin + 1) / span) * span;
     if ((next - ticks) * secPerTick < MIN_LEAD) next += span;
+    // A boundary past the loop point belongs to the loop point, which replans
+    // with the current heat anyway. Aiming there instead would target a tick
+    // the wrapping transport never reaches: a generation that never opens,
+    // while the wrap-build closes the gate on the one that was sounding — on
+    // any form whose length plus count-in is not a multiple of the span, the
+    // band fell silent for the last bars of the chorus.
+    if (next >= loopEnd) return;
     const handAt = Tone.now() + (next - ticks) * secPerTick;
 
     // one hand-over queued at a time: a second build for the same boundary

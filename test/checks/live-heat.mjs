@@ -7,7 +7,7 @@
 // the range is wide enough to hear once it reaches the drums.
 import { Band } from "../../js/band.js";
 import { quietWindowMs, NoteMeter } from "../../js/listen.js";
-import { setBpm, getTransport } from "../stubs/tone.js";
+import { setBpm, setNow, getTransport } from "../stubs/tone.js";
 import { SONGS } from "../../js/songs.js";
 
 const B = Band.prototype;
@@ -65,10 +65,11 @@ console.log("\nWHAT THAT BUYS — the drummer at the two ends of the range");
 
 console.log("\nTHE FLOOR — what happens when the player stops");
 {
-  // A stand-in transport: the band reads ticks off it to decide whether the
-  // phrase it took is over, and the stub's clock does not move on its own.
+  // A stand-in clock: the band reads Tone.now() to decide whether the phrase
+  // it took is over — a moment, not a tick, so a takeover armed near the loop
+  // point still ends — and the stub's clock does not move on its own.
   setBpm(120);
-  const t = getTransport();
+  setNow(0);
   const stub = Object.assign(Object.create(B), {
     rideOn: true, compColour: 1, playing: false, paused: false,
     song, _songCtx: { bpb: 4 }, liveHeat: null,
@@ -77,19 +78,51 @@ console.log("\nTHE FLOOR — what happens when the player stops");
   stub.setLiveHeat(0.2);            // a player barely there
   check(stub.heatNow === 0.2, `heat is ${stub.heatNow}, not the room's 0.2`);
 
-  const start = t.ticks;
   stub.setRoomQuiet(true);          // and now not there at all
   check(stub.heatNow === 0.9, `the band did not take the floor: ${stub.heatNow}`);
-  const bars = (t.PPQ * 4);
-  console.log(`   took the floor for ${(stub._takeOverUntil - start) / bars} bars at 0.9`);
-  check((stub._takeOverUntil - start) / bars === 8, "a 32-bar form did not get eight bars");
+  const secPerBar = 2; // four beats at 120
+  console.log(`   took the floor for ${stub._takeOverUntil / secPerBar} bars at 0.9`);
+  check(stub._takeOverUntil / secPerBar === 8, "a 32-bar form did not get eight bars");
 
-  t.ticks = stub._takeOverUntil + 1; // the phrase is over
+  setNow(stub._takeOverUntil + 0.01); // the phrase is over
   check(stub.heatNow === 0.5, `the band did not settle: ${stub.heatNow}`);
 
   stub.setRoomQuiet(false);          // the player is back
   check(stub.heatNow === 0.2, `the room did not get it back: ${stub.heatNow}`);
-  t.ticks = start;
+  setNow(0);
+}
+
+console.log("\nTHE SHORT FORM — a boundary past the loop point belongs to the loop point");
+{
+  // A 15-bar form with a two-bar count-in loops over ticks that stop one bar
+  // short of the next four-bar multiple. A rebuild aimed there would build a
+  // generation gated to a window that never opens — while the wrap closes the
+  // one that was sounding. The band went silent at the end of every chorus.
+  setBpm(120);
+  setNow(0);
+  const t = getTransport();
+  const barTicks = t.PPQ * 4;
+  const built = [];
+  const stub = Object.assign(Object.create(B), {
+    liveResponse: "phrase",
+    song: { progression: new Array(15).fill("C") },
+    _songCtx: { bpb: 4 },
+    _countBars: 2,
+    _buildParts: (song, plan, handAt) => built.push(handAt),
+  });
+
+  // bar 5 of the form: the next boundary is the form's own bar 8, three bars on
+  t.ticks = (2 + 5) * barTicks;
+  stub._liveRebuild();
+  check(built.length === 1, "a mid-form rebuild did not build");
+  console.log(`   from bar 5, hand-over lands ${f(built[0] / 2, 1)} bars on`);
+  check(Math.abs(built[0] - 6) < 0.01, `hand-over aimed ${f(built[0] ?? -1)}s out — not the form's own phrase`);
+
+  // the last bar: the next four-bar multiple is past the loop point
+  t.ticks = Math.round((2 + 14.5) * barTicks);
+  stub._liveRebuild();
+  check(built.length === 1, "a boundary past the loop point still built a generation");
+  t.ticks = 0;
 }
 
 console.log("\nTHE BREATH — the quiet window counts bars, not seconds");

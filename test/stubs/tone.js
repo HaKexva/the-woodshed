@@ -18,7 +18,10 @@ const transport = {
   scheduleRepeat() {},
 };
 export const getTransport = () => transport;
-export const now = () => 0;
+// the wall clock, settable for the same reason ticks are
+let nowSec = 0;
+export const setNow = (v) => (nowSec = v);
+export const now = () => nowSec;
 export const getDraw = () => ({ schedule() {} });
 export const setContext = () => {};
 export const start = async () => {};
