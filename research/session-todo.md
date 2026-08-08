@@ -21,7 +21,7 @@ project).
 | 7 | `[P]` | **Name and surface trading fours.** `setBreakBars(4)` already *was* that cycle; it now has the name, and the pedal turns solid amber on your four. The screen derives whose bars they are from the same `bar` index band.js uses, so no callback was added | XS | **done** |
 | 8 | `[B]` | **Two-feel** — per-chorus bass feel, drums following. The bass walked quarters from bar 1 of chorus 1 to the end. `two` and `four` are in (`pedal` and `broken` are not); the head chorus and the quiet chorus of the wave take two. 4.14 → 2.03 notes/bar with the root still on 78% of chord changes, drums sitting back to match | S | **done** |
 | 9 | `[B]` | **Separate the piano and guitar registers.** Only the piano moved in the end: its floor went F♯3 → A3, taking the overlap from 46.7% to about 25%. Moving the guitar as well was tried twice — floor to E2, ceiling to G3 — and both take it out of the range its voicings were built for, so it stays at 43–65 | XS | **done** |
-| 10 | `[P]` | **Let the band lay out for a human.** Both mechanisms that model a rhythm section listening read the generated line, so both switched off whenever the soloist was real. Phrase ends now come from the form model — comp runs 27–31% thinner in those bars — on about two phrases in three, so it stays a habit rather than a rule | S | **done** |
+| 10 | `[P]` | **Let the band lay out for a human.** Both mechanisms that model a rhythm section listening read the generated line, so both switched off whenever the soloist was real. Phrase ends now come from the form model — comp runs 27–31% thinner in those bars — on about two phrases in three, so it stays a habit rather than a rule. *Live mode later added the direct measurement this item could only guess at; the form-model habit remains for mic-off sessions* | S | **done** |
 | 11 | `[B]` | **Make the bass skip.** Was 92.5% stepwise against a 60–70% norm. A full bar now sometimes walks a chord-tone ladder — one rung is a third, not a second — and arrives by leap, the fifth falling a fourth to the next root. Step 92.5% → 73.6% | S | **done** |
 | 12 | `[B]` | **A per-chorus arrangement plan**, replacing `bwave` and `role`. `_arrangement()` decides who carries the comp, which whole phrase each of them sits out, how hard the section is leaning and whether the bass is in two — before a note exists. Lay-outs come from the form model, so they are always a contiguous phrase. Piano 1.56–1.98 attacks/bar across the arc against 1.9 flat, velocity 53–65 against a range of 3.6, and 2–5 silent bars where there were none | M | **done** |
 | 13 | `[B]` | **Form model** — `formSections()`, with optional `sections: [{ label, bars }]` in the song schema and a derived default: a twelve-bar form turns over in fours, everything else takes 8-bar blocks. 138 tunes (31%) had their fill positions corrected; Blue Monk fills at 4/8/12 rather than 8/12 | M | **done** |
@@ -37,7 +37,7 @@ project).
 | 23 | `[B]` | **Seed the band, not just the solo.** After item 24 split generation from scheduling there was one place to do it: `_planChorus` runs inside `withSeed(take, chorus)`, so the whole performance is reproducible from the number in the take box rather than only the line. Per-hit drum jitter stays random — that is rendition, on the audio thread, and no schedule can reproduce it | XS | **done** |
 | 24 | `[B]` | **Get `_buildParts` off the loop point.** `_planChorus` produces the chorus as data a chorus early; the wrap only schedules it. 0.94ms → 0.06ms, 94% off the critical path | M | **done** |
 | 25 | `[P]` | ~~**Limitation modes**~~ — **dropped.** The rule-before-you-play half is UI, but the critique-after half is not: the guide-tone thread is a local inside `_soloLine` rather than anything reachable, `analyze()` is only called from the dev harness, and with no MIDI in it could only ever critique the generated line rather than what you played | M | **dropped** |
-| 26 | `[P]` | ~~**Web MIDI**~~ — **dropped.** The only mic-free route to knowing what the player actually played, and what would let item 10 stop guessing from the form and start listening. Its own capability tier, and not being taken | L | **dropped** |
+| 26 | `[P]` | ~~**Web MIDI**~~ — **dropped.** The only mic-free route to knowing what the player actually played, and what would let item 10 stop guessing from the form and start listening. Its own capability tier, and not being taken. *Since then: the mic route was taken instead — live mode listens to dynamics and attack rate, never notes, so this stays dropped for what it was really offering (transcription). See [live-mode.md](live-mode.md)* | L | **dropped** |
 | 27 | `[B]` | **Voice-lead the guitar, and ghost the shape.** `guitarVoicings` + `guitarComp`: Green's own root-3-7 inversions, chosen by common tones held. Top-voice motion 2.50 → 1.91 st, common tones 0.74 → 1.04, *So What* 2 → 4 top notes. And one or two notes sound where three did — full triads 100% → 68% of attacks, the whole shape kept for the backbeat | M | **done** |
 
 ## Where it stands
@@ -48,14 +48,28 @@ swinging, the bass never changing gear, the guitar sitting on the band, every
 chorus sounding like the last one, having to transpose the whole chart in your
 head, and the practice controls being invisible to anyone in session mode. The
 comp colour that came out of item 2 grew past the piano into a band-wide
-plain / warm control that reaches all four instruments.
+plain / warm control that reaches all four instruments — and later a third
+setting, **hot**: warm's vocabulary played harder and more often, deliberately
+not the extensions-heavy third setting that was tried and cut (see the note in
+theory.js).
 
 **Tried and reverted: 19.** The guitar's rhythm was never the problem; what the
 part wanted was voice leading and ghosting, which became item 27.
 **Dropped: 1b.**
 
-**Dropped: 23, 25, 26.** Seeding the band, limitation modes and Web MIDI were
-all considered and set aside. Nothing is open on this list.
+**Dropped: 25, 26.** Limitation modes and Web MIDI were considered and set
+aside. (Item 23, seeding the band, was set aside at first and then done once
+item 24 made it an XS.) Nothing is open on this list.
+
+**After the list: live mode.** The mic-shaped hole that items 25 and 26 kept
+running into — nothing analytic points at the human, item 10 guesses from the
+form — got its answer from the other direction: not transcription but
+dynamics. The mic reduces the room to one number, heat, which replaces the
+written arc; when the player stops, the band takes the floor for a phrase and
+settles. What the interaction literature says about that design, the one
+place the shipped thresholds disagreed with it, and the fix that followed —
+the quiet window now counts two bars of the tune rather than a fixed 1.5
+seconds — is in [live-mode.md](live-mode.md).
 
 Items 1, 6 and 7 shipped together as **the rig** — a row across the top of the
 transport holding the practice controls, readable in the off state so you can see

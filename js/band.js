@@ -451,6 +451,17 @@ export class Band {
   }
 
   /**
+   * One bar of the current tune in milliseconds, or null before there is a
+   * tune. For anyone measuring the room against the music's own clock — the
+   * listener's quiet window counts bars, not seconds.
+   */
+  get barMs() {
+    if (!this._songCtx) return null;
+    const bpm = Tone.getTransport().bpm.value;
+    return bpm ? ((this._songCtx.bpb ?? 4) * 60000) / bpm : null;
+  }
+
+  /**
    * How soon the room reaches the band.
    *
    *   chorus — the top of the next chorus. What a rhythm section actually does:

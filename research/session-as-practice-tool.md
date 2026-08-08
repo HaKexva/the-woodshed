@@ -121,6 +121,11 @@ responds to a human.
 So the one part of the engine that models a band listening to a soloist is
 switched off precisely when there is a real soloist in the room.
 
+*(Since the audit: item 10 moved the phrase-end thinning onto the form model so
+it runs for a human, and live mode now listens to the actual room through the
+mic — loudness and attack rate, never notes. See
+[live-mode.md](live-mode.md).)*
+
 Chord breaks are the manual version of this and they exist. The automatic version
 is the per-chorus arrangement plan proposed in
 [backing-band-audit.md](backing-band-audit.md) — let the plan include laying out.

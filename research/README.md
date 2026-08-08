@@ -22,6 +22,7 @@ Session-mode review. Code line numbers in the solo documents refer to commit
 | [solo-fixes-applied.md](solo-fixes-applied.md) | What was changed in the generator as a result, with before/after numbers |
 | [songbook-sourcing.md](songbook-sourcing.md) | Where chord changes for a larger songbook can come from, and what the licences actually say |
 | [solo-vocabulary-plan.md](solo-vocabulary-plan.md) | Why the line still reads as random after the fixes, and the vocabulary/cadence/rendition plan that follows |
+| [live-mode.md](live-mode.md) | The band listening to the room through the mic — what the interaction literature says a rhythm section does when the soloist stops, and where the shipped design agrees with it |
 
 ## The short version — session mode
 

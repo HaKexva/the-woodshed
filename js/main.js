@@ -736,6 +736,7 @@ async function setMode(mode) {
 // "heat" is what the band is playing to — which is the room, except for the
 // phrase after you stop, when the band has the floor and says so.
 const listener = new Listener({
+  barMs: () => band.barMs,
   onFrame: ({ level }) => {
     $("#live-level").style.width = `${Math.round(level * 100)}%`;
   },

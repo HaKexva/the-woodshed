@@ -27,8 +27,20 @@
 const FFT = 1024;
 const TICK = 40; // ms between frames — 25 a second is plenty for an envelope
 
-/** Silence long enough to be a decision rather than a rest. */
-const QUIET_MS = 1500;
+/** Silence long enough to be a decision rather than a rest. Phrasing is
+ *  counted in bars, not seconds — a breath between phrases on a ballad lasts
+ *  longer than a whole bar on a burner, and the comping literature says a
+ *  breath gets filled, not seized (research/live-mode.md). So the window is
+ *  two bars of the tune actually being played, and the old fixed value stays
+ *  as the floor so a fast tempo can never make the band twitchier than it
+ *  already was. */
+const QUIET_FLOOR_MS = 1500;
+
+/** The quiet window for a bar of the current length, in ms. `barMs` may be
+ *  null before a tune exists; the floor answers for it. */
+export function quietWindowMs(barMs) {
+  return Math.max(QUIET_FLOOR_MS, (barMs || 0) * 2);
+}
 
 /** Adaptive whitening: every bin is normalised by its own recent maximum, so a
  *  loud low end cannot drown an attack up top and a quiet instrument is not
@@ -50,6 +62,8 @@ export class Listener {
    *   onFrame({level, heat, onsets}) — every frame, for the meters
    *   onHeat(heat)                   — only when the published heat moves
    *   onError(err)                   — permission refused, no device, etc
+   *   barMs()                        — current bar length in ms, so the quiet
+   *                                    window can count bars; optional
    */
   constructor(cb = {}) {
     this.cb = cb;
@@ -185,7 +199,7 @@ export class Listener {
     // deliberate when you stop, and it needs to know you stopped rather than
     // watching a number sag.
     if (level > 0.12) this._lastLoud = now;
-    const quiet = now - this._lastLoud > QUIET_MS;
+    const quiet = now - this._lastLoud > quietWindowMs(this.cb.barMs?.());
     if (quiet !== this.quiet) {
       this.quiet = quiet;
       this.cb.onQuiet?.(quiet);

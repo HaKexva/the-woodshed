@@ -6,6 +6,7 @@
 // spans so nothing downstream sees a number it has never seen before, and that
 // the range is wide enough to hear once it reaches the drums.
 import { Band } from "../../js/band.js";
+import { quietWindowMs } from "../../js/listen.js";
 import { setBpm, getTransport } from "../stubs/tone.js";
 import { SONGS } from "../../js/songs.js";
 
@@ -89,6 +90,32 @@ console.log("\nTHE FLOOR — what happens when the player stops");
   stub.setRoomQuiet(false);          // the player is back
   check(stub.heatNow === 0.2, `the room did not get it back: ${stub.heatNow}`);
   t.ticks = start;
+}
+
+console.log("\nTHE BREATH — the quiet window counts bars, not seconds");
+{
+  // Phrasing is in bars: a breath between phrases on a ballad outlasts a whole
+  // bar on a burner, so the takeover waits two bars of the tune being played,
+  // floored at the old fixed 1.5s (research/live-mode.md).
+  check(quietWindowMs(null) === 1500, "no tune yet did not fall back to the floor");
+
+  const stub = Object.assign(Object.create(B), { _songCtx: { bpb: 4 } });
+  setBpm(90);
+  console.log(`   90bpm in 4   →  bar ${f(stub.barMs, 0)}ms, window ${f(quietWindowMs(stub.barMs), 0)}ms`);
+  check(Math.round(stub.barMs) === 2667, `a 90bpm bar is ${stub.barMs}ms`);
+  check(quietWindowMs(stub.barMs) > stub.barMs, "one bar of ballad rest loses the floor");
+
+  setBpm(120);
+  check(quietWindowMs(stub.barMs) === 2 * stub.barMs, "the window is not two bars of the tune");
+
+  // a burner can never make the band twitchier than the fixed value did
+  setBpm(320);
+  stub._songCtx = { bpb: 3 };
+  console.log(`   320bpm in 3  →  bar ${f(stub.barMs, 0)}ms, window ${f(quietWindowMs(stub.barMs), 0)}ms`);
+  check(quietWindowMs(stub.barMs) === 1500, "a fast waltz got under the floor");
+
+  check(Object.assign(Object.create(B), {}).barMs === null, "barMs invented a bar with no tune");
+  setBpm(120);
 }
 
 console.log();
