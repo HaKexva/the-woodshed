@@ -122,6 +122,22 @@ body {
 .mode-btn:hover { background: var(--cream-10); }
 .mode-btn.active { background: var(--amber); color: var(--ink); }
 
+/* The live tab wears its state on its sleeve: the mode listens to a real
+   microphone in a real room, and that half is young. Colour is inherited so
+   the badge dims and brightens with the tab's own state. */
+.mode-btn .beta {
+  font-family: var(--body);
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-left: 0.35rem;
+  opacity: 0.65;
+  /* a sup must not stretch the tab's line box or the row of tabs jumps */
+  line-height: 1;
+  vertical-align: 0.5em;
+}
+
 /* --------------------------------------------------------------- layout */
 
 .layout {
