@@ -32,6 +32,7 @@
     <nav class="mode-switch" aria-label="mode">
       <button class="mode-btn active" data-mode="session" data-i18n="mode.session">session</button>
       <button class="mode-btn" data-mode="inspire" data-i18n="mode.inspire">inspire</button>
+      <button class="mode-btn" data-mode="live" data-i18n="mode.live">live</button>
     </nav>
     <button id="lang-toggle" class="lang-toggle" aria-label="language">中文</button>
   </header>
@@ -119,6 +120,53 @@
            particular solo, the one thing here you write down and type back —
            so it keeps its own strip below, and a monospaced counter, because a
            code you read aloud should not be set in the display face. -->
+      <!-- Live. The band listens to the room through the microphone and leans on
+           the next chorus the way it hears you leaning on this one — see
+           js/listen.js for what "listening" means here, which is an envelope
+           and an attack rate, not a transcription. Nothing is uploaded and
+           nothing is stored: the stream goes to an analyser inside the page,
+           and to the recorder when you ask for one. -->
+      <div id="live-panel" class="live-panel" hidden>
+        <div class="live-head">
+          <span class="rig-label" data-i18n="live.k">the room</span>
+          <button type="button" id="live-listen" class="live-btn primary" data-i18n="live.listen">start listening</button>
+          <button type="button" id="live-record" class="live-btn rec" data-i18n="live.record">record a take</button>
+
+          <!-- How soon the room reaches the band. A chorus is what a rhythm
+               section actually does; a bar is what a machine does. The middle
+               one is the setting this was built for. -->
+          <label class="pedal choice" id="pedal-live-response">
+            <span class="pedal-k" data-i18n="live.responseK">answers</span>
+            <select id="live-response" class="pedal-v" aria-label="how soon the band answers">
+              <option value="bar" data-i18n="live.respBar">next bar</option>
+              <option value="phrase" selected data-i18n="live.respPhrase">next phrase</option>
+              <option value="chorus" data-i18n="live.respChorus">next chorus</option>
+            </select>
+            <span class="pedal-sub" data-i18n="live.responseSub">how soon it follows</span>
+          </label>
+          <p class="live-note" data-i18n="live.headphones">headphones keep the band out of the mic — on speakers it hears itself a little</p>
+        </div>
+
+        <div class="live-meters">
+          <div class="meter">
+            <span class="meter-k" data-i18n="live.you">you</span>
+            <div class="meter-track"><div class="meter-fill" id="live-level"></div></div>
+          </div>
+          <div class="meter">
+            <span class="meter-k" data-i18n="live.heat">heat</span>
+            <div class="meter-track heat"><div class="meter-fill" id="live-heat"></div></div>
+            <b class="meter-n" id="live-heat-n">—</b>
+          </div>
+          <p class="live-reads" id="live-reads" data-i18n="live.idle">the band plays its own arc until you start</p>
+        </div>
+
+        <div class="live-take" id="live-take" hidden>
+          <span class="rig-label" data-i18n="live.take">last take</span>
+          <audio id="live-audio" controls></audio>
+          <a id="live-download" class="live-dl" download data-i18n="live.download">download</a>
+        </div>
+      </div>
+
       <div id="inspire-panel" class="inspire-panel" hidden>
         <div class="solo-rig">
           <span class="rig-label" data-i18n="soloistK">the soloist</span>
@@ -314,6 +362,7 @@
         <select id="comp-colour" class="pedal-v" aria-label="comping colour">
           <option value="plain" data-i18n="compPlain">plain</option>
           <option value="warm" selected data-i18n="compWarm">warm</option>
+          <option value="hot" data-i18n="compHot">hot</option>
         </select>
         <span class="pedal-sub" data-i18n="compSub">how full</span>
       </label>

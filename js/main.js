@@ -3,6 +3,7 @@
 import { SONGS } from "./songs.js";
 import { loadMine, saveMine, removeMine, exportMine, importMine, randomTitle } from "./mytunes.js";
 import { Band, SOLO_STYLES, formSections } from "./band.js";
+import { Listener } from "./listen.js";
 import {
   parseChord,
   parseWarnings,
@@ -624,6 +625,7 @@ function handleBeat(bar, beatInBar) {
     highlightBar(bar);
     renderSystemView(bar);
     if (state.mode === "inspire") markLineBar(bar);
+    if (state.mode === "live") liveBar();
   }
 }
 
@@ -693,6 +695,9 @@ async function setMode(mode) {
   $$(".mode-btn").forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
   $("#inspire-panel").hidden = mode !== "inspire";
   $("#solo-line").hidden = mode !== "inspire";
+  $("#live-panel").hidden = mode !== "live";
+  // leaving live mode gives the microphone back and hands the band its own arc
+  if (mode !== "live") stopListening();
   if (mode !== "inspire") {
     clearSoloLine();
   } else if (soloLine) {
@@ -716,6 +721,148 @@ async function setMode(mode) {
     setStatus("");
   }
 }
+
+// ------------------------------------------------------------------ live mode
+//
+// The band listens to the room and leans on the next chorus the way it hears
+// you leaning on this one. Everything that decides what "leaning" means lives
+// in js/listen.js; this is the wiring, the two meters, and the take.
+//
+// The microphone is never opened on entering the mode — a browser wants a
+// gesture for it, and so does a person. Pressing "start listening" is that
+// gesture, and pressing it again gives the device back.
+
+// The two meters are two different numbers on purpose: "you" is the room, and
+// "heat" is what the band is playing to — which is the room, except for the
+// phrase after you stop, when the band has the floor and says so.
+const listener = new Listener({
+  onFrame: ({ level }) => {
+    $("#live-level").style.width = `${Math.round(level * 100)}%`;
+  },
+  onHeat: (heat) => {
+    band.setLiveHeat(heat);
+    paintHeat();
+  },
+  onQuiet: (quiet) => {
+    if (!listener.running) return;
+    band.setRoomQuiet(quiet);
+    liveReads(quiet ? "live.takeover" : "live.listening");
+    paintHeat();
+  },
+  onError: (err) => setStatus(String(err?.message ?? err)),
+});
+
+function paintHeat() {
+  const heat = band.heatNow;
+  $("#live-heat").style.width = `${Math.round((heat ?? 0) * 100)}%`;
+  $("#live-heat-n").textContent = heat == null ? "—" : heat.toFixed(2);
+}
+
+/** Once a bar while the band has the floor, so the panel says when it hands
+ *  back. The band is already playing the settled level by then — this is the
+ *  line of text catching up with it. */
+function liveBar() {
+  if (!listener.running || !listener.quiet) return;
+  const before = $("#live-heat-n").textContent;
+  paintHeat();
+  if (before !== $("#live-heat-n").textContent) liveReads("live.settled");
+}
+
+let recorder = null;
+let takeUrl = null;
+
+function liveReads(key) {
+  $("#live-reads").textContent = t(key);
+}
+
+async function startListening() {
+  // the analyser shares the band's context, so the recorder can mix both
+  // without a second clock to keep in step with the first
+  if (!state.ready) await band.setup();
+  try {
+    await listener.start(band.ctx);
+  } catch (err) {
+    liveReads("live.denied");
+    $("#live-listen").textContent = t("live.listen");
+    return false;
+  }
+  $("#live-listen").textContent = t("live.stop");
+  $("#live-listen").classList.add("on");
+  liveReads("live.listening");
+  return true;
+}
+
+function stopListening() {
+  if (!listener.running) return;
+  listener.stop();
+  band.setLiveHeat(null); // back to the written arc
+  $("#live-listen").textContent = t("live.listen");
+  $("#live-listen").classList.remove("on");
+  $("#live-level").style.width = "0%";
+  $("#live-heat").style.width = "0%";
+  $("#live-heat-n").textContent = "—";
+  liveReads("live.idle");
+}
+
+$("#live-response").addEventListener("change", (e) => {
+  band.setLiveResponse(e.target.value);
+  localStorage.setItem("woodshed-live-response", e.target.value);
+});
+{
+  const saved = localStorage.getItem("woodshed-live-response");
+  if (["bar", "phrase", "chorus"].includes(saved)) {
+    $("#live-response").value = saved;
+    band.setLiveResponse(saved);
+  }
+}
+
+$("#live-listen").addEventListener("click", () => {
+  if (listener.running) stopListening();
+  else startListening();
+});
+
+// A take starts at the top, count-in and all: what you want to keep is the
+// performance, and a recording that begins wherever the form happened to be
+// when you reached for the button is not one.
+$("#live-record").addEventListener("click", async () => {
+  if (recorder && recorder.state === "recording") {
+    recorder.stop();
+    return;
+  }
+  if (!state.ready) await band.setup();
+  if (!listener.running) await startListening(); // a take without you on it is the band
+
+  const dest = band.captureDestination();
+  if (!dest) return;
+  listener.source?.connect(dest); // you, alongside the band, in one file
+  const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find(
+    (m) => window.MediaRecorder?.isTypeSupported?.(m)
+  );
+  recorder = new MediaRecorder(dest.stream, mime ? { mimeType: mime } : undefined);
+  const chunks = [];
+  recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  recorder.onstop = () => {
+    listener.source?.disconnect(dest);
+    if (takeUrl) URL.revokeObjectURL(takeUrl);
+    takeUrl = URL.createObjectURL(new Blob(chunks, { type: recorder.mimeType }));
+    $("#live-audio").src = takeUrl;
+    const dl = $("#live-download");
+    dl.href = takeUrl;
+    const slug = (band.song?.title ?? "take").replace(/[^\w]+/g, "-").replace(/^-|-$/g, "").toLowerCase();
+    dl.download = `woodshed-${slug}-${$("#tempo").value}bpm.webm`;
+    $("#live-take").hidden = false;
+    $("#live-record").textContent = t("live.record");
+    $("#live-record").classList.remove("on");
+    liveReads(listener.running ? "live.listening" : "live.idle");
+  };
+
+  stop();        // back to the top of the form
+  recorder.start();
+  $("#live-record").textContent = t("live.recording");
+  $("#live-record").classList.add("on");
+  liveReads("live.armed");
+  await play();  // which begins with the count-in
+});
 
 // ------------------------------------------------------------------ controls
 
@@ -923,7 +1070,7 @@ $("#bass-boost").addEventListener("click", () => {
 // is the default and the fallback: a value left in storage from an older build,
 // or anything the select does not offer, resolves back to it rather than
 // quietly leaving the band somewhere nobody chose.
-const COMP_LEVELS = ["plain", "warm"];
+const COMP_LEVELS = ["plain", "warm", "hot"];
 const savedComp = localStorage.getItem("woodshed-comp");
 const compLevel = COMP_LEVELS.includes(savedComp) ? savedComp : "warm";
 band.setCompColour(compLevel);

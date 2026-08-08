@@ -239,7 +239,7 @@ const voicingCache = new Map();
 
 /** How much colour the comp reaches for. 0 = guide-tone shells and nothing
  *  else; 1 = those plus the rootless forms with a ninth. */
-export const COMP_COLOUR = { plain: 0, warm: 1 };
+export const COMP_COLOUR = { plain: 0, warm: 1, hot: 2 };
 
 /**
  * The shapes a pianist would reach for on this chord, as interval stacks from
@@ -310,11 +310,16 @@ export function pianoVoicings(chord, colour = COMP_COLOUR.warm) {
       offer(seventh, third, ninth);
     }
 
-    // A third setting existed here — thirteenths, five-voice upper structures,
-    // the quartal stack — and it went. Two settings is the real choice: state
-    // the chord plainly, or state it with a ninth. Everything past that was the
-    // comp being interesting on its own behalf, which is not this instrument's
-    // job under a soloist.
+    // A third *harmonic* setting existed here — thirteenths, five-voice upper
+    // structures, the quartal stack — and it went. Two are the real choice:
+    // state the chord plainly, or state it with a ninth. Everything past that
+    // was the comp being interesting on its own behalf, which is not this
+    // instrument's job under a soloist.
+    //
+    // "hot" is a third setting that deliberately does not reopen that door. It
+    // reads the same vocabulary as warm and plays it harder and more often —
+    // more anticipation over the barline, a hand that moves rather than sits,
+    // a drummer who fills. Intensity, not extensions.
   }
 
   if (!out.length) out.push({ ivs: rising([third, fifth, seventh ?? 0]), extras: 0 });
@@ -367,6 +372,11 @@ function motion(prev, next) {
 const COMP_SETTINGS = [
   { extras: 0, size: 3, centre: 61, hold: 0.88, pick: [0.86, 0.11, 0.03] },
   { extras: 1, size: 4, centre: 65, hold: 0.74, pick: [0.7, 0.21, 0.07, 0.02] },
+  // hot: warm's vocabulary, a hand that will not sit still. `hold` is what a
+  // listener hears as the difference — a comper who revoices the same chord is
+  // a comper leaning in — and the flatter `pick` takes the second and third
+  // shape often enough that a repeated chord is rarely the same twice.
+  { extras: 1, size: 4, centre: 66, hold: 0.5, pick: [0.52, 0.28, 0.14, 0.06] },
 ];
 
 export function voiceComp(chords, rand = Math.random, opts = {}) {

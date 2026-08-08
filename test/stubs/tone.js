@@ -8,12 +8,17 @@ const bpmParam = { get value() { return bpm; }, set value(v) { bpm = v; } };
 const transport = {
   get bpm() { return bpmParam; },
   PPQ: 192,
+  // where the transport is, in ticks. Nothing here advances it; a check that
+  // needs time to pass sets it, which is the only way to test a band decision
+  // that is scheduled rather than immediate.
+  ticks: 0,
   stop() {}, cancel() {}, start() {}, pause() {},
   position: 0, timeSignature: 4, swing: 0, swingSubdivision: "8n",
   loop: false, loopStart: 0, loopEnd: 0,
   scheduleRepeat() {},
 };
 export const getTransport = () => transport;
+export const now = () => 0;
 export const getDraw = () => ({ schedule() {} });
 export const setContext = () => {};
 export const start = async () => {};

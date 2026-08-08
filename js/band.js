@@ -31,6 +31,15 @@ export const SOLO_HI = 88;
 // dynamics now, so this is simply the middle of the old range.
 const SOLO_HEAT = 0.5;
 
+// Live mode, when the room goes quiet: how long the band has the floor, and
+// where it sits afterwards. Eight bars is a phrase you can hear as a decision;
+// the settled level is the middle of the arc's own range, which is a section
+// keeping time rather than a section playing out.
+const TAKEOVER_LONG = 8;
+const TAKEOVER_SHORT = 4;
+const TAKEOVER_HEAT = 0.9;
+const SETTLED_HEAT = 0.5;
+
 // How much the line sings: legato join, note length, stepwise motion, the
 // phrase arch. It was a third dial and did not earn the space — the setting
 // that sounded right was a quarter above where the slider sat, and nobody
@@ -271,6 +280,8 @@ export class Band {
     this.playing = false;
     this.paused = false; // playing && paused = held mid-tune, position kept
     this.soloOn = false;
+    this.liveHeat = null; // live mode: 0..1 from the room, null = play the written arc
+    this.liveResponse = "phrase"; // how soon the room reaches the band: bar · phrase · chorus
     this.soloFeel = { crowd: 0.5, phrase: 0.5 }; // note packing · how long a statement runs
     this.soloStyleName = "silver";
     this.soloInstName = "piano"; // piano · vibes — see SOLO_INSTRUMENTS
@@ -375,6 +386,130 @@ export class Band {
     };
     window.addEventListener("pointerdown", wake);
     window.addEventListener("keydown", wake);
+  }
+
+  /**
+   * How hard the room is playing, 0 to 1, or null to go back to the written
+   * four-chorus arc. Read by _arrangement when the next chorus is planned.
+   */
+  setLiveHeat(heat) {
+    const next = heat == null ? null : Math.min(1, Math.max(0, heat));
+    this.liveHeat = next;
+    if (next == null) {
+      this._takeOverUntil = null;
+      this._roomQuiet = false;
+      return;
+    }
+    // A change small enough to be the meter breathing is not a change: every
+    // rebuild is a chorus of generators and a set of parts, and doing that
+    // twice a bar to chase 0.02 would cost more than it buys.
+    const moved = Math.abs(this.heatNow - (this._heatAtBuild ?? 0));
+    if (this.playing && !this.paused && moved > 0.12) this._liveRebuild();
+  }
+
+  /**
+   * The player stopped, or started again.
+   *
+   * A rhythm section whose soloist lays out does not fade out with them — it
+   * has the room, and it takes it: a phrase at the top of the range, and then
+   * it settles onto something steady and waits. Fading to nothing is what a
+   * volume control does, and it is the thing that would make this feel like an
+   * effect rather than a band.
+   */
+  setRoomQuiet(quiet) {
+    if (this.liveHeat == null || quiet === this._roomQuiet) return;
+    this._roomQuiet = quiet;
+    if (quiet) {
+      // eight bars where there is a form to hang them on, four where there is
+      // not — a phrase either way, rather than a fixed number of seconds
+      const bars = (this.form?.progression?.length ?? 0) >= 16 ? TAKEOVER_LONG : TAKEOVER_SHORT;
+      const bpb = this._songCtx?.bpb ?? 4;
+      const t = Tone.getTransport();
+      this._takeOverUntil = t.ticks + bars * t.PPQ * bpb;
+      // and come back down when it runs out, rather than at whatever the next
+      // dial change happens to be
+      const secs = ((bars * bpb * 60) / t.bpm.value) * 1000;
+      clearTimeout(this._takeOverTimer);
+      this._takeOverTimer = setTimeout(() => this._liveRebuild(), secs + 50);
+    } else {
+      this._takeOverUntil = null;
+      clearTimeout(this._takeOverTimer);
+    }
+    if (this.playing && !this.paused) this._liveRebuild();
+  }
+
+  /**
+   * The heat the band is actually playing to, which is the room except while it
+   * has the floor. Read by _arrangement, and worth showing on the meter: what
+   * the player is doing and what the band is doing are two different numbers
+   * for these few bars, and only one of them is audible.
+   */
+  get heatNow() {
+    if (this.liveHeat == null) return null;
+    if (this._takeOverUntil == null) return this.liveHeat;
+    return Tone.getTransport().ticks < this._takeOverUntil ? TAKEOVER_HEAT : SETTLED_HEAT;
+  }
+
+  /**
+   * How soon the room reaches the band.
+   *
+   *   chorus — the top of the next chorus. What a rhythm section actually does:
+   *            it hears you build through a chorus and comes back up with you
+   *            on the next one. Nothing to schedule; the loop point reads
+   *            liveHeat when it plans.
+   *   phrase — the next four-bar line. Fast enough to feel like an answer,
+   *            slow enough to land somewhere musical.
+   *   bar    — the next barline. As close to "now" as this can be without
+   *            cutting a note in half, and the setting most likely to sound
+   *            like a machine reacting rather than a band listening.
+   */
+  setLiveResponse(mode) {
+    if (["bar", "phrase", "chorus"].includes(mode)) this.liveResponse = mode;
+  }
+
+  /**
+   * Rebuild the rest of the form for a new heat, handing over at the next
+   * boundary the response setting allows. The parts carry absolute positions in
+   * the form, so a generation that takes over mid-chorus stays lined up with
+   * the one it replaces — that is what the hand-over gate in _buildParts is,
+   * and it is what makes anything faster than a chorus possible at all.
+   */
+  _liveRebuild() {
+    if (this.liveResponse === "chorus" || !this._songCtx) return;
+    const t = Tone.getTransport();
+    const ppq = t.PPQ;
+    const bpb = this._songCtx.bpb ?? 4;
+    const span = ppq * bpb * (this.liveResponse === "phrase" ? 4 : 1);
+    const secPerTick = 60 / (t.bpm.value * ppq);
+    // Never aim at a boundary the build cannot beat. A build was measured at
+    // 46-107ms; a bar at 240bpm is a second, and the last of those is not a
+    // margin. Under a third of a second of room, take the boundary after.
+    const MIN_LEAD = 0.35;
+    let ticks = t.ticks;
+    let next = Math.ceil((ticks + 1) / span) * span;
+    if ((next - ticks) * secPerTick < MIN_LEAD) next += span;
+    const handAt = Tone.now() + (next - ticks) * secPerTick;
+
+    // one hand-over queued at a time: a second build for the same boundary
+    // would throw away the first and start the clock again
+    if (this._liveHandAt && handAt <= this._liveHandAt + 0.05) return;
+    this._liveHandAt = handAt;
+    this._heatAtBuild = this.heatNow;
+    this._buildParts(this.form, null, handAt);
+  }
+
+  /**
+   * Everything the band plays, as a stream — for recording a take alongside the
+   * microphone. Taken off the master, so it is the mix as heard, and created
+   * once: a second destination node would be a second copy of the whole band.
+   */
+  captureDestination() {
+    if (!this.ctx) return null;
+    if (!this._capture) {
+      this._capture = this.ctx.createMediaStreamDestination();
+      this.master.connect(this._capture);
+    }
+    return this._capture;
   }
 
   /** Background-band level (0..1.5) — scales piano/guitar/bass/drums, not the solo. */
@@ -1322,6 +1457,11 @@ export class Band {
     this._retiredSolo = null;
     this.soloPart = null;
     this._gate = this._prevGate = this._soloGate = this._prevSoloGate = null;
+    this._liveHandAt = null;
+    this._heatAtBuild = null;
+    this._takeOverUntil = null;
+    this._roomQuiet = false;
+    clearTimeout(this._takeOverTimer);
     this.playing = false;
     this.piano?.stop?.();
     this.bass?.stop?.();
@@ -1800,7 +1940,15 @@ export class Band {
     // is backing off, not dropping out. The first pass put the low point at
     // 0.35 and that took a third of the comp away along with four bars of the
     // form, which is further than a section goes behind a soloist.
-    const energy = [0.55, 0.78, 1, 0.5][chorus % 4];
+    // Live mode replaces the arc with the room: what the player is doing sets
+    // how hard the section leans, over the same 0.5-1 range the wave used, so
+    // nothing downstream can tell where the number came from. It lands on the
+    // next chorus rather than the next bar — the plan for a chorus is made
+    // halfway through the one before it — which is also when a rhythm section
+    // would act on it. A player who leans in for two bars has not changed the
+    // arrangement yet; one who leans in for a chorus has.
+    const heat = this.heatNow;
+    const energy = heat == null ? [0.55, 0.78, 1, 0.5][chorus % 4] : 0.5 + 0.5 * heat;
 
     // Who leads. Both comping full-time every chorus is a machine's tell, but so
     // is trading it every single time round.
@@ -3061,6 +3209,12 @@ export class Band {
     // shape the next bar then plays.
     const voicings = voiceComp(chords, rand, { colour });
 
+    // Anticipation is the gesture that reads as a comper leaning in, so it is
+    // what the colour scale moves here; the patterns themselves stay the ones
+    // the style owns. HEAT is the other half — the same shapes, played harder.
+    const PUSH = [0.22, 0.35, 0.52][colour] ?? 0.35;
+    const HEAT = [-4, 0, 7][colour] ?? 0;
+
     // Where the form ends, so the last bar can push into the top of the next
     // chorus instead of stopping dead. `chords[i + 1]` is undefined on the last
     // chord, which is why every chorus boundary used to be a hard seam: the bass
@@ -3084,7 +3238,7 @@ export class Band {
       // voicing a semitone above, sliding down into the change. An approach
       // resolves *onto* the beat, so it leaves the next downbeat intact;
       // a true anticipation replaces it.
-      const pushes = swung && next && c.beats >= 2 && rand() < 0.35;
+      const pushes = swung && next && c.beats >= 2 && rand() < PUSH;
       // On the wrap the push announces a chord the *next* chorus will state on
       // its own downbeat, and nothing here can suppress that downbeat — so make
       // it the approach shape, which resolves onto the beat and is meant to be
@@ -3143,7 +3297,7 @@ export class Band {
           beat,
           dur: Math.min(dur, c.beats - off),
           midis,
-          vel: Math.max(24, Math.round(rnd(50, 68) + lean)),
+          vel: Math.max(24, Math.round(rnd(50, 68) + lean + HEAT)),
           roll: style === "ballad",
         });
       }
@@ -3154,7 +3308,7 @@ export class Band {
           beat: pushBeat,
           dur: approach ? 0.45 : 0.9,
           midis: approach ? target.map((m) => m + 1) : target,
-          vel: Math.round(rnd(56, 72)), // a push is played, not whispered
+          vel: Math.round(rnd(56, 72) + HEAT), // a push is played, not whispered
         });
       }
       anticipated = pushes && !approach;
@@ -3167,9 +3321,9 @@ export class Band {
     const events = [];
     // plain keeps the shell and stays out of the way; warm reaches for the
     // rootless colour shape, pushes over the barline more, and lays out more
-    const VARIANT = [0.12, 0.35][colour] ?? 0.35;
-    const BREATHE = [0.04, 0.1][colour] ?? 0.1;
-    const PUSH = [0.06, 0.15][colour] ?? 0.15;
+    const VARIANT = [0.12, 0.35, 0.5][colour] ?? 0.35;
+    const BREATHE = [0.04, 0.1, 0.05][colour] ?? 0.1; // hot breathes less: it is in the time
+    const PUSH = [0.06, 0.15, 0.3][colour] ?? 0.15;
     const chordAt = (beat) => {
       let cur = chords[0];
       for (const c of chords) if (c.startBeat <= beat) cur = c;
@@ -3187,7 +3341,10 @@ export class Band {
     // shape four times a bar is most of why this part sat over the band. The
     // full chord lands on the accents — 2 and 4 — so the backbeat is a change of
     // weight and not only of velocity.
-    const SOUND = [0.18, 0.3][colour] ?? 0.3; // chance of the whole shape off the accent
+    const SOUND = [0.18, 0.3, 0.48][colour] ?? 0.3; // chance of the whole shape off the accent
+    // the whole of what hot means on this instrument is weight: Green's chop
+    // does not get busier when the band lifts, it gets harder
+    const HEAT = [-3, 0, 5][colour] ?? 0;
     const ghost = (v, accent) => {
       if (accent || rand() < SOUND) return v;
       // the voice that rings is the middle one — Green let the fourth string
@@ -3269,7 +3426,7 @@ export class Band {
           beat,
           dur: hold,
           midis: style === "funk" ? (funkFull ? full : full.slice(1)) : ghost(full, accent),
-          vel: Math.max(18, Math.round(rnd(30, 38)) + (accent ? 6 : 0) + (style === "funk" ? 4 : 0) + lean),
+          vel: Math.max(18, Math.round(rnd(30, 38)) + (accent ? 6 : 0) + (style === "funk" ? 4 : 0) + lean + HEAT),
         });
       }
 
@@ -3319,12 +3476,12 @@ export class Band {
     const events = [];
     // plain plants the root on the change and walks plain quarters; warm takes
     // the third and the fifth as targets more often and fills more of the gaps
-    const TARGETS = [[0.07, 0.11], [0.14, 0.22]][colour] ?? [0.14, 0.22];
-    const SKIPS = [0.45, 1][colour] ?? 1;
+    const TARGETS = [[0.07, 0.11], [0.14, 0.22], [0.2, 0.3]][colour] ?? [0.14, 0.22];
+    const SKIPS = [0.45, 1, 1.5][colour] ?? 1;
     // how often a full bar spells the chord instead of walking the scale, and
     // how often the bar arrives at the next chord by leap rather than neighbour
-    const ARP = [0.18, 0.38][colour] ?? 0.38;
-    const LEAP = [0.1, 0.24][colour] ?? 0.24;
+    const ARP = [0.18, 0.38, 0.5][colour] ?? 0.38;
+    const LEAP = [0.1, 0.24, 0.34][colour] ?? 0.24;
     const chordAt = (beat) => {
       let cur = chords[0];
       for (const c of chords) if (c.startBeat <= beat) cur = c;
@@ -3634,9 +3791,17 @@ export class Band {
     // plain keeps time and stays out of the way; warm comps more, fills more,
     // and leans on the busier ride figures
     const colour = opts.colour ?? COMP_COLOUR.warm;
-    const COLOUR_COMP = [0.55, 1][colour] ?? 1;
-    const COLOUR_FILL = [-0.22, 0][colour] ?? 0;
-    const push = (bar, off, drum, vel, extra) => events.push({ beat: bar * bpb + off, drum, vel, ...extra });
+    const COLOUR_COMP = [0.55, 1, 1.3][colour] ?? 1;
+    const COLOUR_FILL = [-0.22, 0, 0.2][colour] ?? 0;
+    // How hard the section is leaning, as weight. The arrangement's energy — the
+    // written arc, or the room itself in live mode — reached the drummer only
+    // as a probability on the comping hits, which is a change of pattern and
+    // not a change of intensity: at the two ends of the range the kit measured
+    // 40.2 against 40.2. Scaled about the default, so a chorus at the arc's
+    // own middle sounds exactly as it did.
+    const WEIGHT = 1 + (energy - 0.78) * 0.5;
+    const push = (bar, off, drum, vel, extra) =>
+      events.push({ beat: bar * bpb + off, drum, vel: Math.max(6, Math.round(vel * WEIGHT)), ...extra });
     // where the soloist ends phrases, the drummer answers
     const endsByBar = new Map();
     for (const b of opts.phraseEnds ?? []) {

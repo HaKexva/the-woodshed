@@ -1,4 +1,8 @@
-// plain / warm across all four instruments
+// plain / warm / hot across all four instruments.
+//
+// hot is an intensity setting, not a harmonic one — it reads warm's
+// vocabulary and plays it harder and more often. So the thing to assert is
+// that weight and anticipation move while the colour tones do not.
 import { Band } from "../../js/band.js";
 import { setBpm } from "../stubs/tone.js";
 import { SONGS } from "../../js/songs.js";
@@ -20,7 +24,7 @@ const R = 80;
 const rows = {};
 
 for (const [name, colour] of Object.entries(T.COMP_COLOUR)) {
-  let pNotes = 0, pExtras = 0, pV = 0, pCentre = 0;
+  let pNotes = 0, pExtras = 0, pV = 0, pCentre = 0, pVel = 0;
   let gEv = 0, gVar = 0, gPush = 0, gBreathe = 0;
   let bEv = 0, bSkip = 0, bRoot = 0, bChg = 0;
   let dBars = 0, dSnare = 0, dRim = 0, dFillBars = 0, dSkipBars = 0;
@@ -28,7 +32,7 @@ for (const [name, colour] of Object.entries(T.COMP_COLOUR)) {
   for (let r = 0; r < R; r++) {
     const piano = B._pianoEvents.call(stub, ch, "swing", false, 4, colour);
     for (const e of piano) {
-      pV++; pNotes += e.midis.length;
+      pV++; pNotes += e.midis.length; pVel += e.vel;
       pCentre += e.midis.reduce((a, b) => a + b, 0) / e.midis.length;
     }
     // colour tones actually sounded
@@ -76,6 +80,7 @@ for (const [name, colour] of Object.entries(T.COMP_COLOUR)) {
 
   rows[name] = {
     pianoNotes: pNotes / pV, pianoExtras: pExtras / (ch.length * R), pianoCentre: pCentre / pV,
+    pianoVel: pVel / pV, piano: pV / (bars * R),
     gtr: gEv / (bars * R), gtrPush: gPush / (bars * R), gtrThin: gBreathe / (bars * R),
     bass: bEv / (bars * R), bassSkip: bSkip / bEv, bassRoot: bRoot / bChg,
     drSnare: (dSnare + dRim) / dBars, drRim: dRim / dBars, drFill: dFillBars / dBars, drSkip: dSkipBars / dBars,
@@ -90,6 +95,8 @@ console.log("  PIANO");
 line("notes per voicing", "pianoNotes");
 line("colour tones/chord", "pianoExtras");
 line("register centre", "pianoCentre", 1);
+line("attacks per bar", "piano");
+line("velocity", "pianoVel", 1);
 console.log("  GUITAR");
 line("attacks per bar", "gtr");
 line("barline pushes/bar", "gtrPush", 3);
@@ -110,4 +117,13 @@ check(rows.warm.gtr - rows.plain.gtr !== 0, "guitar identical across colours");
 check(rows.warm.bassSkip > rows.plain.bassSkip * 1.6, "bass skips barely move");
 check(rows.warm.drSnare > rows.plain.drSnare * 1.2, "drum comping barely moves");
 check(rows.plain.drSkip < rows.warm.drSkip, "plain ride is not plainer");
-console.log(fail ? `FAILURES: ${fail}` : "all four instruments respond to the setting");
+
+// hot: the same chords, leaned on. Weight and anticipation move; the colour
+// tones stay where warm left them, which is the whole point of the setting.
+check(rows.hot.pianoVel > rows.warm.pianoVel + 4, "hot piano is not played harder");
+check(rows.hot.gtrPush > rows.warm.gtrPush * 1.4, "hot guitar does not push the barline more");
+check(rows.hot.bassSkip > rows.warm.bassSkip * 1.3, "hot bass does not fill more");
+check(rows.hot.drSnare > rows.warm.drSnare * 1.1, "hot drums do not comp more");
+check(rows.hot.drFill > rows.warm.drFill, "hot drummer does not take more fills");
+check(Math.abs(rows.hot.pianoExtras - rows.warm.pianoExtras) < 0.25, "hot reopened the harmonic door warm closed");
+console.log(fail ? `FAILURES: ${fail}` : "all four instruments respond across all three settings");

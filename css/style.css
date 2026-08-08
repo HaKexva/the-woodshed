@@ -628,6 +628,91 @@ body {
 
 .inspire-panel { margin-bottom: 2rem; }
 
+/* ----------------------------------------------------------------- live
+
+   Two meters and two buttons. "you" is the envelope off the microphone and
+   moves every frame; "heat" is what the band is actually given, which rises
+   quickly and falls slowly on purpose — see js/listen.js. The heat track is
+   the one thing on the page that fills with amber, because it is the only
+   reading here that changes what you hear. */
+
+.live-panel[hidden] { display: none; }
+
+.live-panel {
+  margin-bottom: 2rem;
+  border: 1px solid var(--cream-10);
+  background: var(--ink-2);
+  padding: 1rem 1.2rem 1.1rem;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.live-head { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
+
+.live-btn {
+  font-family: var(--display);
+  font-size: 1rem;
+  letter-spacing: 0.05em;
+  background: transparent;
+  color: var(--cream);
+  border: 2px solid var(--cream-25);
+  padding: 0.45rem 1rem;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.live-btn:hover { border-color: var(--cream); }
+.live-btn.primary { color: var(--amber); border-color: var(--amber); }
+.live-btn.primary.on { background: var(--amber); color: var(--ink); }
+.live-btn.rec.on { background: var(--red); border-color: var(--red); color: var(--cream); }
+.live-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+
+.live-note { flex: 1 1 14rem; font-size: 0.72rem; color: var(--cream-35); }
+
+.live-meters { display: grid; gap: 0.5rem; }
+
+.meter { display: flex; align-items: center; gap: 0.7rem; }
+.meter-k {
+  flex: 0 0 3.2rem;
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cream-35);
+}
+.meter-track {
+  flex: 1 1 auto;
+  height: 10px;
+  background: var(--ink-3);
+  border: 1px solid var(--cream-10);
+  overflow: hidden;
+}
+.meter-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--cream-25);
+  transition: width 0.08s linear;
+}
+.meter-track.heat + .meter-n { min-width: 2.6rem; }
+.meter-track.heat .meter-fill { background: var(--amber); transition: width 0.3s ease; }
+.meter-n {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 1.05rem;
+  color: var(--amber);
+  font-variant-numeric: tabular-nums;
+}
+
+.live-reads { font-size: 0.76rem; color: var(--cream-60); }
+
+.live-take { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; border-top: 1px solid var(--cream-10); padding-top: 0.9rem; }
+.live-take[hidden] { display: none; }
+.live-take audio { flex: 1 1 16rem; height: 34px; }
+.live-dl { color: var(--amber); text-decoration: none; font-size: 0.8rem; border-bottom: 1px solid transparent; }
+.live-dl:hover { border-color: var(--amber); }
+
+@media (prefers-reduced-motion: reduce) {
+  .meter-fill { transition: none; }
+}
+
 /* --------------------------------------------------------------- editor */
 
 .add-tune {
@@ -1784,7 +1869,9 @@ select.pedal-v option { background: var(--ink-2); font-family: var(--body); text
   }
   .brand h1 { font-size: clamp(1.9rem, 8vw, 2.8rem); }
   .mode-switch { width: 100%; }
-  .mode-btn { flex: 1; text-align: center; }
+  /* three of them now, and "session" is the longest word in the app's own
+     voice — the padding goes before the type does */
+  .mode-btn { flex: 1; text-align: center; padding-inline: 0.5rem; }
 
   .stage { padding: 1.4rem 1.2rem; }
 
