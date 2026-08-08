@@ -56,6 +56,85 @@ const WHITEN_FLOOR = -70; // dBFS
 const RISE = 0.9; // seconds to most of the way up — leaning in should register
 const FALL = 4.5; // and much slower down: two bars of rest is phrasing, not stopping
 
+/**
+ * The generated soloist, measured the same way. The band should not care
+ * whether the player is made of air pressure or of scheduled events, so this
+ * is the Listener with the microphone taken out: discrete onsets in, one
+ * number out, on the same loudness/density weights, the same rise and fall,
+ * and the same bar-counted quiet rules. What it deliberately does not do is
+ * read the line's plan — the band hears what was played, not what was meant.
+ */
+export class NoteMeter {
+  /**
+   * @param {object} cb
+   *   onHeat(heat)  — only when the published heat moves
+   *   onQuiet(q)    — the line stopped, or started again
+   *   barMs()       — current bar length in ms, for the quiet window; optional
+   *   active()      — measure only while this is true; optional
+   */
+  constructor(cb = {}) {
+    this.cb = cb;
+    this.heat = 0;
+    this.quiet = true;
+    this._level = 0;
+    this._onsets = [];
+    this._lastNote = 0;
+    this._last = performance.now();
+    // ticking on its own clock so heat falls and quiet flips through a rest,
+    // when there are no notes arriving to prompt it
+    this._timer = setInterval(() => this._tick(), 100);
+  }
+
+  stop() {
+    clearInterval(this._timer);
+    this._timer = null;
+  }
+
+  /** A note sounded, at this velocity (0–127). */
+  note(vel, now = performance.now()) {
+    this._onsets.push(now);
+    this._lastNote = now;
+    this._level = Math.max(this._level, Math.min(1, vel / 110));
+    this._tick(now);
+  }
+
+  _tick(now = performance.now()) {
+    // clamped both ways: the checks drive this clock by hand from zero
+    const dt = Math.min(0.5, Math.max(0, (now - this._last) / 1000));
+    this._last = now;
+    if (this.cb.active && !this.cb.active()) {
+      // parked, exactly like the microphone: heat starts at zero with the
+      // band, and a stopped transport cannot arm a takeover
+      this._onsets.length = 0;
+      this._level = 0;
+      this._lastNote = now;
+      this.quiet = true;
+      if (this.heat !== 0) {
+        this.heat = 0;
+        this._published = 0;
+        this.cb.onHeat?.(0);
+      }
+      return;
+    }
+    while (this._onsets.length && now - this._onsets[0] > 2000) this._onsets.shift();
+    const density = Math.min(1, this._onsets.length / 2 / 8);
+    // a velocity envelope standing in for the RMS: the last loud note, ringing
+    this._level *= Math.exp(-dt / 1.2);
+    const raw = Math.min(1, 0.58 * this._level + 0.42 * density);
+    const tc = raw > this.heat ? RISE : FALL;
+    this.heat += (raw - this.heat) * (1 - Math.exp(-dt / tc));
+    if (Math.abs(this.heat - (this._published ?? -1)) > 0.02) {
+      this._published = this.heat;
+      this.cb.onHeat?.(this.heat);
+    }
+    const quiet = now - this._lastNote > quietWindowMs(this.cb.barMs?.());
+    if (quiet !== this.quiet) {
+      this.quiet = quiet;
+      this.cb.onQuiet?.(quiet);
+    }
+  }
+}
+
 export class Listener {
   /**
    * @param {object} cb

@@ -6,7 +6,7 @@
 // spans so nothing downstream sees a number it has never seen before, and that
 // the range is wide enough to hear once it reaches the drums.
 import { Band } from "../../js/band.js";
-import { quietWindowMs } from "../../js/listen.js";
+import { quietWindowMs, NoteMeter } from "../../js/listen.js";
 import { setBpm, getTransport } from "../stubs/tone.js";
 import { SONGS } from "../../js/songs.js";
 
@@ -116,6 +116,24 @@ console.log("\nTHE BREATH — the quiet window counts bars, not seconds");
 
   check(Object.assign(Object.create(B), {}).barMs === null, "barMs invented a bar with no tune");
   setBpm(120);
+}
+
+console.log("\nTHE GENERATED SOLOIST — the same ear, fed notes instead of air");
+{
+  const quiets = [];
+  const m = new NoteMeter({ barMs: () => 2000, active: () => true, onQuiet: (q) => quiets.push(q) });
+  m.stop(); // drive the clock by hand instead
+  let now = 0;
+  for (; now < 4000; now += 250) m.note(96, now); // two bars of busy eighths at 120
+  const busy = m.heat;
+  console.log(`   two busy bars  →  heat ${f(busy)}`);
+  check(busy > 0.5, `a busy line only reached ${f(busy)}`);
+  check(m.quiet === false, "playing did not clear the quiet state");
+  for (; now < 8300; now += 100) m._tick(now); // then the line lays out
+  console.log(`   two bars' rest →  heat ${f(m.heat)}, quiet ${m.quiet}`);
+  check(m.quiet === true, "a two-bar rest did not read as laying out");
+  check(m.heat < busy - 0.2, "heat did not fall through the rest");
+  check(quiets.join() === "false,true", `quiet flips were ${quiets.join()}`);
 }
 
 console.log();

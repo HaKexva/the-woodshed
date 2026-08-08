@@ -3,7 +3,7 @@
 import { SONGS } from "./songs.js";
 import { loadMine, saveMine, removeMine, exportMine, importMine, randomTitle } from "./mytunes.js";
 import { Band, SOLO_STYLES, formSections } from "./band.js";
-import { Listener } from "./listen.js";
+import { Listener, NoteMeter } from "./listen.js";
 import {
   parseChord,
   parseWarnings,
@@ -430,6 +430,7 @@ function clearSoloLine() {
 // now, which is more than fits
 let lastLit = null;
 function handleSoloNote(note) {
+  soloMeter.note(note.vel); // the band's ear on its own soloist
   if (state.mode !== "inspire" || !soloLine) return;
   lastLit?.classList.remove("now");
   const el = $(`#solo-score .n[data-beat="${note.beat.toFixed(3)}"]`);
@@ -714,6 +715,9 @@ async function setMode(mode) {
     $("#solo-score").innerHTML = `<p class="score-wait">${t("lineWait")}</p>`;
   }
   band.setSolo(mode === "inspire");
+  // leaving inspire hands the band its own arc back; the mic cannot be running
+  // here (leaving live already gave it back), so nothing else has a claim
+  if (mode !== "inspire" && !listener.running) band.setLiveHeat(null);
   if (mode === "inspire" && !band.soloInst) {
     // the samples take a moment, and a silent soloist over a drawn line reads
     // as broken rather than as loading
@@ -739,6 +743,10 @@ async function setMode(mode) {
 // The two meters are two different numbers on purpose: "you" is the room, and
 // "heat" is what the band is playing to — which is the room, except for the
 // phrase after you stop, when the band has the floor and says so.
+// "off" on the answers dial disconnects the band's ear without closing it:
+// the meters keep reading the room, the band keeps its own arc.
+const responding = () => $("#live-response").value !== "off";
+
 const listener = new Listener({
   barMs: () => band.barMs,
   // heat only runs while the band does — the mic can be armed early, but the
@@ -748,16 +756,33 @@ const listener = new Listener({
     $("#live-level").style.width = `${Math.round(level * 100)}%`;
   },
   onHeat: (heat) => {
-    band.setLiveHeat(heat);
+    if (responding()) band.setLiveHeat(heat);
     paintHeat();
   },
   onQuiet: (quiet) => {
-    if (!listener.running) return;
+    if (!listener.running || !responding()) return;
     band.setRoomQuiet(quiet);
     liveReads(quiet ? "live.takeover" : "live.listening");
     paintHeat();
   },
   onError: (err) => setStatus(String(err?.message ?? err)),
+});
+
+// Inspire's band gets the same ear: the generated soloist is a player too,
+// measured off the notes as they sound rather than through a microphone, and
+// fed into the very same heat pathway — response setting, takeover and all.
+// The mic never runs in inspire mode (leaving live gives it back), so the two
+// sources cannot fight over setLiveHeat.
+const soloFollows = () => band.soloOn && responding();
+const soloMeter = new NoteMeter({
+  barMs: () => band.barMs,
+  active: () => state.playing && !state.paused,
+  onHeat: (h) => {
+    if (soloFollows()) band.setLiveHeat(h);
+  },
+  onQuiet: (q) => {
+    if (soloFollows()) band.setRoomQuiet(q);
+  },
 });
 
 function paintHeat() {
@@ -864,14 +889,24 @@ function stopListening() {
 }
 
 $("#live-response").addEventListener("change", (e) => {
-  band.setLiveResponse(e.target.value);
-  localStorage.setItem("woodshed-live-response", e.target.value);
+  const v = e.target.value;
+  localStorage.setItem("woodshed-live-response", v);
+  if (v === "off") {
+    band.setLiveHeat(null); // the band takes its own arc back
+  } else {
+    band.setLiveResponse(v);
+    // re-engage from whichever player has the floor — the published heat only
+    // moves on change, so waiting for the next callback could wait a while
+    if (listener.running) band.setLiveHeat(listener.heat);
+    else if (band.soloOn) band.setLiveHeat(soloMeter.heat);
+  }
+  paintHeat();
 });
 {
   const saved = localStorage.getItem("woodshed-live-response");
-  if (["bar", "phrase", "chorus"].includes(saved)) {
+  if (["bar", "phrase", "chorus", "off"].includes(saved)) {
     $("#live-response").value = saved;
-    band.setLiveResponse(saved);
+    band.setLiveResponse(saved); // "off" is a wiring state, not a speed — band ignores it
   }
 }
 
