@@ -719,11 +719,18 @@ body {
 
 .live-reads { font-size: 0.76rem; color: var(--cream-60); }
 
-.live-take { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; border-top: 1px solid var(--cream-10); padding-top: 0.9rem; }
+.live-take { display: flex; align-items: flex-start; gap: 0.8rem; flex-wrap: wrap; border-top: 1px solid var(--cream-10); padding-top: 0.9rem; }
 .live-take[hidden] { display: none; }
-.live-take audio { flex: 1 1 16rem; height: 34px; }
+.live-takes { list-style: none; margin: 0; padding: 0; flex: 1 1 16rem; display: flex; flex-direction: column; gap: 0.55rem; }
+.live-takes li { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
+.live-takes audio { flex: 1 1 12rem; min-width: 0; height: 34px; }
+.take-at { font-size: 0.76rem; color: var(--cream-60); font-variant-numeric: tabular-nums; }
 .live-dl { color: var(--amber); text-decoration: none; font-size: 0.8rem; border-bottom: 1px solid transparent; }
 .live-dl:hover { border-color: var(--amber); }
+/* delete arms before it fires, like the tune delete — red only once it means it */
+.take-del { background: none; border: 0; padding: 0; cursor: pointer; font-size: 0.8rem; color: var(--cream-60); border-bottom: 1px solid transparent; }
+.take-del:hover { color: var(--red); border-color: var(--red); }
+.take-del.armed { color: var(--red); border-color: var(--red); }
 
 @media (prefers-reduced-motion: reduce) {
   .meter-fill { transition: none; }

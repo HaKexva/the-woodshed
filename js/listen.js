@@ -64,6 +64,8 @@ export class Listener {
    *   onError(err)                   — permission refused, no device, etc
    *   barMs()                        — current bar length in ms, so the quiet
    *                                    window can count bars; optional
+   *   active()                       — measure only while this is true; the
+   *                                    level meter runs regardless. optional
    */
   constructor(cb = {}) {
     this.cb = cb;
@@ -166,12 +168,33 @@ export class Listener {
     this._fluxHistory.push(flux);
     if (this._fluxHistory.length > 50) this._fluxHistory.shift(); // ~2s of frames
 
+    // Heat belongs to the band's clock: it starts at zero when the band starts,
+    // not carrying whatever the warm-up left in it, and the quiet state stays
+    // parked so a stopped transport cannot arm a takeover. The level meter
+    // keeps moving — a player checking the mic wants to see it move — and the
+    // whitening and flux history above stay warm, so the first active frame is
+    // measured against the room rather than against silence.
+    const now = performance.now();
+    if (this.cb.active && !this.cb.active()) {
+      this._last = now;
+      this._lastLoud = now;
+      this._onsetTimes.length = 0;
+      this.quiet = true;
+      if (this.heat !== 0) {
+        this.heat = 0;
+        this._published = 0;
+        this.cb.onHeat?.(0);
+      }
+      this.level = level;
+      this.cb.onFrame?.({ level, heat: 0, onset: false, density: 0, quiet: true });
+      return;
+    }
+
     // An adaptive threshold rather than a fixed one: what counts as an attack
     // in a quiet room is nothing at all in a loud one. The median of the last
     // two seconds is the room; an onset has to beat it by half again.
     const sorted = [...this._fluxHistory].sort((x, y) => x - y);
     const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
-    const now = performance.now();
     const isOnset = level > 0.08 && flux > median * 1.5 + 8 && now - (this._lastOnset ?? 0) > 70;
     if (isOnset) {
       this._lastOnset = now;

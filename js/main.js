@@ -465,6 +465,7 @@ async function play() {
   state.chorus = 1; // the first time round is chorus one, not chorus zero
   renderRig();
   renderTransport();
+  if (listener.running) liveReads("live.listening");
 }
 
 // pause holds the bar you are on; stop goes back to the top of the form
@@ -472,12 +473,14 @@ function pause() {
   band.pause();
   state.paused = true;
   renderTransport();
+  if (listener.running) liveReads("live.waiting");
 }
 
 function resume() {
   band.resume();
   state.paused = false;
   renderTransport();
+  if (listener.running) liveReads("live.listening");
 }
 
 function stop() {
@@ -488,6 +491,7 @@ function stop() {
   resetChordDisplay();
   clearSoloLine();
   resetRig();
+  if (listener.running) liveReads("live.waiting");
 }
 
 // the round button plays what it shows: a triangle to start or pick up, two
@@ -737,6 +741,9 @@ async function setMode(mode) {
 // phrase after you stop, when the band has the floor and says so.
 const listener = new Listener({
   barMs: () => band.barMs,
+  // heat only runs while the band does — the mic can be armed early, but the
+  // measurement starts from zero at the downbeat, not from the warm-up
+  active: () => state.playing && !state.paused,
   onFrame: ({ level }) => {
     $("#live-level").style.width = `${Math.round(level * 100)}%`;
   },
@@ -770,7 +777,58 @@ function liveBar() {
 }
 
 let recorder = null;
-let takeUrl = null;
+
+// The last few takes, newest first. Three is the point of a practice take —
+// enough to compare tonight's passes against each other, not an archive. The
+// oldest quietly makes room; anything worth keeping has a download link.
+const MAX_TAKES = 3;
+const takes = []; // {url, name, at}
+
+function renderTakes() {
+  $("#live-take").hidden = !takes.length;
+  const ul = $("#live-takes");
+  ul.textContent = "";
+  for (const take of takes) {
+    const li = document.createElement("li");
+    const at = document.createElement("span");
+    at.className = "take-at";
+    at.textContent = take.at;
+    const audio = document.createElement("audio");
+    audio.controls = true;
+    audio.src = take.url;
+    const dl = document.createElement("a");
+    dl.className = "live-dl";
+    dl.href = take.url;
+    dl.download = take.name;
+    dl.setAttribute("data-i18n", "live.download");
+    dl.textContent = t("live.download");
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "take-del";
+    del.textContent = t("live.delete");
+    let armed = null;
+    del.addEventListener("click", () => {
+      // arm rather than confirm, like the tune delete: a dialog for one row
+      // is heavier than the act
+      if (!armed) {
+        del.classList.add("armed");
+        del.textContent = t("deleteSure");
+        armed = setTimeout(() => {
+          armed = null;
+          del.classList.remove("armed");
+          del.textContent = t("live.delete");
+        }, 3500);
+        return;
+      }
+      clearTimeout(armed);
+      URL.revokeObjectURL(take.url);
+      takes.splice(takes.indexOf(take), 1);
+      renderTakes();
+    });
+    li.append(at, audio, dl, del);
+    ul.append(li);
+  }
+}
 
 function liveReads(key) {
   $("#live-reads").textContent = t(key);
@@ -789,7 +847,7 @@ async function startListening() {
   }
   $("#live-listen").textContent = t("live.stop");
   $("#live-listen").classList.add("on");
-  liveReads("live.listening");
+  liveReads(state.playing && !state.paused ? "live.listening" : "live.waiting");
   return true;
 }
 
@@ -844,17 +902,20 @@ $("#live-record").addEventListener("click", async () => {
   recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
   recorder.onstop = () => {
     listener.source?.disconnect(dest);
-    if (takeUrl) URL.revokeObjectURL(takeUrl);
-    takeUrl = URL.createObjectURL(new Blob(chunks, { type: recorder.mimeType }));
-    $("#live-audio").src = takeUrl;
-    const dl = $("#live-download");
-    dl.href = takeUrl;
     const slug = (band.song?.title ?? "take").replace(/[^\w]+/g, "-").replace(/^-|-$/g, "").toLowerCase();
-    dl.download = `woodshed-${slug}-${$("#tempo").value}bpm.webm`;
-    $("#live-take").hidden = false;
+    takes.unshift({
+      url: URL.createObjectURL(new Blob(chunks, { type: recorder.mimeType })),
+      name: `woodshed-${slug}-${$("#tempo").value}bpm.webm`,
+      at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    });
+    while (takes.length > MAX_TAKES) URL.revokeObjectURL(takes.pop().url);
+    renderTakes();
     $("#live-record").textContent = t("live.record");
     $("#live-record").classList.remove("on");
-    liveReads(listener.running ? "live.listening" : "live.idle");
+    // the take ends the tune: the band stops with the recording rather than
+    // playing on under the playback you are about to review
+    if (state.playing) stop();
+    liveReads(listener.running ? "live.waiting" : "live.idle");
   };
 
   stop();        // back to the top of the form
