@@ -445,6 +445,27 @@ function handleSoloNote(note) {
 
 // ------------------------------------------------------------------ transport
 
+// A phone dims mid-tune with both hands on an instrument. The lock lives with
+// the transport — lit while the band plays (pause included, the player is
+// still there), dark again on stop. The browser drops it whenever the tab
+// hides, so it is re-taken on return; anywhere it is unsupported or refused,
+// nothing changes.
+let wakeLock = null;
+async function keepAwake(on) {
+  if (on && !wakeLock) {
+    try {
+      wakeLock = await navigator.wakeLock?.request("screen");
+      wakeLock?.addEventListener("release", () => (wakeLock = null));
+    } catch { wakeLock = null; }
+  } else if (!on && wakeLock) {
+    wakeLock.release().catch(() => {});
+    wakeLock = null;
+  }
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && state.playing) keepAwake(true);
+});
+
 async function play() {
   if (state.loading) return;
   focusStage(); // before the load wait, so the tap moves something right away
@@ -460,6 +481,7 @@ async function play() {
     }
   }
   await band.play();
+  keepAwake(true);
   state.playing = true;
   state.paused = false;
   chorusBar = -1;
@@ -486,6 +508,7 @@ function resume() {
 
 function stop() {
   band.stop();
+  keepAwake(false);
   state.playing = false;
   state.paused = false;
   renderTransport();
