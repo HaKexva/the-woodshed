@@ -103,7 +103,10 @@ console.log("\nTHE TUNE'S OWN KICKS — the band hits the figure, then gets out 
     timeSignature: 4,
     progression: [[{ chord: "F7", beats: 4 }], [{ chord: "F7", beats: 4 }],
                   [{ chord: "Bb7", beats: 4 }], [{ chord: "F7", beats: 4 }]],
-    figure: { hits: [[0, 0], [0, 2.5], [1, 1.5]], breaks: [[2, 2, 2]] },
+    figure: {
+      cells: [{ bars: [0], hits: [[0], [2.5]] }, { bars: [1], hits: [[1.5]] }],
+      breaks: [[2, 2, 2]],
+    },
   };
   const chords = flat(s);
   const groove = () => ({
@@ -142,6 +145,30 @@ console.log("\nTHE TUNE'S OWN KICKS — the band hits the figure, then gets out 
   const plain = groove();
   band._applyFigure(plain, { ...s, figure: undefined }, chords, 4, 16, 0);
   check(plain.piano.length === 16, "a tune with no figure lost events anyway");
+}
+
+console.log("\nTHE FIGURE IS THE TUNE — Cantaloupe Island's keys play it and nothing else");
+{
+  const s = song("Cantaloupe Island");
+  const chords = flat(s);
+  const groove = () => Object.fromEntries(["piano", "guitar", "bass", "drums"].map((p) => [
+    p, Array.from({ length: 64 }, (_, i) => ({ beat: i, dur: 0.5, vel: 50, midi: 40, midis: [60], drum: "hat" })),
+  ]));
+  const band = Object.assign(Object.create(B), { compColour: 1 });
+  const ev = groove();
+  band._applyFigure(ev, s, chords, 4, 64, 0);
+
+  // bar 1: rest on the downbeat, then the & of 1, 2, 3, 4 and the & of 4
+  const bar0 = ev.piano.filter((e) => e.beat < 4).map((e) => e.beat);
+  console.log(`   bar 1 keys: ${bar0.join(" ")}`);
+  check(bar0.join() === "0.5,1,2,3,3.5", `bar 1 played ${bar0.join(" ")}`);
+  // bars 9-12 drop to two attacks
+  const bar8 = ev.piano.filter((e) => e.beat >= 32 && e.beat < 36).map((e) => e.beat - 32);
+  console.log(`   bar 9 keys: ${bar8.join(" ")}`);
+  check(bar8.join() === "0,1.5", `bar 9 played ${bar8.join(" ")}`);
+  // the rhythm section is not in the figure, so it keeps its groove
+  check(ev.bass.length === 64 && ev.drums.length === 64, "the figure took the rhythm section with it");
+  check(ev.guitar.filter((e) => e.beat < 4).length === 5, "the guitar did not follow the keys");
 }
 
 console.log();

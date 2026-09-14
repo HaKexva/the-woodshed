@@ -1728,7 +1728,16 @@ export const SONGS = [
     style: "funk",
     timeSignature: 4,
     form: "16-bar modal vamp",
-    source: ["https://www.swiss-jazz.ch/standards-jazz/Cantaloupe.pdf"],
+    source: ["https://www.swiss-jazz.ch/standards-jazz/Cantaloupe.pdf", "https://iowasummermusiccamps.uiowa.edu/sites/iowasummermusiccamps.uiowa.edu/files/2024-04/Cantaloupe%20Island%20leadsheet%20-%20Piano.pdf"],
+    note: "The keyboard figure is the tune: the downbeat is a rest, the chords fall on the & of 1, 2, 3, 4 and the & of 4, and the Dm7 phrase drops to two attacks. Rhythm read off the Iowa Jazz Camp lead sheet.",
+    figure: {
+      parts: ["piano", "guitar"],
+      owns: true,
+      cells: [
+        { bars: [0, 1, 2, 3, 4, 5, 6, 7, 12, 13, 14, 15], hits: [[0.5, 0.5], [1, 0.5], [2, 0.5], [3, 0.5], [3.5, 0.75]] },
+        { bars: [8, 9, 10, 11], hits: [[0, 1.5], [1.5, 2.5]] },
+      ],
+    },
     progression: [
       [{ chord: "Fm7", beats: 4 }], [{ chord: "Fm7", beats: 4 }], [{ chord: "Fm7", beats: 4 }], [{ chord: "Fm7", beats: 4 }],
       [{ chord: "Db7", beats: 4 }], [{ chord: "Db7", beats: 4 }], [{ chord: "Db7", beats: 4 }], [{ chord: "Db7", beats: 4 }],

@@ -1834,7 +1834,15 @@ export class Band {
 
     mk(ev.bass, (time, e) => {
       if (this.muted.bass) return;
-      this.bass.start({ note: e.midi, time, duration: e.dur * beatSec() * 0.88, velocity: this._vel(e.vel) });
+      // `lag` is milliseconds behind the grid, the way the soloist's is: a funk
+      // bass sits measurably late against the kit, and late is a property of
+      // the player rather than of the tempo, so it is not scaled into beats.
+      this.bass.start({
+        note: e.midi,
+        time: time + (e.lag ?? 0) / 1000,
+        duration: e.dur * beatSec() * 0.88,
+        velocity: this._vel(e.vel),
+      });
     });
 
     mk(ev.drums, (time, e) => {
@@ -3799,17 +3807,25 @@ export class Band {
    * band does. A tune like Watermelon Man is not a style, it is a figure — the
    * whole band hits the same rhythm and then gets out of the way, and a band
    * that grooves politely through it is playing the changes rather than the
-   * tune. `song.figure` says where those hits are and where the band stops:
+   * tune. `song.figure` writes that down the way a chart does — a cell, and
+   * the bars that play it:
    *
    *     figure: {
-   *       hits:   [[bar, beat], …],           // the section punches together
-   *       breaks: [[bar, beat, beats], …],    // and here it lays out
+   *       parts: ["piano", "guitar"],       // who plays it (default: the band)
+   *       owns: true,                       // and plays nothing else in its bars
+   *       cells: [{ bars: [0, 1, 2, 3], hits: [[beat, dur], …] }],
+   *       breaks: [[bar, beat, beats], …],  // where everybody lays out
    *     }
    *
-   * Bars and beats are zero-based inside the form. The soloist is deliberately
-   * untouched: a break is a hole for whoever is playing over it, which in
-   * session mode is the person at the instrument — the band drops out, they
-   * keep going, the band slams back in. That is the whole point of it.
+   * Bars and beats are zero-based inside the form. `owns` is the difference
+   * between a band punching over its own groove and a band playing the figure
+   * and nothing else: Cantaloupe Island's keyboard figure is the second kind,
+   * and the rest it leaves — the silent downbeat — is as much of the tune as
+   * the notes are.
+   *
+   * The soloist is deliberately untouched. A break is a hole for whoever is
+   * playing over it, which in session mode is the person at the instrument:
+   * the band drops out, they keep going, the band slams back in.
    *
    * Played on the head and every fourth chorus after, so it reads as an
    * arrangement the band remembers rather than a gimmick on a loop.
@@ -3817,22 +3833,39 @@ export class Band {
   _applyFigure(ev, song, chords, bpb, totalBeats, chorus) {
     const fig = song.figure;
     if (!fig || chorus % 4 !== 0) return;
+    const ALL = ["piano", "guitar", "bass", "drums"];
+    const parts = fig.parts ?? ALL;
 
-    const at = (bar, beat) => bar * bpb + beat;
     const windows = (fig.breaks ?? [])
-      .map(([bar, beat, beats]) => [at(bar, beat), at(bar, beat) + (beats ?? bpb - beat)])
+      .map(([bar, beat, beats]) => [bar * bpb + beat, bar * bpb + beat + (beats ?? bpb - beat)])
       .filter(([a, z]) => z > a);
     if (windows.length) {
       const inBreak = (b) => windows.some(([a, z]) => b >= a - 1e-6 && b < z - 1e-6);
-      for (const part of ["piano", "guitar", "bass", "drums"]) {
-        ev[part] = ev[part].filter((e) => !inBreak(e.beat));
-      }
+      for (const part of ALL) ev[part] = ev[part].filter((e) => !inBreak(e.beat));
     }
 
-    const hits = (fig.hits ?? [])
-      .map(([bar, beat]) => at(bar, beat))
-      .filter((b) => b >= 0 && b < totalBeats);
+    const hits = [];
+    for (const cell of fig.cells ?? []) {
+      for (const bar of cell.bars ?? []) {
+        for (const [beat, dur] of cell.hits ?? []) {
+          const b = bar * bpb + beat;
+          if (b >= 0 && b < totalBeats) hits.push({ beat: b, dur: dur ?? 0.5 });
+        }
+      }
+    }
     if (!hits.length) return;
+
+    // Whose bar it is. An owned figure takes the whole bar from the parts that
+    // play it; a punch only clears the sixteenth around itself, so the groove
+    // it lands on carries on either side of it.
+    if (fig.owns) {
+      const bars = new Set(hits.map((h) => Math.floor(h.beat / bpb)));
+      for (const part of parts) ev[part] = ev[part].filter((e) => !bars.has(Math.floor(e.beat / bpb)));
+    } else {
+      for (const part of parts) {
+        ev[part] = ev[part].filter((e) => !hits.some((h) => Math.abs(e.beat - h.beat) <= 0.24));
+      }
+    }
 
     const voicings = voiceComp(chords, rand, { colour: this.compColour });
     const idxAt = (beat) => {
@@ -3840,28 +3873,31 @@ export class Band {
       for (let k = 0; k < chords.length; k++) if (chords[k].startBeat <= beat + 1e-6) i = k;
       return i;
     };
+    // A figure the band plays over and over sits a little under a one-off
+    // punch — the first is the tune, the second is a shout.
+    const lift = fig.owns ? 0 : 8;
 
-    for (const beat of hits) {
-      const i = idxAt(beat);
-      const c = chords[i];
-      // The punch is one attack, not a flam: whatever the comp had within a
-      // sixteenth of it was going to blur the edge, so it gives way.
-      for (const part of ["piano", "guitar", "bass"]) {
-        ev[part] = ev[part].filter((e) => Math.abs(e.beat - beat) > 0.24);
+    for (const { beat, dur } of hits) {
+      const c = chords[idxAt(beat)];
+      if (parts.includes("piano")) {
+        ev.piano.push({ beat, dur, midis: voicings[idxAt(beat)], vel: 74 + lift });
       }
-      ev.piano.push({ beat, dur: 0.5, midis: voicings[i], vel: 82 });
-      ev.guitar.push({ beat, dur: 0.3, midis: guitarVoicing(c.info, 0), vel: 52 });
-      ev.bass.push({
-        beat,
-        midi: placeNear(bassPcs(c.info).root, 36, BASS_LO, BASS_HI),
-        dur: 0.45,
-        vel: 74,
-      });
-      ev.drums.push({ beat, drum: "kick", vel: 60 }, { beat, drum: "snare", vel: 54 });
+      if (parts.includes("guitar")) {
+        ev.guitar.push({ beat, dur: Math.min(dur, 0.4), midis: guitarVoicing(c.info, 0), vel: 48 + lift });
+      }
+      if (parts.includes("bass")) {
+        ev.bass.push({
+          beat,
+          midi: placeNear(bassPcs(c.info).root, 36, BASS_LO, BASS_HI),
+          dur: Math.min(dur, 0.6),
+          vel: 66 + lift,
+        });
+      }
+      if (parts.includes("drums")) {
+        ev.drums.push({ beat, drum: "kick", vel: 52 + lift }, { beat, drum: "snare", vel: 46 + lift });
+      }
     }
-    for (const part of ["piano", "guitar", "bass", "drums"]) {
-      ev[part].sort((a, b) => a.beat - b.beat);
-    }
+    for (const part of ALL) ev[part].sort((a, b) => a.beat - b.beat);
   }
 
   /**
@@ -3907,6 +3943,11 @@ export class Band {
       [[0, "R", 0.55, 70], [0.5, "G"], [2.5, "R", 0.3, 57], [3, "O", 0.25, 58], [3.5, "S", 0.3, 54]],
       // fifth in the middle, octave at the top of the bar
       [[0, "R", 0.7, 70], [1.5, "F", 0.25, 56], [2, "G"], [2.5, "R", 0.25, 58], [3.5, "O", 0.3, 58]],
+      // The root arrives a sixteenth early and is held over the barline, so the
+      // downbeat is a tie rather than an attack. Zarbo's Jamerson study calls
+      // this out as his signature device, and it is the one thing that stops a
+      // repeating figure from restating itself every four beats.
+      [[-0.25, "R", 1.1, 68], [1.5, "S", 0.25, 56], [2, "G"], [2.5, "F", 0.3, 58], [3.25, "O", 0.25, 56]],
     ];
     // plain keeps the floor and stays out of the way; warm takes the busier
     // figures and varies more of them
@@ -3942,16 +3983,21 @@ export class Band {
     for (let bar = 0; bar < bars; bar++) {
       const barStart = bar * bpb;
       const phraseEnd = bar % 4 === 3; // the bar that turns a four-bar phrase over
-      // The drop: one interior note left out for a bar. A figure that repeats
-      // exactly is a loop; a figure that loses a note here and there and keeps
-      // its downbeat is a player holding it down.
-      const drop = !phraseEnd && rand() < VARY
+      // The drop: one interior note left out. Teaching material on funk blues
+      // lines puts the variation at the turnaround and repeats the figure
+      // everywhere else, which is the opposite of where a pattern pool puts it
+      // — so a dropped note mostly belongs to the bar that turns the phrase
+      // over, and only rarely wanders into the middle of one.
+      const drop = rand() < (phraseEnd ? VARY * 2.5 : VARY * 0.3)
         ? 1 + Math.floor(rand() * Math.max(1, riff.length - 1))
         : -1;
 
       riff.forEach(([off, role, dur, vel], i) => {
         if (off >= bpb || i === drop) return;
         const beat = barStart + off;
+        // the anticipation belongs to the bar it leads into, so the first bar
+        // of the form simply states its downbeat instead
+        if (beat < 0) return;
         if (beat >= totalBeats) return;
         const v = voiceFor(chordAt(beat));
         if (role === "G") {
@@ -3995,6 +4041,34 @@ export class Band {
       }
     }
     events.sort((a, b) => a.beat - b.beat);
+
+    // One attack per sixteenth. A bar's lean into the change and the next
+    // bar's anticipation of it both want the last sixteenth of the bar, and
+    // two notes a millisecond apart on one string is a flam, not a figure —
+    // the louder one is the one that was played.
+    for (let i = events.length - 1; i > 0; i--) {
+      if (events[i].beat - events[i - 1].beat > 0.12) continue;
+      const quieter = events[i].vel >= events[i - 1].vel ? i - 1 : i;
+      events.splice(quieter, 1);
+    }
+
+    for (let i = 0; i < events.length; i++) {
+      const e = events[i];
+      // BEHIND THE KIT. Ainsworth's measurements of early funk (ZGMTH 2025,
+      // fourteen 1967–74 tracks) find the bass consistently late against the
+      // drums, and the sixteenths themselves swung between 1.07:1 and 1.8:1 —
+      // never as far as the triplet a swing feel takes. Danielsen and Câmara
+      // put the threshold where a listener can hear the difference at roughly
+      // 16–30 ms, so this is deliberately in that band and no further: on the
+      // beat it barely trails, off the beat it leans back enough to hear.
+      // Milliseconds, not beats — a player's lateness does not scale with the
+      // tempo of the tune.
+      e.lag = Math.abs(e.beat % 1) < 1e-6 ? 8 : 20;
+      // A ghost is only heard as a ghost if what follows it is not one: the
+      // contrast is the whole effect, so the note after a damped one is played
+      // at the top of its range rather than wherever the figure left it.
+      if (i > 0 && events[i - 1].vel <= 24 && e.vel > 24) e.vel = Math.min(96, e.vel + 7);
+    }
     return events;
   }
 
