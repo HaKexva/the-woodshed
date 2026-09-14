@@ -96,6 +96,54 @@ console.log("\nTHE KEYBOARD — funk does not comp on a concert grand");
   check(band.piano === "ep", "changing the feel to funk left the grand in place");
 }
 
+console.log("\nTHE TUNE'S OWN KICKS — the band hits the figure, then gets out of the way");
+{
+  const s = {
+    title: "test",
+    timeSignature: 4,
+    progression: [[{ chord: "F7", beats: 4 }], [{ chord: "F7", beats: 4 }],
+                  [{ chord: "Bb7", beats: 4 }], [{ chord: "F7", beats: 4 }]],
+    figure: { hits: [[0, 0], [0, 2.5], [1, 1.5]], breaks: [[2, 2, 2]] },
+  };
+  const chords = flat(s);
+  const groove = () => ({
+    piano: [], guitar: [], bass: [], drums: [],
+    ...Object.fromEntries(["piano", "guitar", "bass", "drums"].map((p) => [
+      p, Array.from({ length: 16 }, (_, i) => ({ beat: i, dur: 0.5, vel: 50, midi: 40, midis: [60], drum: "hat" })),
+    ])),
+  });
+
+  const band = Object.assign(Object.create(B), { compColour: 1 });
+  const head = groove();
+  band._applyFigure(head, s, chords, 4, 16, 0);
+  const inBreak = (e) => e.beat >= 10 && e.beat < 12;
+  const parts = ["piano", "guitar", "bass", "drums"];
+  console.log(`   head chorus: ${parts.map((p) => `${p} ${head[p].length}`).join(" · ")}`);
+  check(parts.every((p) => !head[p].some(inBreak)), "somebody kept playing through the break");
+  for (const beat of [0, 2.5, 5.5]) {
+    check(head.piano.some((e) => e.beat === beat && e.vel > 70), `no piano punch at beat ${beat}`);
+    check(head.bass.some((e) => e.beat === beat && e.vel > 70), `no bass punch at beat ${beat}`);
+    check(head.drums.filter((e) => e.beat === beat).length >= 2, `the kit did not punch at beat ${beat}`);
+  }
+  check(head.piano.filter((e) => Math.abs(e.beat - 2.5) < 0.25).length === 1, "the punch flams against the comp");
+  check(parts.every((p) => head[p].every((e, i, a) => !i || a[i - 1].beat <= e.beat)), "events came back out of order");
+
+  // and the figure is an arrangement, not a loop: it belongs to the head and
+  // every fourth chorus, not to every time round
+  const solos = groove();
+  band._applyFigure(solos, s, chords, 4, 16, 1);
+  check(solos.piano.length === 16 && solos.piano.every((e) => e.vel === 50), "chorus 2 played the head's kicks");
+  const fourth = groove();
+  band._applyFigure(fourth, s, chords, 4, 16, 4);
+  check(fourth.piano.some((e) => e.vel > 70), "the fourth chorus did not take the tune back");
+  console.log("   chorus 1 ✓ · chorus 2 plain ✓ · chorus 5 ✓");
+
+  // a tune with no figure is untouched
+  const plain = groove();
+  band._applyFigure(plain, { ...s, figure: undefined }, chords, 4, 16, 0);
+  check(plain.piano.length === 16, "a tune with no figure lost events anyway");
+}
+
 console.log();
 console.log(fail ? `FAILURES: ${fail}` : "the funk bass holds a figure, and the keys are electric");
 process.exit(fail ? 1 : 0);

@@ -1692,6 +1692,8 @@ export class Band {
       meta: [],
     };
 
+    this._applyFigure(ev, song, chords, bpb, totalBeats, plan.chorus);
+
     for (const c of chords) ev.meta.push({ kind: "chord", beat: c.startBeat, chord: c });
     for (let b = 0; b < totalBeats; b++) {
       ev.meta.push({ kind: "beat", beat: b, bar: Math.floor(b / bpb), beatInBar: b % bpb });
@@ -3788,6 +3790,78 @@ export class Band {
     }
     events.sort((a, b) => a.beat - b.beat);
     return events;
+  }
+
+  /**
+   * A tune's own kicks, and the holes it leaves.
+   *
+   * Everything else in here plays a style: what a funk band does, what a swing
+   * band does. A tune like Watermelon Man is not a style, it is a figure — the
+   * whole band hits the same rhythm and then gets out of the way, and a band
+   * that grooves politely through it is playing the changes rather than the
+   * tune. `song.figure` says where those hits are and where the band stops:
+   *
+   *     figure: {
+   *       hits:   [[bar, beat], …],           // the section punches together
+   *       breaks: [[bar, beat, beats], …],    // and here it lays out
+   *     }
+   *
+   * Bars and beats are zero-based inside the form. The soloist is deliberately
+   * untouched: a break is a hole for whoever is playing over it, which in
+   * session mode is the person at the instrument — the band drops out, they
+   * keep going, the band slams back in. That is the whole point of it.
+   *
+   * Played on the head and every fourth chorus after, so it reads as an
+   * arrangement the band remembers rather than a gimmick on a loop.
+   */
+  _applyFigure(ev, song, chords, bpb, totalBeats, chorus) {
+    const fig = song.figure;
+    if (!fig || chorus % 4 !== 0) return;
+
+    const at = (bar, beat) => bar * bpb + beat;
+    const windows = (fig.breaks ?? [])
+      .map(([bar, beat, beats]) => [at(bar, beat), at(bar, beat) + (beats ?? bpb - beat)])
+      .filter(([a, z]) => z > a);
+    if (windows.length) {
+      const inBreak = (b) => windows.some(([a, z]) => b >= a - 1e-6 && b < z - 1e-6);
+      for (const part of ["piano", "guitar", "bass", "drums"]) {
+        ev[part] = ev[part].filter((e) => !inBreak(e.beat));
+      }
+    }
+
+    const hits = (fig.hits ?? [])
+      .map(([bar, beat]) => at(bar, beat))
+      .filter((b) => b >= 0 && b < totalBeats);
+    if (!hits.length) return;
+
+    const voicings = voiceComp(chords, rand, { colour: this.compColour });
+    const idxAt = (beat) => {
+      let i = 0;
+      for (let k = 0; k < chords.length; k++) if (chords[k].startBeat <= beat + 1e-6) i = k;
+      return i;
+    };
+
+    for (const beat of hits) {
+      const i = idxAt(beat);
+      const c = chords[i];
+      // The punch is one attack, not a flam: whatever the comp had within a
+      // sixteenth of it was going to blur the edge, so it gives way.
+      for (const part of ["piano", "guitar", "bass"]) {
+        ev[part] = ev[part].filter((e) => Math.abs(e.beat - beat) > 0.24);
+      }
+      ev.piano.push({ beat, dur: 0.5, midis: voicings[i], vel: 82 });
+      ev.guitar.push({ beat, dur: 0.3, midis: guitarVoicing(c.info, 0), vel: 52 });
+      ev.bass.push({
+        beat,
+        midi: placeNear(bassPcs(c.info).root, 36, BASS_LO, BASS_HI),
+        dur: 0.45,
+        vel: 74,
+      });
+      ev.drums.push({ beat, drum: "kick", vel: 60 }, { beat, drum: "snare", vel: 54 });
+    }
+    for (const part of ["piano", "guitar", "bass", "drums"]) {
+      ev[part].sort((a, b) => a.beat - b.beat);
+    }
   }
 
   /**
