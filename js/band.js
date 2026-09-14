@@ -821,6 +821,7 @@ export class Band {
 
   _applyStyleBass(style) {
     this._lastStyle = style;
+    this._applyPiano(); // the keys follow the style too — electric for funk
     if (this._bassOverride) return;
     // Real pack: upright for the acoustic styles, sampled electric for funk
     // (falls back to GM electric until the pack carries one)
@@ -879,9 +880,13 @@ export class Band {
   }
 
   // comping piano stays on the Splendid grand — the sampled upright lost the
-  // ear test against it, so the HQ pack covers guitar/bass/drums only
+  // ear test against it, so the HQ pack covers guitar/bass/drums only.
+  // Funk is the exception: nobody comps this music on a concert grand. The
+  // keyboard the style is written for is electric, so the style picks the
+  // instrument the way it already picks the bass (electric there too).
   _applyPiano() {
-    this.piano = (this.grandOn && this.pianoGrand) || this.pianoEP;
+    const ep = this._lastStyle === "funk";
+    this.piano = (!ep && this.grandOn && this.pianoGrand) || this.pianoEP;
   }
 
   _applyGuitar() {
@@ -3479,6 +3484,11 @@ export class Band {
   _bassEvents(chords, totalBeats, style, straight, bpb, feel = "four", colour = COMP_COLOUR.warm) {
     const events = this._bassLine(chords, totalBeats, style, straight, bpb, feel, colour);
 
+    // Funk writes its own lengths and its own weights, and both are the part:
+    // the legato pass below would close the holes the figure is made of, and
+    // the velocity scale would flatten its ghosts into ordinary notes.
+    if (style === "funk") return events;
+
     // Note length, every style alike. Short plucked notes leave audible holes
     // between the beats, which is what makes a sampled bass read as *plucked*
     // rather than bowed-into-place — it's the tail that fills the space. Each
@@ -3526,27 +3536,7 @@ export class Band {
       return events;
     }
 
-    if (style === "funk") {
-      // syncopated riff over root / b7 / 5th — shape rolled per chord so the
-      // groove breathes between loops
-      for (const c of chords) {
-        const pcs = bassPcs(c.info);
-        const root = placeNear(pcs.root, 36, BASS_LO, BASS_HI);
-        const fifth = placeNear(pcs.fifth, root + 4, BASS_LO, BASS_HI);
-        const seventh = placeNear(pcs.seventh, root + 6, BASS_LO, BASS_HI);
-        const oct = Math.min(BASS_HI, root + 12);
-        const shape = choice([
-          [[0, root, 0.9, 100], [1.5, seventh, 0.45, 84], [2.5, fifth, 0.45, 88], [3.5, root, 0.45, 80]],
-          [[0, root, 0.9, 100], [1.5, seventh, 0.45, 84], [2.5, fifth, 0.45, 88], [3.5, oct, 0.4, 84]], // octave pop
-          [[0, root, 0.7, 100], [1, root, 0.45, 78], [2.5, seventh, 0.45, 86], [3.5, fifth, 0.45, 80]],
-          [[0, root, 1.4, 100], [2.5, fifth, 0.45, 86], [3, seventh, 0.45, 82]],
-        ]);
-        for (const [off, midi, dur, vel] of shape) {
-          if (off < c.beats) events.push({ beat: c.startBeat + off, midi, dur, vel });
-        }
-      }
-      return events;
-    }
+    if (style === "funk") return this._funkBass(chords, totalBeats, bpb, colour);
 
     if (style === "latin" && bpb === 4) {
       // TUMBAO. The 23 latin tunes used to fall through to the bossa branch and
@@ -3795,6 +3785,140 @@ export class Band {
       const mid = Math.abs(gap) >= 3 ? cur.midi + dir * Math.round(Math.abs(gap) / 2) : nxt.midi - dir;
       if (mid === cur.midi || mid === nxt.midi) continue;
       events.push({ beat: nxt.beat - 0.5, midi: clamp(mid), dur: 0.28, vel: Math.max(60, cur.vel - 18) });
+    }
+    events.sort((a, b) => a.beat - b.beat);
+    return events;
+  }
+
+  /**
+   * Funk bass: a figure, not a line.
+   *
+   * The old funk branch rolled one of four shapes per chord and handed them to
+   * the legato pass every other style uses, which stretches each note to 92% of
+   * the way to the next one. So the part whose entire identity is short notes
+   * and the holes between them came out as joined-up eighths that changed shape
+   * every bar — which is what a walking line is, played on the wrong grid.
+   *
+   * Two things are structural here and neither is a pattern-pool tweak:
+   *
+   *   · A funk bassist locks a figure and repeats it. The groove IS the
+   *     repetition; variation belongs at the end of a phrase, not in every bar.
+   *     The figure is chosen once per chorus and transposes to whatever chord
+   *     the bar is on — one riff over F7, Bb7 and C7 is how a funk blues works.
+   *   · The line lives on the sixteenth grid, and most of what is on that grid
+   *     is not sounded. Ghost notes — damped, a fraction of the weight, barely
+   *     any length — are what fills the space between the notes you hear, and
+   *     they are the difference between a bass part and a bass player.
+   */
+  _funkBass(chords, totalBeats, bpb, colour) {
+    // Riffs are one bar of 4/4 on the sixteenth grid: [offset, role, dur, vel].
+    // Roles: R root · S the flat seventh · F fifth · O the octave above the
+    // root · G a ghost (root pitch, damped to a click). Velocities are final —
+    // _bassEvents leaves this style alone — and sit where the old funk line
+    // effectively sat after its 0.6 scaling, so the part's level is unchanged.
+    // The downbeat is the only note written hard enough to cross into the
+    // harder-plucked sample layer: that attack is the pop, and everything else
+    // leaning under it is what makes it read as one.
+    const RIFFS = [
+      // on the one: the root owns the downbeat and most of the bar is air
+      [[0, "R", 1.1, 70], [2, "R", 0.3, 55], [2.75, "S", 0.25, 57], [3.25, "O", 0.3, 54]],
+      // octave pop — the figure a lot of funk tunes are built on
+      [[0, "R", 0.45, 70], [0.75, "G"], [1.5, "R", 0.3, 56], [2.5, "S", 0.3, 58], [3, "O", 0.3, 60], [3.75, "G"]],
+      // the seventh leaning back off the & of 2
+      [[0, "R", 0.9, 70], [1.75, "S", 0.25, 58], [2.5, "F", 0.3, 55], [3.5, "S", 0.3, 54]],
+      // sixteenth-driven, ghosts between every sounded note
+      [[0, "R", 0.2, 70], [0.25, "G"], [0.5, "G"], [0.75, "R", 0.2, 55], [1.25, "G"], [1.5, "R", 0.2, 58],
+       [2, "G"], [2.25, "S", 0.2, 57], [2.75, "R", 0.2, 54], [3.25, "G"], [3.5, "O", 0.25, 60]],
+      // a hole on two — the bar breathes where the backbeat is
+      [[0, "R", 0.55, 70], [0.5, "G"], [2.5, "R", 0.3, 57], [3, "O", 0.25, 58], [3.5, "S", 0.3, 54]],
+      // fifth in the middle, octave at the top of the bar
+      [[0, "R", 0.7, 70], [1.5, "F", 0.25, 56], [2, "G"], [2.5, "R", 0.25, 58], [3.5, "O", 0.3, 58]],
+    ];
+    // plain keeps the floor and stays out of the way; warm takes the busier
+    // figures and varies more of them
+    const SPARSE = [0, 2, 4];
+    const riff = colour === COMP_COLOUR.plain ? RIFFS[choice(SPARSE)] : choice(RIFFS);
+    const VARY = [0.1, 0.22, 0.3][colour] ?? 0.22;
+
+    const chordAt = (beat) => {
+      let cur = chords[0];
+      for (const c of chords) if (c.startBeat <= beat + 1e-6) cur = c;
+      return cur;
+    };
+    // one register decision per chord, so a bar cannot pop an octave by accident
+    const voices = new Map();
+    const voiceFor = (c) => {
+      let v = voices.get(c);
+      if (!v) {
+        const pcs = bassPcs(c.info);
+        const root = placeNear(pcs.root, 36, BASS_LO, BASS_HI);
+        v = {
+          R: root,
+          S: placeNear(pcs.seventh, root + 6, BASS_LO, BASS_HI),
+          F: placeNear(pcs.fifth, root + 4, BASS_LO, BASS_HI),
+          O: Math.min(BASS_HI, root + 12),
+        };
+        voices.set(c, v);
+      }
+      return v;
+    };
+
+    const events = [];
+    const bars = Math.ceil(totalBeats / bpb);
+    for (let bar = 0; bar < bars; bar++) {
+      const barStart = bar * bpb;
+      const phraseEnd = bar % 4 === 3; // the bar that turns a four-bar phrase over
+      // The drop: one interior note left out for a bar. A figure that repeats
+      // exactly is a loop; a figure that loses a note here and there and keeps
+      // its downbeat is a player holding it down.
+      const drop = !phraseEnd && rand() < VARY
+        ? 1 + Math.floor(rand() * Math.max(1, riff.length - 1))
+        : -1;
+
+      riff.forEach(([off, role, dur, vel], i) => {
+        if (off >= bpb || i === drop) return;
+        const beat = barStart + off;
+        if (beat >= totalBeats) return;
+        const v = voiceFor(chordAt(beat));
+        if (role === "G") {
+          // a ghost is the root, damped: a click of pitch with no weight
+          events.push({ beat, midi: v.R, dur: 0.08, vel: Math.round(rnd(16, 22)) });
+          return;
+        }
+        events.push({ beat, midi: v[role], dur, vel: Math.round(vel + rnd(-3, 3)) });
+      });
+
+      // Every chord change gets its root stated, even one that lands mid-bar
+      // where the figure happens to have a hole.
+      for (const c of chords) {
+        const off = c.startBeat - barStart;
+        if (off <= 0 || off >= bpb) continue;
+        if (events.some((e) => Math.abs(e.beat - c.startBeat) < 0.25 && e.vel > 30)) continue;
+        events.push({ beat: c.startBeat, midi: voiceFor(c).R, dur: 0.4, vel: 64 });
+      }
+
+      // Into the change: the last sixteenth of the bar leans chromatically onto
+      // the root the next bar opens with. This is where a funk line is allowed
+      // to move — at the seam, not inside the groove.
+      const nextBeat = barStart + bpb;
+      // Only where the harmony actually moves, or where the phrase turns over.
+      // Leaning into every barline is the walking habit again: it makes each
+      // bar arrive from somewhere, and the whole point of the figure is that it
+      // is already there.
+      const here = chordAt(barStart);
+      const there = chordAt(nextBeat % totalBeats);
+      const lean = there.symbol !== here.symbol ? 0.45 : phraseEnd ? 0.3 : 0;
+      if (lean && bpb >= 4 && rand() < lean + VARY / 2) {
+        const target = voiceFor(chordAt(nextBeat % totalBeats)).R;
+        const from = voiceFor(chordAt(barStart)).R;
+        const step = target > from ? -1 : 1; // come at it from the side we are on
+        const lead = Math.max(BASS_LO, Math.min(BASS_HI, target + step));
+        const at = nextBeat - 0.25;
+        if (at < totalBeats) {
+          for (let i = events.length - 1; i >= 0; i--) if (events[i].beat >= at) events.splice(i, 1);
+          events.push({ beat: at, midi: lead, dur: 0.2, vel: 58 });
+        }
+      }
     }
     events.sort((a, b) => a.beat - b.beat);
     return events;
