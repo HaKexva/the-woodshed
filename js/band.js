@@ -591,6 +591,7 @@ export class Band {
     // starts from no remembered material. Clearing here makes (seed, chorus)
     // enough to identify a line even when the seed is typed in mid-tune.
     this._soloMotif = null;
+    this._soloTheme = null;
     if (this.playing) this._rebuildSoloPart();
     this.cb.onTake?.(seedToText(this.takeSeed));
     return seedToText(this.takeSeed);
@@ -2016,6 +2017,29 @@ export class Band {
    * of its own part, which is what dropout sounds like rather than what an
    * arrangement sounds like. Both are gone.
    */
+  /**
+   * How hard the band is leaning this time round, 0.5–1 — the one number both
+   * the rhythm section and the soloist read.
+   *
+   * They each used to own a private copy. The band's was three rotating
+   * four-chorus shapes; the soloist's was a fixed `[0.85, 1.05, 1.2, 0.65]` on
+   * chorus % 4, so on the fifth chorus the band was starting a different shape
+   * while the line was peaking on its own schedule — and in live mode, where
+   * the band follows the room, the line followed nothing at all. A rhythm
+   * section and a soloist disagreeing about where the peak is does not sound
+   * like independence, it sounds like two recordings playing at once.
+   */
+  chorusEnergy(chorus = this._chorus ?? 0) {
+    const heat = this.heatNow;
+    if (heat != null) return 0.5 + 0.5 * heat;
+    const WAVES = [
+      [0.55, 0.78, 1, 0.5],
+      [0.62, 0.72, 0.95, 0.58],
+      [0.5, 0.9, 0.8, 0.45],
+    ];
+    return WAVES[Math.floor(chorus / 4) % WAVES.length][chorus % 4];
+  }
+
   _arrangement(song, style, straight) {
     const chorus = this._chorus ?? 0;
     const sections = formSections(song);
@@ -2039,14 +2063,7 @@ export class Band {
     // exactly. Three shapes of the same gesture, taken in turn, put twelve
     // choruses between a chorus and its repeat — and the shapes differ in where
     // the peak sits and how far the drop goes, which is the part you hear.
-    const heat = this.heatNow;
-    const WAVES = [
-      [0.55, 0.78, 1, 0.5],
-      [0.62, 0.72, 0.95, 0.58],
-      [0.5, 0.9, 0.8, 0.45],
-    ];
-    const energy =
-      heat == null ? WAVES[Math.floor(chorus / 4) % WAVES.length][chorus % 4] : 0.5 + 0.5 * heat;
+    const energy = this.chorusEnergy(chorus);
 
     // Who leads. Both comping full-time every chorus is a machine's tell, but so
     // is trading it every single time round.
@@ -2066,7 +2083,9 @@ export class Band {
     // then the guitar back in — and it is the single most audible thing a
     // rhythm section can do that nothing here was doing. Not before the third
     // time round, and not when one of them is already carrying it alone.
-    if (chorus >= 2 && lead === "both" && rand() < 0.16) {
+    // …but not on the chorus the arrangement is peaking on: the loudest time
+    // round is the wrong one to take an instrument out of.
+    if (chorus >= 2 && lead === "both" && energy < 0.9 && rand() < 0.18) {
       const out = choice(["piano", "guitar"]);
       for (let b = 0; b < song.progression.length; b++) layOut[out].add(b);
     }
@@ -2446,8 +2465,12 @@ export class Band {
     // multi-chorus energy wave: statement → build → PEAK → layout, repeat.
     // High tide gets burn devices; the layout chorus genuinely rests.
     const chor = this._chorus ?? 0;
-    const WAVE = [0.85, 1.05, 1.2, 0.65];
-    const wave = ballad ? 0.9 : WAVE[chor % 4];
+    // The band's own number, mapped onto the multiplier this generator works
+    // in. Same source, so the line builds when the section builds and backs off
+    // when it backs off — and in live mode it hears the room through the same
+    // ear the band does.
+    const bandEnergy = this.chorusEnergy(chor);
+    const wave = ballad ? 0.9 : lerp(0.68, 1.22, Math.max(0, Math.min(1, (bandEnergy - 0.45) / 0.55)));
     const isPeakChorus = wave > 1.1;
     const isLayout = wave < 0.7;
     const windFrom = totalBeats - 2 * bpb;
@@ -2590,6 +2613,17 @@ export class Band {
     // seed from the previous chorus so a later chorus can quote an earlier one —
     // the structural memory that multi-chorus solos are built on
     let motif = this._soloMotif ?? null; // { durs, steps } — heard intervals of a kept phrase
+    // THE IDEA OF THIS CHORUS. Measured, 83% of choruses never brought
+    // anything back: eight phrases, eight unrelated statements, which is what
+    // "it feels like random notes" is. The motif machinery below stores a whole
+    // phrase and replays it wholesale, and a fifteen-note quote transposed onto
+    // a different chord is not an idea returning — it is a different line. What
+    // an ear tracks is the *head*: four to six notes, the same gesture opening
+    // a phrase that then goes somewhere new. That is most of what a bebop
+    // chorus is. It survives into the next chorus about half the time, which is
+    // how a solo gets a shape bigger than one time round the form.
+    let theme = rand() < 0.5 ? this._soloTheme ?? null : null;
+    let themeDue = false; // a freshly minted idea is answered straight away
     let answer = null; // pending call-&-response reply
     let seq = null; // pending diatonic sequence repeat
     let lastSection = -1;
@@ -2656,9 +2690,27 @@ export class Band {
       }
       const useAnswer = answer !== null;
       const useSeq = !useAnswer && seq !== null;
-      const useMotif = !useAnswer && !useSeq && motif && rand() < Math.min(0.85, M.motif);
-      const useCell = !useAnswer && !useSeq && !useMotif && vocab.length > 0 && rand() < cellProb;
-      const flavor = useAnswer || useSeq || useMotif ? "motif" : useCell ? "cell" : ballad && rand() < 0.5 ? "longtones" : pickFlavor(intensity);
+      // The chorus's own idea comes before the older devices rather than after
+      // them. Behind a full-phrase quote and a vocabulary lick it almost never
+      // got a turn, and it is the one that makes a chorus cohere: those two
+      // replay a whole phrase, this one reopens with a gesture and goes
+      // somewhere new.
+      // A new idea is restated at once. State it, say it again, then take it
+      // somewhere — the first two of those are what tells a listener it was an
+      // idea rather than a passage, and leaving it to a dice roll meant half of
+      // all choruses never said anything twice.
+      const useTheme = !useAnswer && !useSeq && theme !== null && (themeDue || rand() < 0.55);
+      themeDue = false;
+      const useMotif = !useAnswer && !useSeq && !useTheme && motif && rand() < Math.min(0.85, M.motif);
+      const useCell = !useAnswer && !useSeq && !useTheme && !useMotif && vocab.length > 0 && rand() < cellProb;
+      // A themed phrase is a written one: the riff and long-tone flavours have
+      // their own shapes and would swallow the head whole. Measured, they were
+      // taking 43% of the phrases the theme had been handed.
+      const flavor = useAnswer || useSeq || useMotif ? "motif"
+        : useCell ? "cell"
+        : useTheme ? "run"
+        : ballad && rand() < 0.5 ? "longtones"
+        : pickFlavor(intensity);
       let velBase = lerp(42, 98, intensity) + lerp(-4, 24, h) + M.velOff + (useAnswer ? -6 : 0);
       let blueBoost = 1;
       // outside color: tritone-sub scale over dominants near the peak
@@ -2726,7 +2778,11 @@ export class Band {
         // the two-bar answers, and a target between the two measures back closest.
         const want =
           ((prof ? (prof.phraseBeatsMedian + prof.phraseBeatsMean) / 2 : 8) *
-            phraseDial * lerp(0.88, 1.12, c) * M.phrase * lerp(0.62, 1.3, intensity) * wave) + rnd(-1, 1);
+            phraseDial * lerp(0.88, 1.12, c) * M.phrase * lerp(0.62, 1.3, intensity) * wave *
+            // A phrase that reopens with the chorus's idea is an answer to it,
+            // not a second marathon: left at full length they pushed the line
+            // to 21 notes a phrase against the corpus's eighteen.
+            (useTheme ? 0.6 : 1)) + rnd(-1, 1);
         const p16 = Math.min(0.92, (0.02 + c * 0.95 + Math.max(0, intensity - 0.35) * 0.6) * M.p16 * (isPeakChorus ? 1.3 : 1));
         const pTrip = Math.min(0.85, (0.04 + 0.3 * intensity + 0.22 * c) * M.trip);
         const has = (tpl, d) => tpl.some((x) => Math.abs(x - d) < 1e-6);
@@ -2763,6 +2819,14 @@ export class Band {
             durs.push(d);
             spent += d;
           }
+        }
+        // Open with the chorus's own idea, then go somewhere new with it. The
+        // plan covers the head only; past it the line is written as usual, so
+        // the phrase is recognisable without being a repeat.
+        if (useTheme && !ballad && durs.length >= theme.durs.length + 1) {
+          const k = theme.durs.length;
+          durs = [...theme.durs, ...durs.slice(k)];
+          plannedSteps = [...theme.steps];
         }
         durs.push(choice(ballad ? [2, 2.5, 3] : [0.5, 1, 1.5, 2, 2.5].slice(Math.round((1 - c) * 2), Math.round((1 - c) * 2) + 3)) * M.hold);
 
@@ -2885,6 +2949,11 @@ export class Band {
         const c = chordAt(t);
         const pool = subActive && isDom(c) ? subPoolFor(c) : poolFor(c);
         const newChord = c !== lastChord;
+        // A plan can cover the whole phrase (a motif echo, a vocabulary cell) or
+        // just its opening gesture (the chorus's theme). Past the plan the line
+        // writes itself again — chord landings, arrivals and the arch all come
+        // back on.
+        const inHead = plannedSteps !== null && n < plannedSteps.length;
         const prevMidi = cur;
         let sat = false;
         // Aim at the change. If this note would step over the next chord
@@ -2895,6 +2964,11 @@ export class Band {
         const rest8 = change === null ? 0 : (change - t) * 4;
         const aiming =
           change !== null &&
+          // Not inside the theme's head. The clamp shortens a note so the next
+          // one lands on the change, which is right for a written line and
+          // fatal for a quoted one: the rhythm is the most recognisable half of
+          // an idea, and rewriting it is why the head kept going out distorted.
+          !inHead &&
           n < durs.length - 1 &&
           t + durs[n] > change + 1e-6 &&
           change - t >= 0.25 &&
@@ -2905,7 +2979,7 @@ export class Band {
           // sequence repeat: exact transposition, don't re-root on the chord
           cur = pool[nearestIdx(pool, forceStartMidi)];
           lastChord = c;
-        } else if ((newChord || n === 0) && !(plannedSteps && n > 0)) {
+        } else if ((newChord || n === 0) && !(inHead && n > 0)) {
           // land on the guide-tone thread (or a nearby chord tone), drawn
           // toward the arc's register
           let target;
@@ -2955,7 +3029,7 @@ export class Band {
             events.push({ beat: t - 0.25, midi: pool[Math.max(0, idx - 1)], dur: 0.22, vel: Math.round(velBase - 9) });
           }
           cur = target;
-        } else if (plannedSteps) {
+        } else if (inHead) {
           // motif echo: the same heard contour, snapped into this chord's scale
           const want = Math.max(-11, Math.min(11, plannedSteps[n] ?? 0));
           const idx = nearestIdx(pool, cur + want);
@@ -3048,7 +3122,7 @@ export class Band {
         // half step above the target — the whole cadence in one interval —
         // and elsewhere a chromatic neighbour. Only for notes short enough to
         // read as an approach; a chromatic tone held two beats is just wrong.
-        if (aiming && !plannedSteps && !sat && durs[n] <= 1) {
+        if (aiming && !inHead && !sat && durs[n] <= 1) {
           const nextCh = chordAtStart.get(change);
           const aimNext = nextCh && aims.get(nextCh);
           if (aimNext) {
@@ -3077,7 +3151,7 @@ export class Band {
         // An arpeggio is exempt: it moves in thirds by definition, and a lid
         // that catches it mid-figure turns the thirds back into steps — which
         // measured as the corpus's arpeggio share falling by a fifth.
-        if (archAmp && !plannedSteps && n > 0 && atom?.kind !== "arp") {
+        if (archAmp && !inHead && n > 0 && atom?.kind !== "arp") {
           const centre = registerTarget + archAt(n);
           if (cur > centre + 3.5) {
             const i = nearestIdx(pool, centre + 3.5, (m) => m <= centre + 3.5);
@@ -3135,7 +3209,7 @@ export class Band {
         // line's phrases came to rest on a chord tone. A player quoting their
         // own idea over a chord it did not come from still lands it; only the
         // last note moves, so the shape survives.
-        if (last && flavor !== "longtones" && (!plannedSteps || rand() < 0.65)) {
+        if (last && flavor !== "longtones" && (!inHead || rand() < 0.65)) {
           const iv = c.info.intervals;
           const third = (c.info.rootPc + (iv.includes(4) ? 4 : iv.includes(3) ? 3 : 4)) % 12;
           const ninth = (c.info.rootPc + 2) % 12;
@@ -3353,6 +3427,12 @@ export class Band {
       }
 
       const freshPhrase = !useMotif && !useAnswer && !useSeq && !useCell;
+      if (freshPhrase && !ballad && takenSteps.length >= 6 && (!theme || rand() < 0.2)) {
+        const k = 4 + Math.floor(rand() * 3);
+        theme = { steps: takenSteps.slice(0, k), durs: durs.slice(0, k) };
+        this._soloTheme = theme;
+        themeDue = true;
+      }
       if (freshPhrase && !ballad && takenSteps.length >= 3 && rand() < 0.5) {
         motif = { durs, steps: takenSteps };
         this._soloMotif = motif; // carry it into the next chorus

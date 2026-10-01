@@ -38,7 +38,9 @@ const plan = (song, seed, chorus, { solo, fresh, pin = true }) => {
   band.takeSeed = seed;
   band._chorus = chorus;
   band._heldLine = null;
-  if (fresh) band._soloMotif = null;
+  // every piece of material the line remembers between choruses — a take is
+  // only reproducible from (seed, chorus) if it starts from none of it
+  if (fresh) { band._soloMotif = null; band._soloTheme = null; }
   return band._planChorus(song);
 };
 

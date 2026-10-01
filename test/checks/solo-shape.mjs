@@ -12,7 +12,7 @@
 // on consonance is itself the machine tell.
 import { Band, SOLO_STYLES, voiceFor } from "../../js/band.js";
 import { SONGS } from "../../js/songs.js";
-import { analyze, REF } from "../../js/solo-metrics.js";
+import { analyze, REF, phrasesOf } from "../../js/solo-metrics.js";
 
 const TUNES = ["Autumn Leaves", "Blue Bossa", "So What", "All The Things You Are"];
 const CHORUSES = 6;
@@ -74,6 +74,72 @@ for (const voice of ["parker", "silver", "singer"]) {
     const [lo, hi] = REF[k];
     check(m[k] >= lo && m[k] <= hi, `${voice}: ${k} ${f(m[k])} outside ${lo}–${hi}`);
   }
+}
+
+console.log("\nAN IDEA COMES BACK — eight phrases, eight unrelated statements, is what \"random notes\" is");
+{
+  // What an ear tracks is the head of a phrase: the same gesture opening a
+  // phrase that then goes somewhere new. Matched the way a listener matches it
+  // — the rhythm and the shape of the movement, not the exact intervals, since
+  // the idea is transposed onto whatever chord it reopens over.
+  const gist = (ph) =>
+    ph.slice(0, 5)
+      .map((e, i, a) => (i ? `${Math.sign(e.midi - a[i - 1].midi)}${Math.abs(e.midi - a[i - 1].midi) >= 3 ? "L" : "s"}/${Math.round((e.beat - a[i - 1].beat) * 4)}` : ""))
+      .slice(1).join(" ");
+  let phrases = 0, came = 0, choruses = 0, idle = 0;
+  for (const title of ["All of Me", "Autumn Leaves", "So What", "Blue Monk"]) {
+    const song = SONGS.find((s) => s.title === title);
+    if (!song) continue;
+    for (const seed of SEEDS) {
+      const b = new Band({});
+      b.song = song; b.soloOn = true; b.pinBand = true; b.takeSeed = seed;
+      for (let c = 0; c < CHORUSES; c++) {
+        b._chorus = c;
+        const line = [...b._planChorusFrom(song).soloEvents].sort((x, z) => x.beat - z.beat);
+        const phs = phrasesOf(line).filter((p) => p.length >= 5);
+        if (!phs.length) continue;
+        choruses++;
+        const seen = [];
+        let hit = 0;
+        for (const ph of phs) {
+          phrases++;
+          const g = gist(ph);
+          if (seen.includes(g)) { came++; hit++; }
+          seen.push(g);
+        }
+        if (!hit) idle++;
+      }
+    }
+  }
+  console.log(`   ${f(100 * came / phrases, 1)}% of phrases reopen with something already heard this chorus`);
+  console.log(`   choruses where nothing at all comes back: ${f(100 * idle / choruses, 1)}%`);
+  check(came / phrases > 0.08, `only ${f(100 * came / phrases, 1)}% of phrases restate anything (was 2.5% when it read as random)`);
+  check(idle / choruses < 0.65, `${f(100 * idle / choruses, 1)}% of choruses say nothing twice`);
+}
+
+console.log("\nTHE LINE FOLLOWS THE BAND — they each used to own a private arc");
+{
+  const song = SONGS.find((s) => s.title === "All of Me") ?? SONGS[0];
+  const b = new Band({});
+  b.song = song; b.soloOn = true; b.pinBand = true; b.takeSeed = 0x5eed;
+  const rows = [];
+  for (let c = 0; c < 12; c++) {
+    b._chorus = c;
+    const p = b._planChorusFrom(song);
+    const vel = p.soloEvents.reduce((a, e) => a + e.vel, 0) / Math.max(1, p.soloEvents.length);
+    rows.push([b.chorusEnergy(c), vel]);
+  }
+  const lo = rows.filter(([e]) => e <= 0.6);
+  const hi = rows.filter(([e]) => e >= 0.9);
+  const mean = (xs) => xs.reduce((a, [, v]) => a + v, 0) / Math.max(1, xs.length);
+  console.log(`   band laying back → line at ${f(mean(lo), 0)} · band at full → line at ${f(mean(hi), 0)}`);
+  check(mean(hi) > mean(lo) + 4, "the line plays the band's quiet choruses and its loud ones the same way");
+  // and in live mode the room moves both
+  b.liveHeat = 1;
+  check(b.chorusEnergy(3) === 1, `live heat does not reach the arrangement: ${b.chorusEnergy(3)}`);
+  b.liveHeat = 0;
+  check(b.chorusEnergy(3) === 0.5, `live heat floor is ${b.chorusEnergy(3)}`);
+  b.liveHeat = null;
 }
 
 console.log("\nTHE TAKE PICKS THE PLAYER — the dropdown did, and its default was the weak one");
