@@ -77,6 +77,19 @@ const SOLO_LOADERS = {
   piano: (ctx, dest) => new SplendidGrandPiano(ctx, { destination: dest }),
   vibes: (ctx, dest) => new Mallet(ctx, { instrument: "Vibraphone - Soft Mallets", destination: dest }),
 };
+// The voice a take plays in, from the take's own seed. Bebop is listed twice:
+// it is the profile that measures closest to a transcribed solo, so it comes
+// up most often, and the others are the colour either side of it.
+//
+// Monk is not in the roll. Measured, it is the one profile that cannot be
+// brought inside the human bands without ceasing to be itself: 2.7 notes a
+// bar, phrases of six notes, a mean interval of 3.7 semitones. That is a
+// faithful caricature and a poor soloist to leave running for an hour. It
+// stays in SOLO_STYLES for the lab page and for anyone who sets it by hand.
+const VOICES = ["parker", "parker", "silver", "singer"];
+export const voiceFor = (seed) =>
+  VOICES[(Math.imul((seed ?? 0) >>> 0, 0x45d9f3b) >>> 8) % VOICES.length];
+
 // Song-style feel layer — composes multiplicatively with the soloist-style
 // presets so a Parker solo over a bossa still swings *bossa*. swing is the
 // baseline; ballad keeps its dedicated handling and adds nothing here.
@@ -100,6 +113,17 @@ export const STYLE_FEEL = {
 //   rest/phrase/hold/encl/blue/trip/p16 = multipliers · reg = register band
 //   lag = ms behind the beat · artic = articulation (1 legato, <1 detached)
 //   cells = vocabulary licks as {steps: scale-step deltas, durs: beats}
+//
+// These were caricatures before they were voices. Three of the four were set
+// to play shorter and rest more than any transcribed solo does: measured
+// against js/solo-metrics.js, monk ran 2.6 notes a bar and rested half the
+// time, silver's phrases averaged 7.9 notes against the corpus 18.6, and
+// phraseCap 6 meant a phrase could not be a sentence even in principle. Played
+// once, each reads as the player's signature. Played for twenty minutes they
+// read as a generator that cannot finish a thought — which is exactly what the
+// tune they are over does not need. The character here is in the *atoms*
+// (which figures, which intervals, which ornaments); the length and the
+// breathing are now everybody's, inside the human bands.
 export const SOLO_STYLES = {
   parker: {
     label: "parker",
@@ -109,7 +133,7 @@ export const SOLO_STYLES = {
       ornament: 0.08,
       rest: 0.55, phrase: 1.5, phraseCap: 18, regLo: 0.45, regHi: 0.8,
       encl: 2.2, blue: 1.2, trip: 1.3, p16: 0.8, hold: 0.6, artic: 0.92,
-      lag: 6, motif: 0.25, offStart: 0.5, wRun: 1.5, antic: 1.4, aim: 0.92,
+      lag: 6, motif: 0.45, offStart: 0.5, wRun: 1.5, antic: 1.4, aim: 0.92,
       cellProb: 0.35,
       cells: [
         { steps: [0, -1, -1, 2, -1, -1], durs: [0.5, 0.5, 0.5, 0.5, 0.5, 1] },
@@ -122,10 +146,11 @@ export const SOLO_STYLES = {
     label: "monk",
     blurb: "angular leaps, weak-beat jabs, sudden silences",
     p: {
-      atoms: { leap: 3, repeat: 1.8, neighbor: 1.4, scale: 0.55, arp: 0.8 },
+      atoms: { leap: 2, repeat: 1.8, neighbor: 1.4, scale: 0.7, arp: 0.9 },
+      maxLeap: 12, // angular, but a line that clears an octave reads as a mistake
       multiInt: "seconds",
       ornament: 0,
-      rest: 1.6, phrase: 0.7, phraseCap: 8, regLo: 0.4, regHi: 0.75,
+      rest: 1.05, phrase: 1.1, phraseCap: 12, regLo: 0.4, regHi: 0.75,
       encl: 0.6, blue: 1.4, trip: 0.7, p16: 0.4, hold: 1.2, artic: 0.68,
       lag: 10, motif: 0.55, wide: 0.3, gap: 0.22, crush: 0.4, crushDur: 0.1, aim: 0.45,
       offAcc: 14, contrast: 1.4, sit: 0.18,
@@ -152,7 +177,7 @@ export const SOLO_STYLES = {
       span: 0.48, // an octave and a bit of the piano's range, centred on the register
       maxLeap: 9, // only 1.9% of sung intervals clear a fifth, none clears an octave
       reversal: 0.66,
-      rest: 1.35, phrase: 0.7, phraseCap: 11, regLo: 0.35, regHi: 0.62,
+      rest: 0.74, phrase: 1.2, phraseCap: 15, regLo: 0.35, regHi: 0.62,
       encl: 0.5, blue: 1.4, trip: 0.7, p16: 0.2, hold: 1.5, artic: 1,
       lag: 24, motif: 0.6, thread: 0.6, onBeat: 0.35, sit: 0.18,
       crush: 0.45, crushDur: 0.14, contrast: 0.85, wLong: 1.3, aim: 0.8,
@@ -162,10 +187,10 @@ export const SOLO_STYLES = {
     label: "silver",
     blurb: "short funky riffs, repeated and squeezed, gospel smears",
     p: {
-      atoms: { repeat: 2.2, neighbor: 1.6, leap: 1.2, scale: 0.85, approach: 0.7 },
+      atoms: { repeat: 2.2, neighbor: 1.6, leap: 1.2, scale: 0.85, approach: 0.7, arp: 1.7 },
       multiInt: "thirds",
       ornament: 0.15,
-      rest: 1.2, phrase: 0.5, phraseCap: 6, regLo: 0.4, regHi: 0.65,
+      rest: 0.82, phrase: 1.1, phraseCap: 13, regLo: 0.4, regHi: 0.65,
       blue: 1.8, trip: 0.7, hold: 0.9, artic: 0.78, lag: 8, motif: 0.65,
       onBeat: 0.5, crush: 0.35, wRiff: 1.8, contrast: 1.2, aim: 0.75,
       cellProb: 0.4,
@@ -283,7 +308,6 @@ export class Band {
     this.liveHeat = null; // live mode: 0..1 from the room, null = play the written arc
     this.liveResponse = "phrase"; // how soon the room reaches the band: bar · phrase · chorus
     this.soloFeel = { crowd: 0.5, phrase: 0.5 }; // note packing · how long a statement runs
-    this.soloStyleName = "silver";
     this.soloInstName = "piano"; // piano · vibes — see SOLO_INSTRUMENTS
     // Sounding key. keyShift moves the whole tune once; keyStep moves it again
     // every chorus, which is how you take something round all twelve without
@@ -299,6 +323,13 @@ export class Band {
     this.soloInst = null;
     this.soloPart = null;
     this.takeSeed = randomSeed(); // this take's identity — see newTake()
+    // Which player this take is. This used to be a dropdown, and a dropdown is
+    // the wrong instrument for it: nobody tuning in to listen wants to audition
+    // four soloists, and whichever one was the default was the only one most
+    // people ever heard. A take carries its voice the way it carries its line —
+    // out of the seed — so the same take plays back identically and the next
+    // one is somebody else.
+    this.soloStyleName = voiceFor(this.takeSeed);
     // Woodshed controls. holdTake stops the line re-rolling every chorus, which
     // is the difference between listening to an improviser and learning a lick;
     // rampBpm walks the tempo up while it repeats; breakBars drops the band out
@@ -555,6 +586,7 @@ export class Band {
    *  omit it to roll a new one. Returns the seed actually used. */
   newTake(seed) {
     this.takeSeed = seed === undefined ? randomSeed() : textToSeed(seed);
+    this.soloStyleName = voiceFor(this.takeSeed);
     // Motifs carry between choruses, so a take is only reproducible if it also
     // starts from no remembered material. Clearing here makes (seed, chorus)
     // enough to identify a line even when the seed is typed in mid-tune.
@@ -1625,9 +1657,22 @@ export class Band {
       for (const e of soloEvents) {
         const bar = Math.floor(e.beat / bpb);
         perBar.set(bar, (perBar.get(bar) ?? 0) + 1);
-        if (e.dur >= 1.1) phraseEnds.push(e.beat);
       }
       for (const [bar, n] of perBar) if (n >= 3) busyBars.add(bar);
+      // Where the line actually stops. This used to be "a note held 1.1 beats
+      // or longer", which is a proxy for a phrase end and not the thing
+      // itself: a player with short articulation ends phrases just as often
+      // and holds nothing, so the drummer was handed nothing to answer — on a
+      // twelve-bar blues, sometimes not one phrase end in a whole chorus. A
+      // phrase ends where the next note does not come, which is the same
+      // definition solo-metrics.js splits phrases on.
+      const line = [...soloEvents].sort((a, b) => a.beat - b.beat);
+      for (let i = 0; i < line.length; i++) {
+        const gapAfter = i === line.length - 1
+          ? totalBeats - (line[i].beat + line[i].dur)
+          : line[i + 1].beat - (line[i].beat + line[i].dur);
+        if (gapAfter >= 1) phraseEnds.push(line[i].beat);
+      }
     } else {
       // A human is soloing. The band cannot hear them — there is no mic and no
       // MIDI — so the two mechanisms that model a rhythm section listening
@@ -2352,7 +2397,7 @@ export class Band {
       hold: (S.hold ?? 1) * (F.hold ?? 1) * lerp(0.8, 1.6, cant),
       sit: (S.sit ?? 0.08) * (F.sit ?? 1),
       crush: (S.crush ?? 0.18) * (F.crush ?? 1),
-      grammar: (S.grammar ?? 0.26) * (F.grammar ?? 1),
+      grammar: (S.grammar ?? 0.2) * (F.grammar ?? 1),
       offStart: Math.max(S.offStart ?? 0, F.offStart ?? 0),
       offAcc: (S.offAcc ?? 0) + (F.offAcc ?? 0),
       velOff: (S.velOff ?? 0) + (F.velOff ?? 0),
@@ -2468,10 +2513,10 @@ export class Band {
       // target shares lands 10 points heavy on steps and 10 light on thirds,
       // so the mix has to lean past the target to hit it.
       measuredMix = {
-        scale: (prof.step * 0.34) / ATOM_YIELD.scale,
+        scale: (prof.step * 0.4) / ATOM_YIELD.scale,
         neighbor: (prof.step * 0.2) / ATOM_YIELD.neighbor,
-        approach: (prof.step * 0.14) / ATOM_YIELD.approach,
-        arp: (prof.third * 3.1) / ATOM_YIELD.arp,
+        approach: (prof.step * 0.21) / ATOM_YIELD.approach,
+        arp: (prof.third * 2.5) / ATOM_YIELD.arp,
         leap: prof.leap / ATOM_YIELD.leap,
         repeat: (prof.repeat * 2.2) / ATOM_YIELD.repeat,
       };
@@ -2948,7 +2993,12 @@ export class Band {
           if (!iv2.includes(4)) safe.add((c.info.rootPc + 5) % 12); // 11th, except over a major 3rd
           const colour = new Set([2, 9].map((x) => (c.info.rootPc + x) % 12));
           if (!iv2.includes(4)) colour.add((c.info.rootPc + 5) % 12);
-          const want = rand() < 0.35 ? colour : safe;
+          // Over-consonance is the oldest tell in this engine: 8 bebop
+          // saxophonists sit at 48-58% of sounding time on chord tones and the
+          // line sat at 65%. Held notes are where that is decided, because
+          // they are weighted by duration — so half of them now take the
+          // colour (9th, 13th, 11th) rather than the safe chord tone.
+          const want = rand() < 0.5 ? colour : safe;
           if (!want.has(((cur % 12) + 12) % 12)) {
             const si = nearestIdx(pool, cur, (m) => want.has(m % 12));
             if (si >= 0 && Math.abs(pool[si] - cur) <= 6) cur = pool[si];
@@ -2963,8 +3013,16 @@ export class Band {
           if (si >= 0) cur = poolFor(c)[si];
         }
         // phrase ends resolve — 3rd or 9th of the sounding chord, the thing
-        // that makes a line sound intentional
-        if (last && !plannedSteps && flavor !== "longtones") {
+        // that makes a line sound intentional.
+        //
+        // A recalled phrase — a motif echo, an answer, a vocabulary lick — used
+        // to be exempt, on the grounds that its contour is quoted and moving
+        // the last note rewrites the quote. But those are a large share of all
+        // phrases, and leaving them unresolved is most of why only half the
+        // line's phrases came to rest on a chord tone. A player quoting their
+        // own idea over a chord it did not come from still lands it; only the
+        // last note moves, so the shape survives.
+        if (last && flavor !== "longtones" && (!plannedSteps || rand() < 0.65)) {
           const iv = c.info.intervals;
           const third = (c.info.rootPc + (iv.includes(4) ? 4 : iv.includes(3) ? 3 : 4)) % 12;
           const ninth = (c.info.rootPc + 2) % 12;
