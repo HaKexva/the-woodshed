@@ -177,7 +177,7 @@ export const SOLO_STYLES = {
       span: 0.48, // an octave and a bit of the piano's range, centred on the register
       maxLeap: 9, // only 1.9% of sung intervals clear a fifth, none clears an octave
       reversal: 0.66,
-      rest: 0.74, phrase: 1.2, phraseCap: 15, regLo: 0.35, regHi: 0.62,
+      rest: 0.66, phrase: 1.25, phraseCap: 15, regLo: 0.35, regHi: 0.62,
       encl: 0.5, blue: 1.4, trip: 0.7, p16: 0.2, hold: 1.5, artic: 1,
       lag: 24, motif: 0.6, thread: 0.6, onBeat: 0.35, sit: 0.18,
       crush: 0.45, crushDur: 0.14, contrast: 0.85, wLong: 1.3, aim: 0.8,
@@ -187,7 +187,7 @@ export const SOLO_STYLES = {
     label: "silver",
     blurb: "short funky riffs, repeated and squeezed, gospel smears",
     p: {
-      atoms: { repeat: 2.2, neighbor: 1.6, leap: 1.2, scale: 0.85, approach: 0.7, arp: 1.7 },
+      atoms: { repeat: 2.2, neighbor: 1.6, leap: 1.2, scale: 0.85, approach: 0.7, arp: 2.1 },
       multiInt: "thirds",
       ornament: 0.15,
       rest: 0.82, phrase: 1.1, phraseCap: 13, regLo: 0.4, regHi: 0.65,
@@ -2765,6 +2765,39 @@ export class Band {
           }
         }
         durs.push(choice(ballad ? [2, 2.5, 3] : [0.5, 1, 1.5, 2, 2.5].slice(Math.round((1 - c) * 2), Math.round((1 - c) * 2) + 3)) * M.hold);
+
+        // HOW A PHRASE STOPS.
+        //
+        // Measured over 355 phrases: only 41% put their last note on a strong
+        // beat, an eighth of them ended on something shorter than a swung
+        // eighth, and the hold multiplier could take that final note down to a
+        // third of a beat. A line that stops on the & of 4 on a note too short
+        // to be heard as a destination has not ended, it has been interrupted —
+        // which is what "the phrasing still ends badly sometimes" is.
+        //
+        // Two fixes, both on the budget rather than on the notes. The last note
+        // gets long enough to be a landing, and the one before it stretches or
+        // gives up as much as half a beat so the landing falls on a beat —
+        // preferring a strong one when it is within reach. Triplets opt out:
+        // nudging one produces a duration nobody can hear as intentional.
+        const li = durs.length - 1;
+        durs[li] = Math.max(durs[li], ballad ? 1.5 : 0.9);
+        const triplets = durs.some((d) => Math.abs(d * 3 - Math.round(d * 3)) > 1e-6);
+        if (li >= 1 && !triplets) {
+          const onset = t + durs.slice(0, li).reduce((a, d) => a + d, 0);
+          const inBar = ((onset % bpb) + bpb) % bpb;
+          const strong = bpb === 4 ? [0, 2] : bpb === 3 ? [0] : [0, Math.floor(bpb / 2)];
+          let best = null;
+          for (const want of [...strong, ...Array.from({ length: bpb }, (_, i) => i)]) {
+            const delta = want - inBar;
+            for (const d of [delta, delta + bpb, delta - bpb]) {
+              if (Math.abs(d) > 0.5 || durs[li - 1] + d < 0.25) continue;
+              if (best === null || Math.abs(d) < Math.abs(best)) best = d;
+            }
+            if (best !== null) break; // strong beats are offered first
+          }
+          if (best !== null) durs[li - 1] += best;
+        }
       }
       // phrase-start timing personality: on the beat (Dexter, Silver) or
       // pushed off it (Parker)
@@ -2800,6 +2833,29 @@ export class Band {
       // which is the opposite of how anybody sings a line. At the singing end
       // of the dial the two are pulled together.
       const peak = Math.max(1, Math.round((durs.length - 1) * 0.65));
+      // THE ARCH, as a trajectory rather than a bias.
+      //
+      // There was an arch here already and it did the opposite of an arch: the
+      // pull was +semitones everywhere before the crest, so the *first* note of
+      // a phrase was lifted as hard as the crest was. Measured over 355
+      // phrases, 38% reached their highest note inside the first fifth and came
+      // down from there — which is a decay, not a line that goes somewhere, and
+      // is what "misses melodic contour" sounds like.
+      //
+      // A phrase starts low, climbs to a crest about two thirds of the way
+      // through, and falls from it; the melodic arch is one of the most robust
+      // findings there is about melody. So the offset is a curve over the whole
+      // phrase — below the register centre at both ends, above it at the crest
+      // — and every note reads it, not only the ones that land on a chord.
+      const archAmp = durs.length > 4 ? 4.5 : 0;
+      const archAt = (n) => {
+        if (!archAmp) return 0;
+        const span = Math.max(1, durs.length - 1);
+        const x = n / span;
+        const xp = peak / span;
+        const up = x <= xp ? x / Math.max(0.001, xp) : 1 - (x - xp) / Math.max(0.001, 1 - xp);
+        return (up * 2 - 1) * archAmp;
+      };
       let lastMain = null; // previous sounded note, for bebop passing tones
       let prevStep = 0;
       let phrasePeakVel = 0;
@@ -2866,7 +2922,7 @@ export class Band {
           // arch got overwritten four times a bar. Lean the search up before the
           // crest and down after it, so the landings build the arc instead of
           // flattening it.
-          const archPull = durs.length > 3 ? (n < peak ? 3.5 : -3.5) * cant : 0;
+          const archPull = archAt(n) * lerp(0.7, 1.3, cant);
           const from = (jumpIn ? cur + (cur > registerTarget ? -4 : 4) : cur) + archPull;
           if (aim && aim.kind !== "change") {
             // a dominant just resolved — take the 3rd, always. This is the one
@@ -2923,7 +2979,12 @@ export class Band {
               : phraseShape === "concave" ? (pos < 0.45 ? 0.24 : -0.28)
               : 0;
             const arch = (n < peak ? -0.5 : 0.5) * cant; // rise to the crest, then fall away
-            const pDown = Math.min(0.92, Math.max(0.08, (cur > registerTarget ? 0.62 : 0.38) + shapePull + arch));
+            // The walk recentres on where the line should be *now*, not on a
+            // register the whole phrase shares: with the crest two thirds
+            // through, the centre it is pulled back toward has to travel with
+            // the arch or it spends the whole phrase undoing it.
+            const centre = registerTarget + archAt(n);
+            const pDown = Math.min(0.92, Math.max(0.08, (cur > centre ? 0.62 : 0.38) + shapePull + arch));
             // Post-skip reversal. Measured at 66% after a skip in sung melody
             // and 55% in the jazz corpus, against 36% after a step in both —
             // so it is a real property of a leap, not of melody in general.
@@ -3007,6 +3068,25 @@ export class Band {
           const pulled = nearestIdx(pool, lastMain.midi + Math.sign(cur - lastMain.midi) * S.maxLeap);
           if (pulled >= 0) cur = pool[pulled];
         }
+        // A ceiling that rises with the arch. Biasing the walk is not enough on
+        // its own: a scale figure runs four to eight notes in one direction
+        // whatever the phrase wanted, so one early run would put the highest
+        // note of the phrase in its first bar and everything after it was
+        // downhill. The band is wide — this is a lid, not a rail — and a
+        // recalled phrase is exempt, because a quote is the shape it is.
+        // An arpeggio is exempt: it moves in thirds by definition, and a lid
+        // that catches it mid-figure turns the thirds back into steps — which
+        // measured as the corpus's arpeggio share falling by a fifth.
+        if (archAmp && !plannedSteps && n > 0 && atom?.kind !== "arp") {
+          const centre = registerTarget + archAt(n);
+          if (cur > centre + 5) {
+            const i = nearestIdx(pool, centre + 5, (m) => m <= centre + 5);
+            if (i >= 0) cur = pool[i];
+          } else if (cur < centre - 8) {
+            const i = nearestIdx(pool, centre - 8, (m) => m >= centre - 8);
+            if (i >= 0) cur = pool[i];
+          }
+        }
         const last = n === durs.length - 1;
         // A chromatic note earns its place by going somewhere: stepped into,
         // stepped out of, and gone before anyone can weigh it against the
@@ -3066,6 +3146,28 @@ export class Band {
           const idx = nearestIdx(pool, cur, (m) => res.has(m % 12));
           if (idx >= 0 && Math.abs(pool[idx] - cur) <= 7) cur = pool[idx];
         }
+        // And it does not arrive by jumping. A phrase that resolves a sixth
+        // below the note before it has the right last note and still sounds
+        // like it fell down the stairs to get there — a fifth of them did,
+        // and the arch made it likelier by pulling the end of the line down.
+        // The destination stands; what changes is which octave it is in, and
+        // failing that, how far the step into it is.
+        if (last && lastMain && Math.abs(cur - lastMain.midi) >= 5) {
+          const pc2 = ((cur % 12) + 12) % 12;
+          const near = nearestIdx(pool, lastMain.midi, (m) => ((m % 12) + 12) % 12 === pc2);
+          if (near >= 0 && Math.abs(pool[near] - lastMain.midi) < Math.abs(cur - lastMain.midi)) {
+            cur = pool[near];
+          }
+          if (Math.abs(cur - lastMain.midi) >= 5) {
+            // Still far: take any chord tone within a step or two of where the
+            // line already is, rather than any scale note — the point of the
+            // ending is that it resolves, and a close non-chord tone trades
+            // one bad ending for another.
+            const tones = new Set(c.info.intervals.map((iv3) => (c.info.rootPc + iv3) % 12));
+            const near = nearestIdx(pool, lastMain.midi, (m) => tones.has(((m % 12) + 12) % 12));
+            if (near >= 0 && Math.abs(pool[near] - lastMain.midi) <= 4) cur = pool[near];
+          }
+        }
         // Repeated pitches are the commonest stutter in generated lines, and the
         // snapping passes above collapse neighbouring notes onto the same chord
         // tone. Deliberate repeats survive; accidental unisons get nudged.
@@ -3114,6 +3216,37 @@ export class Band {
           lastMain.dur = 0.25 * legato;
           const between = cur + (lastMain.midi > cur ? 1 : -1);
           events.push({ beat: lastMain.beat + 0.25, midi: between, dur: 0.23, vel: Math.max(28, vel - 12) });
+        }
+        // THE LANDING, decided here rather than in the budget. Planning the
+        // phrase so its last note falls on a beat does not survive the trip:
+        // the arrival clamp rewrites durations mid-phrase to put notes on the
+        // changes, so whatever the budget worked out is stale by the time the
+        // end arrives. Moving it at the moment it is played is the only place
+        // that knows where it actually landed. Half a beat at most, and the
+        // note before it absorbs the difference.
+        if (last && lastMain && Math.abs(t - Math.round(t)) > 0.05) {
+          const inBar = ((t % bpb) + bpb) % bpb;
+          const strongBeats = bpb === 4 ? [0, 2] : bpb === 3 ? [0] : [0, Math.floor(bpb / 2)];
+          let move = null;
+          for (const pool2 of [strongBeats, Array.from({ length: bpb }, (_, i) => i)]) {
+            for (const want of pool2) {
+              for (const d of [want - inBar, want - inBar + bpb, want - inBar - bpb]) {
+                if (Math.abs(d) > 0.5) continue;
+                if (lastMain.rawDur + d < 0.25) continue;
+                if (move === null || Math.abs(d) < Math.abs(move)) move = d;
+              }
+            }
+            if (move !== null) break;
+          }
+          // …but never across a change. The pitch was chosen to resolve the
+          // chord this note started under; moved a sixteenth onto the next one
+          // it is the right answer to the wrong question, which is its own kind
+          // of bad ending.
+          if (move !== null && chordAt(Math.round((t + move) * 100) / 100) === c) {
+            lastMain.dur = sound(lastMain.rawDur + move);
+            lastMain.rawDur += move;
+            t = Math.round((t + move) * 100) / 100;
+          }
         }
         // bebop articulation: clip every fourth note of a run
         const clip = running && !last && n % 4 === 3 ? lerp(0.75, 0.97, cant) : 1;
@@ -3196,6 +3329,27 @@ export class Band {
         lastMain = ev;
         t += dur;
         lastEnd = t;
+      }
+
+      // A phrase does not stop on a note from outside the chord. There is a
+      // backstop for this inside the note loop, and 9.4% of endings got past it
+      // anyway — a tritone-sub pool, an ornament, a passing tone landing last.
+      // Rather than chase every route to a bad last note, this is the
+      // post-condition: whatever the final sounding note of the phrase turned
+      // out to be, it belongs to the scale of the chord it sounds over.
+      {
+        let endEv = null;
+        for (let i = events.length - 1; i >= 0 && events[i].beat >= phraseStart; i--) {
+          if (!endEv || events[i].beat > endEv.beat) endEv = events[i];
+        }
+        if (endEv && endEv.dur >= 0.3) {
+          const ec = chordAt(endEv.beat);
+          const scale = poolFor(ec);
+          if (!scale.includes(endEv.midi)) {
+            const si = nearestIdx(scale, endEv.midi);
+            if (si >= 0 && Math.abs(scale[si] - endEv.midi) <= 2) endEv.midi = scale[si];
+          }
+        }
       }
 
       const freshPhrase = !useMotif && !useAnswer && !useSeq && !useCell;
