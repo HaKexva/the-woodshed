@@ -100,11 +100,26 @@ console.log("\nTHE BASS HAS MORE THAN TWO FEELS");
 
 console.log("\nSOMEBODY SITS OUT A WHOLE CHORUS — not just a phrase of one");
 {
-  let off = 0;
-  for (const title of ["Autumn Leaves", "So What", "Blue Bossa"]) off += run(title).chorusOff;
-  console.log(`   ${off} whole-chorus lay-outs across 36 choruses`);
-  check(off >= 1, "nobody ever sat a chorus out");
-  check(off <= 12, `${off} of 36 choruses had somebody out — that is a duo, not an arrangement`);
+  // Over several takes, not one. At roughly one eligible chorus in six this is
+  // a coin that comes up zero often enough in twelve throws to fail a check
+  // that is measuring a real behaviour — which it did.
+  let off = 0, total = 0;
+  for (const title of ["Autumn Leaves", "So What", "Blue Bossa"]) {
+    for (const seed of [0x5eed, 0x1234, 0xbeef, 0x2b2b]) {
+      const song = SONGS.find((s) => s.title === title);
+      const b = new Band({});
+      b.song = song; b.soloOn = true; b.pinBand = true; b.takeSeed = seed;
+      for (let c = 0; c < CHORUSES; c++) {
+        b._chorus = c;
+        total++;
+        const arr = b._arrangement(song, b.feel, b.straight);
+        if (arr.layOut.piano.size >= song.progression.length || arr.layOut.guitar.size >= song.progression.length) off++;
+      }
+    }
+  }
+  console.log(`   ${off} whole-chorus lay-outs across ${total} choruses`);
+  check(off >= 2, "nobody ever sat a chorus out");
+  check(off / total <= 0.2, `somebody was out in ${pct(off, total)} of choruses — that is a duo, not an arrangement`);
 }
 
 console.log();
