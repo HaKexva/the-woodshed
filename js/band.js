@@ -2847,7 +2847,7 @@ export class Band {
       // findings there is about melody. So the offset is a curve over the whole
       // phrase — below the register centre at both ends, above it at the crest
       // — and every note reads it, not only the ones that land on a chord.
-      const archAmp = durs.length > 4 ? 4.5 : 0;
+      const archAmp = durs.length > 4 ? 5.5 : 0;
       const archAt = (n) => {
         if (!archAmp) return 0;
         const span = Math.max(1, durs.length - 1);
@@ -3079,8 +3079,8 @@ export class Band {
         // measured as the corpus's arpeggio share falling by a fifth.
         if (archAmp && !plannedSteps && n > 0 && atom?.kind !== "arp") {
           const centre = registerTarget + archAt(n);
-          if (cur > centre + 5) {
-            const i = nearestIdx(pool, centre + 5, (m) => m <= centre + 5);
+          if (cur > centre + 3.5) {
+            const i = nearestIdx(pool, centre + 3.5, (m) => m <= centre + 3.5);
             if (i >= 0) cur = pool[i];
           } else if (cur < centre - 8) {
             const i = nearestIdx(pool, centre - 8, (m) => m >= centre - 8);
