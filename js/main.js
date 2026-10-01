@@ -2,7 +2,7 @@
 
 import { SONGS } from "./songs.js";
 import { loadMine, saveMine, removeMine, exportMine, importMine, randomTitle } from "./mytunes.js";
-import { Band, SOLO_STYLES, formSections } from "./band.js";
+import { Band, formSections } from "./band.js";
 import { Listener, NoteMeter } from "./listen.js";
 import {
   parseChord,
@@ -1055,69 +1055,13 @@ $("#bg-vol").addEventListener("input", (e) => band.setBgVolume(Number(e.target.v
 
 $$(".mode-btn").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
 
-// The soloist's pedals. Same rule as the rig: a pedal lights when it is off
-// its default, so the whole soloist reads at rest without opening anything.
-$("#solo-style").innerHTML = Object.entries(SOLO_STYLES)
-  .map(([key, s]) => `<option value="${key}">${s.label}</option>`)
-  .join("");
-$("#solo-style").value = band.soloStyleName;
-
-/** The style's character, in the pedal's own sub-line rather than beside a label. */
-function renderStyleBlurb() {
-  $("#style-blurb").textContent = t(`blurb.${band.soloStyleName}`);
-}
-
-function renderSoloRig() {
-  armPedal("#pedal-style", $("#solo-style").value !== "silver");
-  armPedal("#pedal-soloinst", $("#solo-inst").value !== "piano");
-  armPedal("#pedal-crowd", $("#feel-crowd").value !== "50");
-  armPedal("#pedal-phrase", $("#feel-phrase").value !== "50");
-  armPedal("#pedal-voicing", $("#solo-voicing").value !== "mono");
-  armPedal("#pedal-chromatic", $("#chromatic").value === "on");
-  renderStyleBlurb();
-}
-
-$("#solo-style").addEventListener("change", (e) => {
-  band.setSoloStyle(e.target.value);
-  renderSoloRig();
-});
-$("#solo-inst").addEventListener("change", (e) => {
-  band.setSoloInstrument(e.target.value);
-  renderSoloRig();
-});
-$("#solo-voicing").addEventListener("change", (e) => {
-  band.setSoloVoicing(e.target.value);
-  renderSoloRig();
-});
-// Five steps over what is still a 0–1 dial underneath. The generator reads a
-// continuous value, so nothing is lost on the way in; what goes is being able
-// to sit between two of them, which nobody was doing on purpose.
-$("#feel-crowd").addEventListener("change", (e) => {
-  band.setSoloFeel("crowd", Number(e.target.value) / 100);
-  renderSoloRig();
-});
-$("#feel-phrase").addEventListener("change", (e) => {
-  band.setSoloFeel("phrase", Number(e.target.value) / 100);
-  renderSoloRig();
-});
-$("#chromatic").addEventListener("change", (e) => {
-  band.setChromatic(e.target.value === "on");
-  renderSoloRig();
-});
-
 // take controls: every line is a seeded improvisation, so a take you liked can
-// be written down and played again instead of being lost to the next roll
+// be written down and played again instead of being lost to the next roll.
+// A take now also decides who is playing it — see voiceFor in band.js — so
+// rolling again is the whole of what the six dials used to be for.
 $("#take-seed").value = band.takeId;
 $("#new-take").addEventListener("click", () => {
   $("#take-seed").value = band.newTake();
-});
-// Was a checkbox and a tooltip you had to open. Holding is a state — it either
-// is or is not holding the line you have — so it is a button that stays down,
-// and the explanation stands in the strip rather than hiding behind a "?".
-$("#hold-take").addEventListener("click", (e) => {
-  const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
-  e.currentTarget.setAttribute("aria-pressed", String(on));
-  band.setHoldTake(on);
 });
 
 // ---- the rig ----
@@ -1137,18 +1081,6 @@ $("#stop-after").addEventListener("change", (e) => {
 $("#take-seed").addEventListener("change", (e) => {
   const v = e.target.value.trim();
   e.target.value = v ? band.newTake(v) : band.newTake();
-});
-
-document.addEventListener("keydown", (e) => {
-  if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
-  if (state.mode === "inspire" && /^[1-4]$/.test(e.key)) {
-    const sel = $("#solo-style");
-    const opt = sel.options[Number(e.key) - 1];
-    if (opt) {
-      sel.value = opt.value;
-      sel.dispatchEvent(new Event("change"));
-    }
-  }
 });
 
 // ---- Real sample pack. There is no longer a switch: the sampled instruments
@@ -1832,7 +1764,6 @@ $("#lang-toggle").addEventListener("click", () => {
   renderLangToggle();
   // re-render everything dynamic in the new language
   updateListView();
-  renderSoloRig();
   if (soloLine) renderSoloLine(soloLine.events, soloLine);
   renderSystemView(-1);
   renderTransport();
@@ -1904,7 +1835,6 @@ applyStatic();
 renderLangToggle();
 
 fillKeyOptions();
-renderSoloRig();
 renderTracklist();
 selectSong(0);
 updateListView();

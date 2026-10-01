@@ -1199,30 +1199,10 @@ body.modal-open {
 
 /* ---------------------------------------------------------- the soloist */
 
-/* The soloist wears the rig's pedals. Its own row rather than the rig's: the
-   rig is a rail across the transport and this sits in the page, so it takes
-   the shape and leaves the full-bleed bar behind. */
-/* Pedals here are equal height, unlike the rig's, because these carry a
-   sub-line that wraps: the style blurb runs to two lines, and bottom-aligning
-   left every other pedal hanging off a ragged top edge. */
-.solo-rig {
-  display: flex;
-  align-items: stretch;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  row-gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.solo-rig .pedal { align-content: start; }
-
-/* Two lines' worth whether or not this style needs it, so the row keeps its
-   height as you move through the styles rather than jumping a line whenever
-   the blurb happens to be longer. */
-.solo-rig .pedal-sub {
-  max-width: 11rem;
-  min-height: 2.3em;
-}
+/* The soloist had a rig of its own here — six pedals for style, instrument,
+   crowding, phrasing, voicing and chromatic. They are gone: they were the
+   generator's parameters with musical names on them, and the only one most
+   people ever heard was whichever default they shipped with. */
 
 /* The take is not a setting — it is the name of one particular solo, the thing
    you write down and type back. So it does not get a pedal. */
