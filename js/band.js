@@ -2034,8 +2034,19 @@ export class Band {
     // halfway through the one before it — which is also when a rhythm section
     // would act on it. A player who leans in for two bars has not changed the
     // arrangement yet; one who leans in for a chorus has.
+    // The arc was four choruses long and the same four every time, so a tune
+    // left running read as one eight-minute loop: chorus 5 was chorus 1 again,
+    // exactly. Three shapes of the same gesture, taken in turn, put twelve
+    // choruses between a chorus and its repeat — and the shapes differ in where
+    // the peak sits and how far the drop goes, which is the part you hear.
     const heat = this.heatNow;
-    const energy = heat == null ? [0.55, 0.78, 1, 0.5][chorus % 4] : 0.5 + 0.5 * heat;
+    const WAVES = [
+      [0.55, 0.78, 1, 0.5],
+      [0.62, 0.72, 0.95, 0.58],
+      [0.5, 0.9, 0.8, 0.45],
+    ];
+    const energy =
+      heat == null ? WAVES[Math.floor(chorus / 4) % WAVES.length][chorus % 4] : 0.5 + 0.5 * heat;
 
     // Who leads. Both comping full-time every chorus is a machine's tell, but so
     // is trading it every single time round.
@@ -2050,13 +2061,35 @@ export class Band {
       for (let b = s.start; b < s.start + s.bars; b++) layOut[who].add(b);
     }
 
+    // Somebody out for the whole chorus. The phrase lay-out above is the comp
+    // breathing; this is an arrangement decision — piano trio for a chorus,
+    // then the guitar back in — and it is the single most audible thing a
+    // rhythm section can do that nothing here was doing. Not before the third
+    // time round, and not when one of them is already carrying it alone.
+    if (chorus >= 2 && lead === "both" && rand() < 0.16) {
+      const out = choice(["piano", "guitar"]);
+      for (let b = 0; b < song.progression.length; b++) layOut[out].add(b);
+    }
+
     // A trio plays the head in two and opens up for the solos. Nothing here
     // knows which chorus is the head, so the first time through stands in for
     // it, and the quiet chorus drops back — which is what makes the return to
     // four read as a decision rather than a setting. Only the swing family walks
     // in the first place; the other styles own their own bass line.
+    //
+    // Two and four were the whole vocabulary, and measured over twelve choruses
+    // the bass played the same bar rhythm in 64% of its bars and repeated the
+    // previous chorus's bar 41% of the time — far and away the most repetitive
+    // thing in the band. Broken time (the walk with holes in it, which is what
+    // a bassist plays when the soloist is busy) and a root vamp are both things
+    // the instrument does all night and neither existed.
     const walking = !straight && style !== "ballad";
-    const bassFeel = walking && (!chorus || (chorus % 4 === 3 && rand() < 0.6)) ? "two" : "four";
+    let bassFeel = "four";
+    if (walking) {
+      if (!chorus || (chorus % 4 === 3 && rand() < 0.6)) bassFeel = "two";
+      else if (chorus >= 2 && rand() < 0.2) bassFeel = "broken";
+      else if (style === "modal" && chorus >= 1 && rand() < 0.25) bassFeel = "pedal";
+    }
 
     return { chorus, lead, layOut, energy, bassFeel };
   }
@@ -3662,13 +3695,34 @@ export class Band {
         events.push({ beat: c.startBeat, midi: root, dur: 1.3, vel: 96 });
         if (c.beats >= 2) events.push({ beat: c.startBeat + 1.5, midi: fifth, dur: 0.45, vel: 74 });
         if (c.beats >= 4) {
-          if (rand() < 0.15) {
-            // simple bar: let the root ring
+          // The second half of the bar used to be one of two things, and over
+          // twelve choruses of a sixteen-bar tune that came to two distinct bar
+          // rhythms in 192 bars — 88% of them the same one. The dotted-quarter
+          // root and the fifth on the & of 2 ARE the feel and they stay; what
+          // varies is what happens after beat 2, which is where a bossa bassist
+          // actually varies it.
+          const nextRoot = placeNear(c.next.info.bassPc, root, BASS_LO, BASS_HI);
+          const half = rand() < 0.3 ? third : fifth;
+          const r = rand();
+          if (r < 0.15) {
+            // let the root ring: the bar nobody notices, which is what makes
+            // the others audible
             events.push({ beat: c.startBeat + 2, midi: root, dur: 1.8, vel: 86 });
+          } else if (r < 0.3) {
+            // octave above on 3, back down for the pickup
+            events.push({ beat: c.startBeat + 2, midi: Math.min(BASS_HI, root + 12), dur: 1.2, vel: 88 });
+            events.push({ beat: c.startBeat + 3.5, midi: root, dur: 0.45, vel: 72 });
+          } else if (r < 0.42) {
+            // anticipate the change on the & of 3 and hold it over the barline
+            events.push({ beat: c.startBeat + 2, midi: half, dur: 0.45, vel: 88 });
+            events.push({ beat: c.startBeat + 2.5, midi: nextRoot, dur: 1.5, vel: 90 });
+          } else if (r < 0.52) {
+            // three notes in the second half, the busiest this part gets
+            events.push({ beat: c.startBeat + 2, midi: half, dur: 0.45, vel: 88 });
+            events.push({ beat: c.startBeat + 3, midi: root, dur: 0.45, vel: 78 });
+            events.push({ beat: c.startBeat + 3.5, midi: nextRoot, dur: 0.5, vel: 80 });
           } else {
-            const half = rand() < 0.3 ? third : fifth;
             events.push({ beat: c.startBeat + 2, midi: half, dur: 1.3, vel: 90 });
-            const nextRoot = placeNear(c.next.info.bassPc, root, BASS_LO, BASS_HI);
             const pickup = rand() < 0.3 ? nextRoot + (nextRoot > half ? -1 : 1) : root;
             events.push({ beat: c.startBeat + 3.5, midi: pickup, dur: 0.45, vel: 74 });
           }
@@ -3782,6 +3836,22 @@ export class Band {
       // harmony lands identically; beat 3 takes the fifth while the chord holds,
       // and the approach note when the chord is about to change, so the line
       // still arrives at the barline the way it does in four.
+      // PEDAL — the walk stops and the bass sits on the root, stating it
+      // rather than travelling to it. Modal tunes only, where the harmony sits
+      // still for eight bars at a time and a line that keeps walking through it
+      // is working against the tune.
+      if (feel === "pedal") {
+        const root = placeNear(bassPcs(c.info).root, target, BASS_LO, BASS_HI);
+        emit(0, root);
+        if (c.beats >= 4) {
+          emit(2.5, root);
+          if (rand() < 0.45) emit(3.5, placeNear(bassPcs(c.info).fifth, root, BASS_LO, BASS_HI));
+        } else if (c.beats >= 2) emit(1.5, root);
+        dir = 1;
+        target = nextTarget;
+        continue;
+      }
+
       if (feel === "two") {
         emit(0, target);
         if (c.beats >= 4) {
@@ -3855,6 +3925,25 @@ export class Band {
       events.push({ beat: nxt.beat - 0.5, midi: clamp(mid), dur: 0.28, vel: Math.max(60, cur.vel - 18) });
     }
     events.sort((a, b) => a.beat - b.beat);
+
+    // BROKEN TIME — the same line with holes punched in it, and what is left
+    // held longer. A bassist who walks four to the bar from the first chorus to
+    // the last is a metronome with a tone; broken time is what they play when
+    // the soloist is busy enough to carry the time on their own. Beat one of a
+    // bar and anything announcing a change stay: the hole goes where the line
+    // was only passing through.
+    if (feel === "broken") {
+      const kept = events.filter((e, i) => {
+        const inBar = ((e.beat % bpb) + bpb) % bpb;
+        if (inBar < 0.1 || leadIns.has(e.beat)) return true;
+        return rand() > 0.34;
+      });
+      for (let i = 0; i < kept.length - 1; i++) {
+        const gap = kept[i + 1].beat - kept[i].beat;
+        if (gap > 1.2) kept[i].dur = Math.min(2.2, gap * 0.55);
+      }
+      return kept;
+    }
     return events;
   }
 
@@ -4320,6 +4409,7 @@ export class Band {
         const lift = bar % 4 === 3 ? 6 : 0;
         const accent = combo === 1 ? [48, 26, 40, 26, 48, 26, 40, 30] : null;
         for (let e = 0; e < bpb * 2; e++) {
+          if (e % 2 === 1 && rand() < 0.08) continue; // a hole where a hand lifts
           const base = (accent ? accent[e % 8] : e % 2 ? 28 : 44) + lift;
           push(bar, e / 2, "hat", Math.max(14, base + Math.round(rnd(-4, 4))));
         }
@@ -4328,10 +4418,14 @@ export class Band {
         for (const off of clave) if (off < bpb) push(bar, off, "rim", 52);
         push(bar, 0, "kick", 50);
         if (bpb > 2) push(bar, 2, "kick", 44);
-        if (combo === 2) {
-          if (rand() < 0.5) push(bar, 1.5, "kick", kv(34)); // surdo-ish & of 2
-          if (rand() < 0.3) push(bar, 3.5, "kick", kv(30));
-        }
+        // The straight feels were the kit's most repetitive: 25 distinct bar
+        // rhythms in 192 bars against swing's 310, and a third of bars identical
+        // to the same bar last chorus. The groove is supposed to hold — that is
+        // what a bossa kit is for — but holding it is not the same as printing
+        // it, so the surdo note off the & of 2 is available to every combo now
+        // rather than one in three, and the hat drops the odd eighth.
+        if (rand() < (combo === 2 ? 0.5 : 0.25)) push(bar, 1.5, "kick", kv(34));
+        if (rand() < (combo === 2 ? 0.3 : 0.16)) push(bar, 3.5, "kick", kv(30));
         if (sectionEnd(bar) && rand() < 0.5) push(bar, 3.5, "rim", 46);
         continue;
       }
